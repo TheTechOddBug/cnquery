@@ -512,6 +512,21 @@ var DefaultProviders Providers = map[string]*Provider{
 		},
 	},
 
+	"unifi": {
+		Provider: &plugin.Provider{
+			Name:            "unifi",
+			ID:              "go.mondoo.com/cnquery/providers/unifi",
+			ConnectionTypes: []string{"unifi"},
+			Connectors: []plugin.Connector{
+				{
+					Name:  "unifi",
+					Use:   "unifi",
+					Short: "a UniFi network controller",
+				},
+			},
+		},
+	},
+
 	"vcd": {
 		Provider: &plugin.Provider{
 			Name:            "vcd",
