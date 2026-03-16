@@ -71,6 +71,21 @@ var DefaultProviders Providers = map[string]*Provider{
 		},
 	},
 
+	"bigip": {
+		Provider: &plugin.Provider{
+			Name:            "bigip",
+			ID:              "go.mondoo.com/cnquery/providers/bigip",
+			ConnectionTypes: []string{"bigip"},
+			Connectors: []plugin.Connector{
+				{
+					Name:  "bigip",
+					Use:   "bigip",
+					Short: "an F5 BIG-IP load balancer",
+				},
+			},
+		},
+	},
+
 	"aws": {
 		Provider: &plugin.Provider{
 			Name:            "aws",

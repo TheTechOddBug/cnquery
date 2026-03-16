@@ -115,6 +115,7 @@ To learn about Mondoo Platform, read the [Mondoo Platform docs](https://mondoo.c
 | Container registries          | `container registry`       | `mql shell container registry index.docker.io/library/rockylinux:8`                                                                             |
 | Dockerfiles                   | `docker`                   | `mql shell docker file FILENAME`                                                                                                                |
 | DNS records                   | `host`                     | `mql shell host mondoo.com`                                                                                                                     |
+| F5 BIG-IP load balancers      | `bigip`                    | `mql shell bigip --hostname HOST --user USER --password PASSWORD`                                                                               |
 | Fortinet FortiOS devices      | `fortios`                  | `mql shell fortios --hostname HOSTNAME --token TOKEN`                                                                                           |
 | GitHub organizations          | `github org`               | `mql shell github org mondoohq`                                                                                                                 |
 | GitHub repositories           | `github repo`              | `mql shell github repo mondoohq/mql`                                                                                                            |
