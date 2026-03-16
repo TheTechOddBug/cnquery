@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/service/drs"
 	drstypes "github.com/aws/aws-sdk-go-v2/service/drs/types"
 	"github.com/aws/smithy-go/transport/http"
@@ -327,14 +326,12 @@ func (a *mqlAwsDrs) createJobResource(job drstypes.Job, region string) (*mqlAwsD
 	if job.Arn != nil && *job.Arn != "" {
 		jobArn = *job.Arn
 	} else {
-		// Construct ARN for the job if not provided
-		accountID := ""
-		if job.Arn != nil {
-			if parsed, err := arn.Parse(*job.Arn); err == nil {
-				accountID = parsed.AccountID
-			}
+		jobID := convert.ToValue(job.JobID)
+		if jobID == "" {
+			return nil, errors.New("DRS job has neither ARN nor JobID, cannot construct resource identifier")
 		}
-		jobArn = fmt.Sprintf("arn:aws:drs:%s:%s:job/%s", region, accountID, *job.JobID)
+		conn := a.MqlRuntime.Connection.(*connection.AwsConnection)
+		jobArn = fmt.Sprintf("arn:aws:drs:%s:%s:job/%s", region, conn.AccountId(), jobID)
 	}
 
 	// Parse time strings
