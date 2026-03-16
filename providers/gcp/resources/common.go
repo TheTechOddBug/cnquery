@@ -16,6 +16,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 // protoToDict converts a protobuf message to a map[string]any suitable for use as a dict field.
@@ -59,12 +60,31 @@ func RegionNameFromRegionUrl(regionUrl string) string {
 	return regionUrlSegments[len(regionUrlSegments)-1]
 }
 
+// zoneNamesFromUrls extracts the zone name (last path segment) from a list of
+// full zone URLs (e.g. ".../zones/us-central1-a" -> "us-central1-a").
+func zoneNamesFromUrls(urls []string) []any {
+	res := make([]any, 0, len(urls))
+	for _, u := range urls {
+		segments := strings.Split(u, "/")
+		res = append(res, segments[len(segments)-1])
+	}
+	return res
+}
+
 func timestampAsTimePtr(t *timestamppb.Timestamp) *time.Time {
 	if t == nil {
 		return nil
 	}
 	tm := t.AsTime()
 	return &tm
+}
+
+func boolValueToPtr(b *wrapperspb.BoolValue) *bool {
+	if b == nil {
+		return nil
+	}
+	v := b.GetValue()
+	return &v
 }
 
 // parseResourceName returns the name of a resource from either a full path or just the name.
@@ -118,6 +138,39 @@ type resourceId struct {
 	Project string
 	Region  string
 	Name    string
+}
+
+func getDiskByUrl(diskUrl string, runtime *plugin.Runtime) (*mqlGcpProjectComputeServiceDisk, error) {
+	if diskUrl == "" {
+		return nil, nil
+	}
+
+	// URL format: https://www.googleapis.com/compute/v1/projects/{project}/zones/{zone}/disks/{disk}
+	//          or https://compute.googleapis.com/compute/v1/projects/{project}/zones/{zone}/disks/{disk}
+	// Also handles regional disks: .../projects/{project}/regions/{region}/disks/{disk}
+	params := diskUrl
+	switch {
+	case strings.HasPrefix(params, "https://www.googleapis.com/compute/v1/"):
+		params = strings.TrimPrefix(params, "https://www.googleapis.com/compute/v1/")
+	case strings.HasPrefix(params, "https://compute.googleapis.com/compute/v1/"):
+		params = strings.TrimPrefix(params, "https://compute.googleapis.com/compute/v1/")
+	default:
+		return nil, errors.New("unrecognized source disk URL prefix: " + diskUrl)
+	}
+	parts := strings.Split(params, "/")
+	// Expect at least: projects/{project}/{zones|regions}/{loc}/disks/{disk}
+	if len(parts) < 6 {
+		return nil, errors.New("invalid source disk URL: " + diskUrl)
+	}
+
+	res, err := NewResource(runtime, "gcp.project.computeService.disk", map[string]*llx.RawData{
+		"name":      llx.StringData(parts[len(parts)-1]),
+		"projectId": llx.StringData(parts[1]),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return res.(*mqlGcpProjectComputeServiceDisk), nil
 }
 
 func getNetworkByUrl(networkUrl string, runtime *plugin.Runtime) (*mqlGcpProjectComputeServiceNetwork, error) {

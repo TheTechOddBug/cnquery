@@ -156,11 +156,6 @@ func (g *mqlGcpProjectComputeServiceZone) id() (string, error) {
 	return "gcp.project.computeService.zone/" + id, nil
 }
 
-func (g *mqlGcpProjectComputeServiceZone) region() (any, error) {
-	// TODO: implement
-	return nil, errors.New("not implemented")
-}
-
 func (g *mqlGcpProjectComputeService) zones() ([]any, error) {
 	// when the service is not enabled, we return nil
 	if !g.GetEnabled().Data {
@@ -760,14 +755,18 @@ func (g *mqlGcpProjectComputeServiceDisk) id() (string, error) {
 }
 
 type mqlGcpProjectComputeServiceDiskInternal struct {
+	cacheSourceDiskUrl     string
 	cacheSourceImageUrl    string
 	cacheSourceSnapshotUrl string
 	cacheStoragePoolUrl    string
 }
 
-func (g *mqlGcpProjectComputeServiceDisk) zone() (any, error) {
-	// TODO: implement
-	return nil, errors.New("not implemented")
+func (g *mqlGcpProjectComputeServiceDisk) sourceDisk() (*mqlGcpProjectComputeServiceDisk, error) {
+	if g.cacheSourceDiskUrl == "" {
+		g.SourceDisk.State = plugin.StateIsNull | plugin.StateIsSet
+		return nil, nil
+	}
+	return getDiskByUrl(g.cacheSourceDiskUrl, g.MqlRuntime)
 }
 
 func (g *mqlGcpProjectComputeServiceDisk) sourceImage() (*mqlGcpProjectComputeServiceImage, error) {
@@ -786,7 +785,7 @@ func (g *mqlGcpProjectComputeServiceDisk) sourceImage() (*mqlGcpProjectComputeSe
 		return nil, errors.New("invalid source image URL: " + url)
 	}
 	res, err := NewResource(g.MqlRuntime, "gcp.project.computeService.image", map[string]*llx.RawData{
-		"name":      llx.StringData(parts[4]),
+		"name":      llx.StringData(parts[len(parts)-1]),
 		"projectId": llx.StringData(parts[1]),
 	})
 	if err != nil {
@@ -811,7 +810,7 @@ func (g *mqlGcpProjectComputeServiceDisk) sourceSnapshot() (*mqlGcpProjectComput
 		return nil, errors.New("invalid source snapshot URL: " + url)
 	}
 	res, err := NewResource(g.MqlRuntime, "gcp.project.computeService.snapshot", map[string]*llx.RawData{
-		"name": llx.StringData(parts[4]),
+		"name": llx.StringData(parts[len(parts)-1]),
 	})
 	if err != nil {
 		return nil, err
@@ -908,27 +907,24 @@ func (g *mqlGcpProjectComputeService) disks() ([]any, error) {
 					}
 
 					mqlDisk, err := CreateResource(g.MqlRuntime, "gcp.project.computeService.disk", map[string]*llx.RawData{
-						"id":                     llx.StringData(strconv.FormatUint(disk.Id, 10)),
-						"name":                   llx.StringData(disk.Name),
-						"architecture":           llx.StringData(disk.Architecture),
-						"description":            llx.StringData(disk.Description),
-						"guestOsFeatures":        llx.ArrayData(convert.SliceAnyToInterface(guestOsFeatures), types.String),
-						"labels":                 llx.MapData(convert.MapToInterfaceMap(disk.Labels), types.String),
-						"lastAttachTimestamp":    llx.TimeDataPtr(parseTime(disk.LastAttachTimestamp)),
-						"lastDetachTimestamp":    llx.TimeDataPtr(parseTime(disk.LastDetachTimestamp)),
-						"locationHint":           llx.StringData(disk.LocationHint),
-						"licenses":               llx.ArrayData(convert.SliceAnyToInterface(disk.Licenses), types.String),
-						"physicalBlockSizeBytes": llx.IntData(disk.PhysicalBlockSizeBytes),
-						"provisionedIops":        llx.IntData(disk.ProvisionedIops),
-						// TODO: link to resources
-						//"region": llx.StringData(disk.Region),
-						//"replicaZones": llx.StringData(convert.SliceAnyToInterface(disk.ReplicaZones)),
-						//"resourcePolicies": llx.StringData(convert.SliceAnyToInterface(disk.ResourcePolicies)),
-						"sizeGb": llx.IntData(disk.SizeGb),
-						// TODO: link to resources
-						//"sourceDiskId": llx.StringData(disk.SourceDiskId),
-						//"sourceImageId": llx.StringData(disk.SourceImageId),
-						//"sourceSnapshotId": llx.StringData(disk.SourceSnapshotId),
+						"id":                        llx.StringData(strconv.FormatUint(disk.Id, 10)),
+						"name":                      llx.StringData(disk.Name),
+						"architecture":              llx.StringData(disk.Architecture),
+						"description":               llx.StringData(disk.Description),
+						"guestOsFeatures":           llx.ArrayData(convert.SliceAnyToInterface(guestOsFeatures), types.String),
+						"labels":                    llx.MapData(convert.MapToInterfaceMap(disk.Labels), types.String),
+						"lastAttachTimestamp":       llx.TimeDataPtr(parseTime(disk.LastAttachTimestamp)),
+						"lastDetachTimestamp":       llx.TimeDataPtr(parseTime(disk.LastDetachTimestamp)),
+						"locationHint":              llx.StringData(disk.LocationHint),
+						"licenses":                  llx.ArrayData(convert.SliceAnyToInterface(disk.Licenses), types.String),
+						"physicalBlockSizeBytes":    llx.IntData(disk.PhysicalBlockSizeBytes),
+						"provisionedIops":           llx.IntData(disk.ProvisionedIops),
+						"region":                    llx.StringData(RegionNameFromRegionUrl(disk.Region)),
+						"replicaZones":              llx.ArrayData(zoneNamesFromUrls(disk.ReplicaZones), types.String),
+						"resourcePolicies":          llx.ArrayData(convert.SliceAnyToInterface(disk.ResourcePolicies), types.String),
+						"satisfiesPzi":              llx.BoolData(disk.SatisfiesPzi),
+						"satisfiesPzs":              llx.BoolData(disk.SatisfiesPzs),
+						"sizeGb":                    llx.IntData(disk.SizeGb),
 						"status":                    llx.StringData(disk.Status),
 						"zone":                      llx.ResourceData(zone, "gcp.project.computeService.zone"),
 						"created":                   llx.TimeDataPtr(parseTime(disk.CreationTimestamp)),
@@ -943,6 +939,7 @@ func (g *mqlGcpProjectComputeService) disks() ([]any, error) {
 						return err
 					}
 					mqlD := mqlDisk.(*mqlGcpProjectComputeServiceDisk)
+					mqlD.cacheSourceDiskUrl = disk.SourceDisk
 					mqlD.cacheSourceImageUrl = disk.SourceImage
 					mqlD.cacheSourceSnapshotUrl = disk.SourceSnapshot
 					mqlD.cacheStoragePoolUrl = disk.StoragePool
@@ -962,17 +959,24 @@ func (g *mqlGcpProjectComputeService) disks() ([]any, error) {
 	return res, result
 }
 
+type mqlGcpProjectComputeServiceFirewallInternal struct {
+	cacheNetworkUrl string
+}
+
+func (g *mqlGcpProjectComputeServiceFirewall) network() (*mqlGcpProjectComputeServiceNetwork, error) {
+	if g.cacheNetworkUrl == "" {
+		g.Network.State = plugin.StateIsNull | plugin.StateIsSet
+		return nil, nil
+	}
+	return getNetworkByUrl(g.cacheNetworkUrl, g.MqlRuntime)
+}
+
 func (g *mqlGcpProjectComputeServiceFirewall) id() (string, error) {
 	if g.Id.Error != nil {
 		return "", g.Id.Error
 	}
 	id := g.Id.Data
 	return "gcloud.compute.firewall/" + id, nil
-}
-
-func (g *mqlGcpProjectComputeServiceFirewall) network() (any, error) {
-	// TODO: implement
-	return nil, errors.New("not implemented")
 }
 
 func initGcpProjectComputeServiceFirewall(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error) {
@@ -1093,9 +1097,10 @@ func (g *mqlGcpProjectComputeService) firewalls() ([]any, error) {
 			})
 			if err != nil {
 				return err
-			} else {
-				res = append(res, mqlFirewall)
 			}
+			mqlFw := mqlFirewall.(*mqlGcpProjectComputeServiceFirewall)
+			mqlFw.cacheNetworkUrl = firewall.Network
+			res = append(res, mqlFirewall)
 		}
 		return nil
 	}); err != nil {
@@ -1111,11 +1116,6 @@ func (g *mqlGcpProjectComputeServiceSnapshot) id() (string, error) {
 	}
 	id := g.Id.Data
 	return "gcloud.compute.snapshot/" + id, nil
-}
-
-func (g *mqlGcpProjectComputeServiceSnapshot) sourceDisk() (any, error) {
-	// TODO: implement
-	return nil, errors.New("not implemented")
 }
 
 func (g *mqlGcpProjectComputeService) snapshots() ([]any, error) {
@@ -1148,27 +1148,29 @@ func (g *mqlGcpProjectComputeService) snapshots() ([]any, error) {
 	if err := req.Pages(ctx, func(page *compute.SnapshotList) error {
 		for _, snapshot := range page.Items {
 			mqlSnapshpt, err := CreateResource(g.MqlRuntime, "gcp.project.computeService.snapshot", map[string]*llx.RawData{
-				"id":                        llx.StringData(strconv.FormatUint(snapshot.Id, 10)),
-				"name":                      llx.StringData(snapshot.Name),
-				"description":               llx.StringData(snapshot.Description),
-				"architecture":              llx.StringData(snapshot.Architecture),
-				"autoCreated":               llx.BoolData(snapshot.AutoCreated),
-				"chainName":                 llx.StringData(snapshot.ChainName),
-				"creationSizeBytes":         llx.IntData(snapshot.CreationSizeBytes),
-				"diskSizeGb":                llx.IntData(snapshot.DiskSizeGb),
-				"downloadBytes":             llx.IntData(snapshot.DownloadBytes),
-				"storageBytes":              llx.IntData(snapshot.StorageBytes),
-				"storageBytesStatus":        llx.StringData(snapshot.StorageBytesStatus),
-				"snapshotType":              llx.StringData(snapshot.SnapshotType),
-				"licenses":                  llx.ArrayData(convert.SliceAnyToInterface(snapshot.Licenses), types.String),
-				"labels":                    llx.MapData(convert.MapToInterfaceMap(snapshot.Labels), types.String),
-				"status":                    llx.StringData(snapshot.Status),
-				"created":                   llx.TimeDataPtr(parseTime(snapshot.CreationTimestamp)),
-				"storageLocations":          llx.ArrayData(convert.SliceAnyToInterface(snapshot.StorageLocations), types.String),
-				"enableConfidentialCompute": llx.BoolData(snapshot.EnableConfidentialCompute),
-				"satisfiesPzi":              llx.BoolData(snapshot.SatisfiesPzi),
-				"satisfiesPzs":              llx.BoolData(snapshot.SatisfiesPzs),
-				"sourceDisk":                llx.StringData(snapshot.SourceDisk),
+				"id":                             llx.StringData(strconv.FormatUint(snapshot.Id, 10)),
+				"name":                           llx.StringData(snapshot.Name),
+				"description":                    llx.StringData(snapshot.Description),
+				"architecture":                   llx.StringData(snapshot.Architecture),
+				"autoCreated":                    llx.BoolData(snapshot.AutoCreated),
+				"chainName":                      llx.StringData(snapshot.ChainName),
+				"creationSizeBytes":              llx.IntData(snapshot.CreationSizeBytes),
+				"diskSizeGb":                     llx.IntData(snapshot.DiskSizeGb),
+				"downloadBytes":                  llx.IntData(snapshot.DownloadBytes),
+				"storageBytes":                   llx.IntData(snapshot.StorageBytes),
+				"storageBytesStatus":             llx.StringData(snapshot.StorageBytesStatus),
+				"snapshotType":                   llx.StringData(snapshot.SnapshotType),
+				"licenses":                       llx.ArrayData(convert.SliceAnyToInterface(snapshot.Licenses), types.String),
+				"labels":                         llx.MapData(convert.MapToInterfaceMap(snapshot.Labels), types.String),
+				"status":                         llx.StringData(snapshot.Status),
+				"created":                        llx.TimeDataPtr(parseTime(snapshot.CreationTimestamp)),
+				"storageLocations":               llx.ArrayData(convert.SliceAnyToInterface(snapshot.StorageLocations), types.String),
+				"enableConfidentialCompute":      llx.BoolData(snapshot.EnableConfidentialCompute),
+				"satisfiesPzi":                   llx.BoolData(snapshot.SatisfiesPzi),
+				"satisfiesPzs":                   llx.BoolData(snapshot.SatisfiesPzs),
+				"sourceDisk":                     llx.StringData(snapshot.SourceDisk),
+				"sourceSnapshotSchedulePolicy":   llx.StringData(snapshot.SourceSnapshotSchedulePolicy),
+				"sourceSnapshotSchedulePolicyId": llx.StringData(snapshot.SourceSnapshotSchedulePolicyId),
 			})
 			if err != nil {
 				return err
@@ -1237,9 +1239,67 @@ func initGcpProjectComputeServiceImage(runtime *plugin.Runtime, args map[string]
 	return nil, nil, errors.New("image not found")
 }
 
-func (g *mqlGcpProjectComputeServiceImage) sourceDisk() (any, error) {
-	// TODO: implement
-	return nil, errors.New("not implemented")
+type mqlGcpProjectComputeServiceImageInternal struct {
+	cacheSourceDiskUrl     string
+	cacheSourceImageUrl    string
+	cacheSourceSnapshotUrl string
+}
+
+func (g *mqlGcpProjectComputeServiceImage) sourceDisk() (*mqlGcpProjectComputeServiceDisk, error) {
+	if g.cacheSourceDiskUrl == "" {
+		g.SourceDisk.State = plugin.StateIsNull | plugin.StateIsSet
+		return nil, nil
+	}
+	return getDiskByUrl(g.cacheSourceDiskUrl, g.MqlRuntime)
+}
+
+func (g *mqlGcpProjectComputeServiceImage) sourceImage() (*mqlGcpProjectComputeServiceImage, error) {
+	url := g.cacheSourceImageUrl
+	if url == "" {
+		g.SourceImage.State = plugin.StateIsNull | plugin.StateIsSet
+		return nil, nil
+	}
+	// URL format: https://www.googleapis.com/compute/v1/projects/{project}/global/images/{image}
+	const computePrefix = "https://www.googleapis.com/compute/v1/"
+	if !strings.HasPrefix(url, computePrefix) {
+		return nil, errors.New("invalid source image URL: " + url)
+	}
+	parts := strings.Split(strings.TrimPrefix(url, computePrefix), "/")
+	if len(parts) < 5 {
+		return nil, errors.New("invalid source image URL: " + url)
+	}
+	res, err := NewResource(g.MqlRuntime, "gcp.project.computeService.image", map[string]*llx.RawData{
+		"name":      llx.StringData(parts[len(parts)-1]),
+		"projectId": llx.StringData(parts[1]),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return res.(*mqlGcpProjectComputeServiceImage), nil
+}
+
+func (g *mqlGcpProjectComputeServiceImage) sourceSnapshot() (*mqlGcpProjectComputeServiceSnapshot, error) {
+	url := g.cacheSourceSnapshotUrl
+	if url == "" {
+		g.SourceSnapshot.State = plugin.StateIsNull | plugin.StateIsSet
+		return nil, nil
+	}
+	// URL format: https://www.googleapis.com/compute/v1/projects/{project}/global/snapshots/{snapshot}
+	const computePrefix = "https://www.googleapis.com/compute/v1/"
+	if !strings.HasPrefix(url, computePrefix) {
+		return nil, errors.New("invalid source snapshot URL: " + url)
+	}
+	parts := strings.Split(strings.TrimPrefix(url, computePrefix), "/")
+	if len(parts) < 5 {
+		return nil, errors.New("invalid source snapshot URL: " + url)
+	}
+	res, err := NewResource(g.MqlRuntime, "gcp.project.computeService.snapshot", map[string]*llx.RawData{
+		"name": llx.StringData(parts[len(parts)-1]),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return res.(*mqlGcpProjectComputeServiceSnapshot), nil
 }
 
 func (g *mqlGcpProjectComputeService) images() ([]any, error) {
@@ -1287,10 +1347,15 @@ func (g *mqlGcpProjectComputeService) images() ([]any, error) {
 				"enableConfidentialCompute": llx.BoolData(image.EnableConfidentialCompute),
 				"satisfiesPzi":              llx.BoolData(image.SatisfiesPzi),
 				"satisfiesPzs":              llx.BoolData(image.SatisfiesPzs),
+				"storageLocations":          llx.ArrayData(convert.SliceAnyToInterface(image.StorageLocations), types.String),
 			})
 			if err != nil {
 				return err
 			}
+			mqlI := mqlImage.(*mqlGcpProjectComputeServiceImage)
+			mqlI.cacheSourceDiskUrl = image.SourceDisk
+			mqlI.cacheSourceImageUrl = image.SourceImage
+			mqlI.cacheSourceSnapshotUrl = image.SourceSnapshot
 			res = append(res, mqlImage)
 		}
 		return nil
@@ -1710,11 +1775,6 @@ func (g *mqlGcpProjectComputeServiceSubnetwork) region() (*mqlGcpProjectComputeS
 	return nil, errors.New(fmt.Sprintf("region %s not found", regionName))
 }
 
-func (g *mqlGcpProjectComputeServiceSubnetwork) network() ([]any, error) {
-	// TODO: implement
-	return nil, errors.New("not implemented")
-}
-
 func newMqlRegion(runtime *plugin.Runtime, r *compute.Region) (any, error) {
 	deprecated, err := convert.JsonToDict(r.Deprecated)
 	if err != nil {
@@ -1853,11 +1913,6 @@ func (g *mqlGcpProjectComputeServiceRouter) network() (*mqlGcpProjectComputeServ
 		return nil, nil
 	}
 	return getNetworkByUrl(g.cacheNetworkUrl, g.MqlRuntime)
-}
-
-func (g *mqlGcpProjectComputeServiceRouter) region() ([]any, error) {
-	// TODO: implement
-	return nil, errors.New("not implemented")
 }
 
 func newMqlRouter(projectId string, region *mqlGcpProjectComputeServiceRegion, runtime *plugin.Runtime, router *compute.Router) (any, error) {
@@ -2257,6 +2312,7 @@ func (g *mqlGcpProjectComputeService) backendServices() ([]any, error) {
 				"port":                     llx.IntData(b.Port),
 				"serviceLbPolicy":          llx.StringData(b.ServiceLbPolicy),
 				"ipAddressSelectionPolicy": llx.StringData(b.IpAddressSelectionPolicy),
+				"fingerprint":              llx.StringData(b.Fingerprint),
 			})
 			if err != nil {
 				return nil, err
@@ -2454,6 +2510,8 @@ func (g *mqlGcpProjectComputeService) forwardingRules() ([]any, error) {
 				"allowPscGlobalAccess":          llx.BoolData(fwr.GetAllowPscGlobalAccess()),
 				"pscConnectionStatus":           llx.StringData(fwr.GetPscConnectionStatus()),
 				"sourceIpRanges":                llx.ArrayData(convert.SliceAnyToInterface(fwr.GetSourceIpRanges()), types.String),
+				"fingerprint":                   llx.StringData(fwr.GetFingerprint()),
+				"ipCollection":                  llx.StringData(fwr.GetIpCollection()),
 			})
 			if err != nil {
 				return nil, err
@@ -2567,6 +2625,15 @@ func (g *mqlGcpProjectComputeService) securityPolicies() ([]any, error) {
 					return err
 				}
 
+				userDefinedFields := make([]any, 0, len(policy.UserDefinedFields))
+				for _, udf := range policy.UserDefinedFields {
+					d, err := convert.JsonToDict(udf)
+					if err != nil {
+						return err
+					}
+					userDefinedFields = append(userDefinedFields, d)
+				}
+
 				policyId := strconv.FormatUint(policy.Id, 10)
 				mqlPolicy, err := CreateResource(g.MqlRuntime, "gcp.project.computeService.securityPolicy", map[string]*llx.RawData{
 					"id":                       llx.StringData(policyId),
@@ -2578,6 +2645,8 @@ func (g *mqlGcpProjectComputeService) securityPolicies() ([]any, error) {
 					"advancedOptionsConfig":    llx.DictData(advancedOptionsConfig),
 					"ddosProtectionConfig":     llx.DictData(ddosProtectionConfig),
 					"recaptchaOptionsConfig":   llx.DictData(recaptchaOptionsConfig),
+					"fingerprint":              llx.StringData(policy.Fingerprint),
+					"userDefinedFields":        llx.ArrayData(userDefinedFields, types.Dict),
 					"regionUrl":                llx.StringData(policy.Region),
 					"selfLink":                 llx.StringData(policy.SelfLink),
 					"createdAt":                llx.TimeDataPtr(parseTime(policy.CreationTimestamp)),
