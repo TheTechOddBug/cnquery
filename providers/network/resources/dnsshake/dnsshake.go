@@ -160,7 +160,7 @@ func (d *DnsClient) Query(dnsTypes ...string) (map[string]DnsRecord, error) {
 		}
 	}
 
-	workers := sync.WaitGroup{}
+	var workers sync.WaitGroup
 	var errs multierr.Errors
 
 	res := map[string]DnsRecord{}

@@ -13,6 +13,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
+	"maps"
 	"math/rand"
 	"net"
 	"net/http"
@@ -131,7 +132,7 @@ func (s *Tester) Test(conf ScanConfig) error {
 		conf.Versions = TLS_VERSIONS
 	}
 
-	workers := sync.WaitGroup{}
+	var workers sync.WaitGroup
 	var errs multierr.Errors
 
 	remainingCiphers := func(cipher string) bool {
@@ -947,24 +948,12 @@ func init() {
 			len(TLS_CIPHERS))
 
 	// Note: overlapping names will be overwritten
-	for k, v := range SSL2_CIPHERS {
-		ALL_CIPHERS[k] = v
-	}
-	for k, v := range SSL3_CIPHERS {
-		ALL_CIPHERS[k] = v
-	}
-	for k, v := range SSL_FIPS_CIPHERS {
-		ALL_CIPHERS[k] = v
-	}
-	for k, v := range TLS10_CIPHERS {
-		ALL_CIPHERS[k] = v
-	}
-	for k, v := range TLS13_CIPHERS {
-		ALL_CIPHERS[k] = v
-	}
-	for k, v := range TLS_CIPHERS {
-		ALL_CIPHERS[k] = v
-	}
+	maps.Copy(ALL_CIPHERS, SSL2_CIPHERS)
+	maps.Copy(ALL_CIPHERS, SSL3_CIPHERS)
+	maps.Copy(ALL_CIPHERS, SSL_FIPS_CIPHERS)
+	maps.Copy(ALL_CIPHERS, TLS10_CIPHERS)
+	maps.Copy(ALL_CIPHERS, TLS13_CIPHERS)
+	maps.Copy(ALL_CIPHERS, TLS_CIPHERS)
 }
 
 const (
