@@ -5,6 +5,7 @@ package providers
 
 import (
 	"errors"
+	"strings"
 	"sync"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	"go.mondoo.com/mql/v13/types"
 	"go.mondoo.com/mql/v13/utils/multierr"
 	"go.mondoo.com/mql/v13/utils/stringx"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
@@ -492,8 +494,17 @@ func (r *Runtime) handlePluginError(err error, provider *ConnectedProvider) (boo
 	}
 
 	switch st.Code() {
-	case 14:
-		// Error: Unavailable. Happens when the plugin crashes.
+	case codes.Internal:
+		// A recovered panic in the provider sends an Internal error prefixed
+		// with "panic in provider ". Only apply panic-specific handling when
+		// this prefix is present; other Internal errors fall through.
+		if strings.HasPrefix(st.Message(), "panic in provider ") {
+			log.Error().Str("provider", provider.Instance.Name).Msg(st.Message())
+			return true, errors.New("the '" + provider.Instance.Name + "' provider panicked: " + st.Message())
+		}
+
+	case codes.Unavailable:
+		// Happens when the plugin crashes.
 		// TODO: try to restart the plugin and reset its connections
 		provider.Instance.isClosed = true
 		provider.Instance.err = errors.New("the '" + provider.Instance.Name + "' provider crashed: " + err.Error())

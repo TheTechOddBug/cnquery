@@ -6,12 +6,16 @@ package plugin
 import (
 	"bytes"
 	"context"
+	"runtime/debug"
 	"unicode/utf8"
 
 	plugin "github.com/hashicorp/go-plugin"
+	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/encoding"
 	_ "google.golang.org/grpc/encoding/proto"
+	"google.golang.org/grpc/status"
 )
 
 func init() {
@@ -83,6 +87,18 @@ func (m *GRPCClient) StoreData(req *StoreReq) (*StoreRes, error) {
 	return m.client.StoreData(context.Background(), req)
 }
 
+// recoverPanic converts a panic into a gRPC Internal error. The full stack
+// trace is logged locally; only a short message is sent over the wire.
+// The message is prefixed with "panic in provider " so the caller can
+// distinguish recovered panics from other Internal errors.
+func recoverPanic(method string, retErr *error) {
+	if r := recover(); r != nil {
+		stack := debug.Stack()
+		log.Error().Str("method", method).Interface("panic", r).Str("stack", string(stack)).Msg("recovered panic in provider")
+		*retErr = status.Errorf(codes.Internal, "panic in provider %s: %v", method, r)
+	}
+}
+
 // Here is the gRPC server that GRPCClient talks to.
 type GRPCServer struct {
 	// This is the real implementation
@@ -95,11 +111,13 @@ func (m *GRPCServer) Heartbeat(ctx context.Context, req *HeartbeatReq) (*Heartbe
 	return m.Impl.Heartbeat(req)
 }
 
-func (m *GRPCServer) ParseCLI(ctx context.Context, req *ParseCLIReq) (*ParseCLIRes, error) {
+func (m *GRPCServer) ParseCLI(ctx context.Context, req *ParseCLIReq) (resp *ParseCLIRes, err error) {
+	defer recoverPanic("ParseCLI", &err)
 	return m.Impl.ParseCLI(req)
 }
 
-func (m *GRPCServer) Connect(ctx context.Context, req *ConnectReq) (*ConnectRes, error) {
+func (m *GRPCServer) Connect(ctx context.Context, req *ConnectReq) (resp *ConnectRes, err error) {
+	defer recoverPanic("Connect", &err)
 	conn, err := m.broker.Dial(req.CallbackServer)
 	if err != nil {
 		return nil, err
@@ -112,11 +130,13 @@ func (m *GRPCServer) Connect(ctx context.Context, req *ConnectReq) (*ConnectRes,
 	return m.Impl.Connect(req, a)
 }
 
-func (m *GRPCServer) Disconnect(ctx context.Context, req *DisconnectReq) (*DisconnectRes, error) {
+func (m *GRPCServer) Disconnect(ctx context.Context, req *DisconnectReq) (resp *DisconnectRes, err error) {
+	defer recoverPanic("Disconnect", &err)
 	return m.Impl.Disconnect(req)
 }
 
-func (m *GRPCServer) MockConnect(ctx context.Context, req *ConnectReq) (*ConnectRes, error) {
+func (m *GRPCServer) MockConnect(ctx context.Context, req *ConnectReq) (resp *ConnectRes, err error) {
+	defer recoverPanic("MockConnect", &err)
 	conn, err := m.broker.Dial(req.CallbackServer)
 	if err != nil {
 		return nil, err
@@ -129,12 +149,14 @@ func (m *GRPCServer) MockConnect(ctx context.Context, req *ConnectReq) (*Connect
 	return m.Impl.MockConnect(req, a)
 }
 
-func (m *GRPCServer) Shutdown(ctx context.Context, req *ShutdownReq) (*ShutdownRes, error) {
+func (m *GRPCServer) Shutdown(ctx context.Context, req *ShutdownReq) (resp *ShutdownRes, err error) {
+	defer recoverPanic("Shutdown", &err)
 	return m.Impl.Shutdown(req)
 }
 
-func (m *GRPCServer) GetData(ctx context.Context, req *DataReq) (*DataRes, error) {
-	resp, err := m.Impl.GetData(req)
+func (m *GRPCServer) GetData(ctx context.Context, req *DataReq) (resp *DataRes, err error) {
+	defer recoverPanic("GetData", &err)
+	resp, err = m.Impl.GetData(req)
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +164,8 @@ func (m *GRPCServer) GetData(ctx context.Context, req *DataReq) (*DataRes, error
 	return resp, nil
 }
 
-func (m *GRPCServer) StoreData(ctx context.Context, req *StoreReq) (*StoreRes, error) {
+func (m *GRPCServer) StoreData(ctx context.Context, req *StoreReq) (resp *StoreRes, err error) {
+	defer recoverPanic("StoreData", &err)
 	return m.Impl.StoreData(req)
 }
 
