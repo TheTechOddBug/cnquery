@@ -43,28 +43,25 @@ func (lpm *LinuxProcManager) List() ([]*OSProcess, error) {
 			continue
 		}
 
+		pidPath := filepath.Join("/proc", dirs[i])
+
 		// collect process info
-		proc, err := lpm.Process(pid)
+		proc, err := lpm.processInfo(pid, pidPath)
 		if err != nil {
 			log.Warn().Err(err).Int64("pid", pid).Msg("mql[processes]> could not retrieve process information")
 			continue
 		}
 
+		proc.SocketInodes, proc.SocketInodesError = lpm.procSocketInods(pid, pidPath)
+
 		res = append(res, proc)
 	}
+
 	return res, nil
 }
 
-// check that the pid directory exists
-func (lpm *LinuxProcManager) Exists(pid int64) (bool, error) {
-	pidPath := filepath.Join("/proc", strconv.FormatInt(pid, 10))
-	afutil := afero.Afero{Fs: lpm.conn.FileSystem()}
-	return afutil.Exists(pidPath)
-}
-
-func (lpm *LinuxProcManager) Process(pid int64) (*OSProcess, error) {
-	pidPath := filepath.Join("/proc", strconv.FormatInt(pid, 10))
-
+// processInfo gathers cmdline, status for a process without socket inodes.
+func (lpm *LinuxProcManager) processInfo(pid int64, pidPath string) (*OSProcess, error) {
 	exists, err := lpm.Exists(pid)
 	if err != nil {
 		return nil, err
@@ -73,7 +70,6 @@ func (lpm *LinuxProcManager) Process(pid int64) (*OSProcess, error) {
 		return nil, errors.New("process " + strconv.FormatInt(pid, 10) + " does not exist: " + pidPath)
 	}
 
-	// parse the cmdline
 	cmdlinef, err := lpm.conn.FileSystem().Open(filepath.Join(pidPath, "cmdline"))
 	if err != nil {
 		return nil, err
@@ -85,7 +81,6 @@ func (lpm *LinuxProcManager) Process(pid int64) (*OSProcess, error) {
 		return nil, err
 	}
 
-	// If cmdline is empty (likely a kernel thread), read from /proc/<pid>/comm instead
 	if cmdline == "" {
 		commf, err := lpm.conn.FileSystem().Open(filepath.Join(pidPath, "comm"))
 		if err != nil {
@@ -110,18 +105,31 @@ func (lpm *LinuxProcManager) Process(pid int64) (*OSProcess, error) {
 		return nil, err
 	}
 
-	socketInodes, socketInodesErr := lpm.procSocketInods(pid, pidPath)
+	return &OSProcess{
+		Pid:        pid,
+		Executable: status.Executable,
+		State:      status.State,
+		Command:    cmdline,
+	}, nil
+}
 
-	process := &OSProcess{
-		Pid:               pid,
-		Executable:        status.Executable,
-		State:             status.State,
-		Command:           cmdline,
-		SocketInodes:      socketInodes,
-		SocketInodesError: socketInodesErr,
+// check that the pid directory exists
+func (lpm *LinuxProcManager) Exists(pid int64) (bool, error) {
+	pidPath := filepath.Join("/proc", strconv.FormatInt(pid, 10))
+	afutil := afero.Afero{Fs: lpm.conn.FileSystem()}
+	return afutil.Exists(pidPath)
+}
+
+func (lpm *LinuxProcManager) Process(pid int64) (*OSProcess, error) {
+	pidPath := filepath.Join("/proc", strconv.FormatInt(pid, 10))
+	proc, err := lpm.processInfo(pid, pidPath)
+	if err != nil {
+		return nil, err
 	}
 
-	return process, nil
+	proc.SocketInodes, proc.SocketInodesError = lpm.procSocketInods(pid, pidPath)
+
+	return proc, nil
 }
 
 func (lpm *LinuxProcManager) ListSocketInodesByProcess() (map[int64]plugin.TValue[[]int64], error) {

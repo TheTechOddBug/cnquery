@@ -4,18 +4,36 @@
 package processes
 
 import (
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestParseReadlink(t *testing.T) {
-	fi, err := os.Open("./testdata/linux_readlink.txt")
-	require.NoError(t, err)
-	defer fi.Close()
+func TestParseSocketInode(t *testing.T) {
+	tests := []struct {
+		link      string
+		wantInode int64
+		wantErr   bool
+	}{
+		{"socket:[41866700]", 41866700, false},
+		{"socket:[0]", 0, false},
+		{"socket:[999999999]", 999999999, false},
+		{"pipe:[12345]", -1, false},
+		{"/dev/null", -1, false},
+		{"", -1, false},
+		{"socket:[]", 0, true},
+		{"socket:[notanumber]", 0, true},
+	}
 
-	inode, err := readInodeFromOutput(fi)
-	require.NoError(t, err)
-	require.Equal(t, int64(41866700), inode)
+	for _, tt := range tests {
+		t.Run(tt.link, func(t *testing.T) {
+			inode, err := ParseSocketInode(tt.link)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.wantInode, inode)
+			}
+		})
+	}
 }
