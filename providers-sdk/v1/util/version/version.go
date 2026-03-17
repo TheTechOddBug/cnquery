@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"go.mondoo.com/mql/v13/utils/stringx"
@@ -73,9 +74,7 @@ var checkCmd = &cobra.Command{
 	Short: "checks if providers need updates",
 	Args:  cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		for i := range args {
-			checkUpdate(args[i])
-		}
+		analyzeProviders(args)
 	},
 }
 
@@ -162,8 +161,8 @@ func checkGoModUpdate(providerPath string, updateStrategy UpdateStrategy, ignore
 		if require.Syntax.Before != nil {
 			for i := range require.Syntax.Before {
 				comment := require.Syntax.Before[i].Token
-				if strings.HasPrefix(comment, "// pin") {
-					version := strings.TrimSpace(strings.TrimPrefix(comment, "// pin"))
+				if after, ok := strings.CutPrefix(comment, "// pin"); ok {
+					version := strings.TrimSpace(after)
 					log.Info().Msgf("Found pin comment for %s: %s", require.Mod.Path, version)
 					modPath = require.Mod.Path + "@" + version
 				}
@@ -258,15 +257,53 @@ var defaultsCmd = &cobra.Command{
 	},
 }
 
-func checkUpdate(providerPath string) {
-	conf, err := getConfig(providerPath)
-	if err != nil {
-		log.Error().Err(err).Str("path", providerPath).Msg("failed to process version")
-		return
+// maxParallel is the number of concurrent provider analyses.
+const maxParallel = 4
+
+// providerAnalysis holds the result of analyzing a single provider.
+type providerAnalysis struct {
+	conf    *providerConf
+	path    string
+	changes int
+	err     error
+}
+
+// analyzeProviders runs countChangesSince for each provider path in parallel (up to maxParallel).
+// Each goroutine opens its own git.Repository to avoid concurrent map access in go-git's storage.
+func analyzeProviders(providerPaths []string) []providerAnalysis {
+	results := make([]providerAnalysis, len(providerPaths))
+	sem := make(chan struct{}, maxParallel)
+	var wg sync.WaitGroup
+
+	for i, p := range providerPaths {
+		results[i].path = p
+		wg.Add(1)
+		go func(idx int, path string) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			repo, err := git.PlainOpen(".")
+			if err != nil {
+				results[idx].err = fmt.Errorf("failed to open git repo: %w", err)
+				log.Error().Err(results[idx].err).Str("path", path).Msg("failed to process version")
+				return
+			}
+
+			conf, err := getConfig(path)
+			if err != nil {
+				results[idx].err = err
+				log.Error().Err(err).Str("path", path).Msg("failed to process version")
+				return
+			}
+			results[idx].conf = conf
+			results[idx].changes = countChangesSince(repo, conf, path)
+			logChanges(results[idx].changes, conf)
+		}(i, p)
 	}
 
-	changes := countChangesSince(conf, providerPath)
-	logChanges(changes, conf)
+	wg.Wait()
+	return results
 }
 
 func logChanges(changes int, conf *providerConf) {
@@ -289,10 +326,11 @@ const (
 )
 
 type providerConf struct {
-	path    string
-	content string
-	version string
-	name    string
+	path      string
+	content   string
+	version   string
+	name      string
+	changelog []string // commit summaries since last version bump
 }
 
 func (conf *providerConf) title() string {
@@ -315,6 +353,22 @@ func (confs updateConfs) titles() []string {
 
 func (confs updateConfs) commitTitle() string {
 	return "🎉 " + strings.Join(confs.titles(), ", ")
+}
+
+func (confs updateConfs) commitBody() string {
+	var b strings.Builder
+	b.WriteString("This release was created by mql's provider versioning bot.\n\n")
+	b.WriteString("You can find me under: `providers-sdk/v1/util/version`.\n")
+	for _, conf := range confs {
+		if len(conf.changelog) == 0 {
+			continue
+		}
+		fmt.Fprintf(&b, "\n### %s (%s)\n", conf.name, conf.version)
+		for _, msg := range conf.changelog {
+			fmt.Fprintf(&b, "- %s\n", msg)
+		}
+	}
+	return b.String()
 }
 
 func (confs updateConfs) branchName() string {
@@ -360,41 +414,69 @@ func getConfig(providerPath string) (*providerConf, error) {
 }
 
 func updateVersions(providerPaths []string) {
+	results := analyzeProviders(providerPaths)
 	updated := []*providerConf{}
 
-	for _, path := range providerPaths {
-		conf, err := tryUpdate(path)
+	for _, r := range results {
+		if r.err != nil {
+			continue // error already logged in analyzeProviders
+		}
+		if r.changes == 0 {
+			continue
+		}
+
+		conf, err := applyVersionBump(r.conf)
 		if err != nil {
-			log.Error().Err(err).Str("path", path).Msg("failed to process version")
+			log.Error().Err(err).Str("path", r.path).Msg("failed to bump version")
 			continue
 		}
 		if conf == nil {
-			log.Info().Str("path", path).Msg("nothing to update")
 			continue
 		}
 		updated = append(updated, conf)
 	}
 
+	confs := updateConfs(updated)
+
+	if outputDir != "" {
+		if err := writeOutputFiles(confs); err != nil {
+			log.Error().Err(err).Msg("failed to write output files")
+		}
+	}
+
 	if doCommit {
-		if err := commitChanges(updated); err != nil {
+		if err := commitChanges(confs); err != nil {
 			log.Error().Err(err).Msg("failed to commit changes")
 		}
 	}
 }
 
-func tryUpdate(providerPath string) (*providerConf, error) {
-	conf, err := getConfig(providerPath)
-	if err != nil {
-		return nil, err
+// writeOutputFiles writes the commit title to <outputDir>/title.txt
+// and the PR body (with changelog) to <outputDir>/body.md.
+func writeOutputFiles(confs updateConfs) error {
+	if len(confs) == 0 {
+		return nil
 	}
 
-	changes := countChangesSince(conf, providerPath)
-	logChanges(changes, conf)
-
-	if changes == 0 {
-		return nil, nil
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		return fmt.Errorf("failed to create output dir: %w", err)
 	}
 
+	if err := os.WriteFile(filepath.Join(outputDir, "title.txt"), []byte(confs.commitTitle()), 0o644); err != nil {
+		return fmt.Errorf("failed to write title: %w", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(outputDir, "body.md"), []byte(confs.commitBody()), 0o644); err != nil {
+		return fmt.Errorf("failed to write body: %w", err)
+	}
+
+	log.Info().Str("dir", outputDir).Msg("wrote PR title and body")
+	return nil
+}
+
+// applyVersionBump bumps the version in the config file on disk.
+// The caller must have already verified that the provider has changes.
+func applyVersionBump(conf *providerConf) (*providerConf, error) {
 	version, err := bumpVersion(conf.version)
 	if err != nil || version == "" {
 		return nil, err
@@ -519,10 +601,7 @@ func commitChanges(confs updateConfs) error {
 	}
 	fmt.Println(" done")
 
-	body := "\n\nThis release was created by mql's provider versioning bot.\n\n" +
-		"You can find me under: `providers-sdk/v1/util/version`.\n"
-
-	commit, err := worktree.Commit(confs.commitTitle()+body, &git.CommitOptions{
+	commit, err := worktree.Commit(confs.commitTitle()+"\n\n"+confs.commitBody(), &git.CommitOptions{
 		Author: &object.Signature{
 			Name:  "Mondoo",
 			Email: "hello@mondoo.com",
@@ -558,19 +637,59 @@ func commitChanges(confs updateConfs) error {
 	return nil
 }
 
-func titleOf(msg string) string {
-	i := strings.Index(msg, "\n")
-	if i != -1 {
-		return msg[0:i]
+// findVersionCommitHash walks the log of the config file and finds the commit
+// that introduced the current version string. This is much faster than blame
+// because it only reads the config file at each commit (typically 1-3 lookups)
+// instead of attributing every line across the full history.
+func findVersionCommitHash(repo *git.Repository, conf *providerConf) plumbing.Hash {
+	fileName := conf.path
+	iter, err := repo.Log(&git.LogOptions{
+		PathFilter: func(p string) bool {
+			return p == fileName
+		},
+	})
+	if err != nil {
+		log.Warn().Err(err).Msg("failed to walk config file history")
+		return plumbing.ZeroHash
 	}
-	return msg
+	defer iter.Close()
+
+	var prev plumbing.Hash
+	for c, err := iter.Next(); err == nil; c, err = iter.Next() {
+		file, err := c.File(fileName)
+		if err != nil {
+			break
+		}
+		contents, err := file.Contents()
+		if err != nil {
+			break
+		}
+		if getVersion(contents) != conf.version {
+			// The version changed at this commit — the previous commit
+			// in our walk (more recent) is the one that bumped it.
+			if !prev.IsZero() {
+				return prev
+			}
+			// If prev is zero, HEAD itself has the version bump but
+			// the file hasn't been committed yet (local change).
+			return plumbing.ZeroHash
+		}
+		prev = c.Hash
+	}
+
+	// Every commit in history has the same version — return the oldest one.
+	return prev
 }
 
-func countChangesSince(conf *providerConf, repoPath string) int {
-	repo, err := git.PlainOpen(".")
-	if err != nil {
-		log.Fatal().Err(err).Msg("failed to open git repo")
+func countChangesSince(repo *git.Repository, conf *providerConf, repoPath string) int {
+	versionHash := findVersionCommitHash(repo, conf)
+	if versionHash.IsZero() {
+		log.Warn().Msg("could not find version commit via blame => assuming provider needs update")
+		return 1
 	}
+
+	// Walk commits that touched the provider directory from HEAD,
+	// counting how many come before (after in time) the version commit.
 	iter, err := repo.Log(&git.LogOptions{
 		PathFilter: func(p string) bool {
 			return strings.HasPrefix(p, repoPath)
@@ -579,34 +698,24 @@ func countChangesSince(conf *providerConf, repoPath string) int {
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to iterate git history")
 	}
+	defer iter.Close()
 
-	if !fastMode {
-		fmt.Print("crawling git history...")
-	}
-
-	var found *object.Commit
 	var count int
+	conf.changelog = nil
 	for c, err := iter.Next(); err == nil; c, err = iter.Next() {
-		if !fastMode {
-			fmt.Print(".")
-		}
-
-		if strings.HasPrefix(c.Message, titlePrefix) && strings.Contains(titleOf(c.Message), " "+conf.title()) {
-			found = c
+		if c.Hash == versionHash {
 			break
 		}
-
 		count++
+		// Collect the first line of the commit message as a changelog entry.
+		msg := strings.TrimSpace(c.Message)
+		if idx := strings.IndexByte(msg, '\n'); idx != -1 {
+			msg = msg[:idx]
+		}
+		conf.changelog = append(conf.changelog, msg)
 		if fastMode {
 			return count
 		}
-	}
-	if !fastMode {
-		fmt.Println()
-	}
-
-	if found == nil {
-		log.Warn().Msg("looks like there is no previous version in your commit history => we assume this is the first version commit")
 	}
 	return count
 }
@@ -657,6 +766,7 @@ var (
 	fastMode           bool
 	doCommit           bool
 	increment          string
+	outputDir          string
 	latestVersion      bool
 	latestPatchVersion bool
 )
@@ -665,6 +775,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&fastMode, "fast", false, "perform fast checking of git repo (not counting changes)")
 	rootCmd.PersistentFlags().BoolVar(&doCommit, "commit", false, "commit the change to git if there is a version bump")
 	rootCmd.PersistentFlags().StringVar(&increment, "increment", "", "automatically bump either patch, minor, or major version")
+	rootCmd.PersistentFlags().StringVar(&outputDir, "output", "", "write PR title and body files to this directory")
 
 	modUpdateCmd.PersistentFlags().BoolVar(&latestVersion, "latest", false, "update versions to latest")
 	modUpdateCmd.PersistentFlags().BoolVar(&latestPatchVersion, "patch", false, "update versions to latest patch")
