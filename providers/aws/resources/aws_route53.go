@@ -49,12 +49,15 @@ func (a *mqlAwsRoute53) hostedZones() ([]any, error) {
 
 	// Batch-fetch tags (up to 10 per API call)
 	tagsByID := batchFetchTags(ctx, svc, route53types.TagResourceTypeHostedzone, allZones, func(hz route53types.HostedZone) string {
-		return convert.ToValue(hz.Id)
+		id := strings.Split(convert.ToValue(hz.Id), "/")
+		// get the last part of the hosted zone ID, which is the actual ID used in tagging
+		return id[len(id)-1]
 	})
 
 	res := []any{}
 	for _, hz := range allZones {
-		tags := tagsByID[convert.ToValue(hz.Id)]
+		id := strings.Split(convert.ToValue(hz.Id), "/")
+		tags := tagsByID[id[len(id)-1]]
 
 		// Filter by tags
 		if conn.Filters.General.IsFilteredOutByTags(mapStringInterfaceToStringString(tags)) {
@@ -364,6 +367,7 @@ func (a *mqlAwsRoute53HostedZone) queryLoggingConfig() (*mqlAwsRoute53QueryLoggi
 	})
 	if err != nil {
 		if Is400AccessDeniedError(err) {
+			a.QueryLoggingConfig.State = plugin.StateIsSet | plugin.StateIsNull
 			return nil, nil
 		}
 		return nil, err
@@ -384,6 +388,7 @@ func (a *mqlAwsRoute53HostedZone) queryLoggingConfig() (*mqlAwsRoute53QueryLoggi
 		return mqlQlc.(*mqlAwsRoute53QueryLoggingConfig), nil
 	}
 
+	a.QueryLoggingConfig.State = plugin.StateIsSet | plugin.StateIsNull
 	return nil, nil
 }
 
@@ -505,6 +510,7 @@ func (a *mqlAwsRoute53Record) cidrRoutingConfig() (any, error) {
 func (a *mqlAwsRoute53Record) healthCheck() (*mqlAwsRoute53HealthCheck, error) {
 	healthCheckId := a.HealthCheckId.Data
 	if healthCheckId == "" {
+		a.HealthCheck.State = plugin.StateIsSet | plugin.StateIsNull
 		return nil, nil
 	}
 
@@ -517,11 +523,13 @@ func (a *mqlAwsRoute53Record) healthCheck() (*mqlAwsRoute53HealthCheck, error) {
 	})
 	if err != nil {
 		if Is400AccessDeniedError(err) {
+			a.HealthCheck.State = plugin.StateIsSet | plugin.StateIsNull
 			return nil, nil
 		}
 		return nil, err
 	}
 	if resp == nil || resp.HealthCheck == nil {
+		a.HealthCheck.State = plugin.StateIsSet | plugin.StateIsNull
 		return nil, nil
 	}
 
@@ -640,6 +648,7 @@ func (a *mqlAwsRoute53KeySigningKey) hostedZone() (*mqlAwsRoute53HostedZone, err
 func (a *mqlAwsRoute53KeySigningKey) kmsKey() (*mqlAwsKmsKey, error) {
 	kmsArn := a.KmsArn.Data
 	if kmsArn == "" {
+		a.KmsKey.State = plugin.StateIsSet | plugin.StateIsNull
 		return nil, nil
 	}
 
