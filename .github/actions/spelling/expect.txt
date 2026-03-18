@@ -59,6 +59,7 @@ datetime
 ddos
 dedupratio
 deliverychannel
+depsdev
 dfw
 directoryservice
 dlp
@@ -274,6 +275,7 @@ WORKSPACESUSER
 workspacesweb
 xssmatchstatement
 yara
+zerolog
 zfs
 zpool
 zrt
