@@ -53,7 +53,15 @@ var All = []string{
 	DiscoveryInstances,
 }
 
-var Auto = []string{DiscoverySubscriptions}
+// Auto includes all API resources except storage containers (which require
+// additional permissions and can be very numerous). Defined in terms of
+// AllAPIResources so the two lists don't drift apart.
+var Auto = append(
+	[]string{DiscoverySubscriptions},
+	slices.DeleteFunc(slices.Clone(AllAPIResources), func(s string) bool {
+		return s == DiscoveryStorageContainers
+	})...,
+)
 
 func allDiscovery() []string {
 	return append(All, AllAPIResources...)
