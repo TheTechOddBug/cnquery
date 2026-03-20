@@ -26,7 +26,6 @@ backupconfiguration
 backupdr
 backupsetting
 backupshorttermretentionpolicy
-bigip
 bigquery
 bigtable
 blackhole
@@ -40,6 +39,7 @@ clcerts
 cloudflare
 Clusterwide
 cmek
+cmdline
 cmnd
 cname
 compressratio
@@ -76,7 +76,6 @@ ekm
 ekus
 elbv
 endpointslice
-EPP
 exo
 failback
 fargate
@@ -115,6 +114,7 @@ ilb
 imds
 imei
 ingresstls
+initrdefi
 iotedge
 ipc
 ipsetforwardedipconfig
@@ -128,6 +128,7 @@ KSK
 labelmatchstatement
 lfs
 limitrange
+linuxefi
 liveanalytics
 loggingservice
 longtermretentionpolicy
