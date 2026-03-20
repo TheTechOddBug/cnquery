@@ -319,6 +319,8 @@ os.linux {
   ip6tables() ip6tables
   // nftables firewall
   nftables() nftables
+  // UFW (Uncomplicated Firewall)
+  ufw() ufw
   // /etc/fstab entries
   fstab() fstab
   // AppArmor mandatory access control
@@ -1286,6 +1288,60 @@ private nftables.rule @defaults("family table chain handle") {
   expr []dict
   // Rule comment
   comment string
+}
+
+// UFW (Uncomplicated Firewall) status and rules
+ufw @defaults("status rules") {
+  // Whether UFW is active ("active", "inactive", "not installed")
+  status() string
+  // Default policy for incoming traffic (e.g., "deny", "allow", "reject")
+  defaultIncoming() string
+  // Default policy for outgoing traffic (e.g., "allow", "deny", "reject")
+  defaultOutgoing() string
+  // Default policy for routed traffic (e.g., "deny", "allow", "reject")
+  defaultRouted() string
+  // Logging level (off, low, medium, high, full)
+  logging() string
+  // All UFW rules
+  rules() []ufw.rule
+  // Application profiles from /etc/ufw/applications.d/
+  applications() []ufw.application
+}
+
+// Individual UFW rule
+private ufw.rule @defaults("action direction port") {
+  // Rule number (sequential across IPv4 and IPv6 rules; may differ from `ufw status numbered`)
+  number int
+  // Action (ALLOW, DENY, REJECT, LIMIT)
+  action string
+  // Direction (IN, OUT, FWD)
+  direction string
+  // Protocol (tcp, udp, any)
+  protocol string
+  // Port or port range (e.g., "22", "6000:6007", "any")
+  port string
+  // Network interface (e.g., "eth0"), empty if not specified
+  interface string
+  // Source address or subnet (e.g., "192.168.1.0/24", "Anywhere")
+  from string
+  // Destination address or subnet
+  to string
+  // Whether this is an IPv6 rule
+  ipv6 bool
+  // Raw rule text as reported by ufw
+  raw string
+}
+
+// UFW application profile from /etc/ufw/applications.d/
+private ufw.application @defaults("name ports") {
+  // Profile name (e.g., "Nginx Full")
+  name string
+  // Short title describing the application
+  title string
+  // Description of the application
+  description string
+  // Port specification (e.g., "80/tcp", "80,443/tcp", "80,443/tcp|443/udp")
+  ports string
 }
 
 // fstab file and entries
