@@ -4,6 +4,8 @@
 package resources
 
 import (
+	"slices"
+
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/rs/zerolog/log"
 	"go.mondoo.com/mql/v13/llx"
@@ -20,7 +22,7 @@ const (
 	DiscoveryECR          = "ecr"
 	DiscoveryECS          = "ecs"
 
-	DiscoveryAll  = "all"  // resources, accounts, instances, ecr, ecs, everything
+	DiscoveryAll  = "all"  // all discovery targets
 	DiscoveryAuto = "auto" // account + resources
 
 	// API scan
@@ -58,18 +60,6 @@ const (
 	DiscoveryElasticacheClusters        = "elasticache-clusters"
 	DiscoveryCloudfrontDistributions    = "cloudfront-distributions"
 )
-
-var All = []string{
-	DiscoveryAccounts,
-	DiscoveryInstances,
-	DiscoverySSMInstances,
-	DiscoveryECR,
-	DiscoveryECS,
-}
-
-func allDiscovery() []string {
-	return append(All, AllAPIResources...)
-}
 
 var Auto = []string{
 	DiscoveryAccounts,
@@ -134,6 +124,16 @@ var AllAPIResources = []string{
 	DiscoveryCloudfrontDistributions,
 }
 
+// All includes every discovery target: Auto plus OS-level instance discovery,
+// SSM instances, ECR, and ECS.
+var All = append(
+	slices.Clone(Auto),
+	DiscoveryInstances,
+	DiscoverySSMInstances,
+	DiscoveryECR,
+	DiscoveryECS,
+)
+
 func Discover(runtime *plugin.Runtime) (*inventory.Inventory, error) {
 	conn := runtime.Connection.(*connection.AwsConnection)
 	in := &inventory.Inventory{Spec: &inventory.InventorySpec{
@@ -163,8 +163,8 @@ func getDiscoveryTargets(config *inventory.Config) []string {
 	targets := config.GetDiscover().GetTargets()
 
 	if stringx.Contains(targets, DiscoveryAll) {
-		// return the All list + All Api Resources list
-		return allDiscovery()
+		// return all discovery targets
+		return All
 	}
 
 	// the targets we return.

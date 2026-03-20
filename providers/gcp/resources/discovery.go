@@ -60,15 +60,8 @@ const (
 	DiscoverIamServiceAccounts      = "iam-service-accounts"
 )
 
-var All = []string{
-	DiscoveryOrganization,
-	DiscoveryFolders,
-	DiscoveryProjects,
-}
-
-func allDiscovery() []string {
-	return append(All, AllAPIResources...)
-}
+// All includes every discovery target: Auto covers all of them for GCP.
+var All = slices.Clone(Auto)
 
 var Auto = []string{
 	DiscoveryOrganization,
@@ -142,8 +135,8 @@ func getDiscoveryTargets(config *inventory.Config) []string {
 	}
 
 	if stringx.ContainsAnyOf(targets, DiscoveryAll) {
-		// return the All list + All Api Resources list
-		return allDiscovery()
+		// return all discovery targets
+		return All
 	}
 	if stringx.ContainsAnyOf(targets, DiscoveryAuto) {
 		for i, target := range targets {
