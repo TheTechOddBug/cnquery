@@ -2218,6 +2218,23 @@ func (a *mqlAwsEc2Snapshot) kmsKey() (*mqlAwsKmsKey, error) {
 	return mqlKey.(*mqlAwsKmsKey), nil
 }
 
+func (a *mqlAwsEc2Snapshot) isPublic() (bool, error) {
+	perms, err := a.createVolumePermission()
+	if err != nil {
+		return false, err
+	}
+	for _, p := range perms {
+		permMap, ok := p.(map[string]any)
+		if !ok {
+			continue
+		}
+		if group, ok := permMap["Group"].(string); ok && group == "all" {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (a *mqlAwsEc2Snapshot) createVolumePermission() ([]any, error) {
 	id := a.Id.Data
 	region := a.Region.Data
@@ -2228,6 +2245,10 @@ func (a *mqlAwsEc2Snapshot) createVolumePermission() ([]any, error) {
 
 	attribute, err := svc.DescribeSnapshotAttribute(ctx, &ec2.DescribeSnapshotAttributeInput{SnapshotId: &id, Attribute: ec2types.SnapshotAttributeNameCreateVolumePermission})
 	if err != nil {
+		if Is400AccessDeniedError(err) {
+			log.Debug().Str("snapshot", id).Msg("access denied when retrieving snapshot volume permissions")
+			return nil, nil
+		}
 		return nil, err
 	}
 

@@ -482,6 +482,8 @@ func (t *mqlAwsEcsTask) containers() ([]any, error) {
 	}
 	containerLogDriverMap := make(map[string]string)
 	containerCommandMap := make(map[string][]string)
+	containerUserMap := make(map[string]string)
+	containerInitProcessMap := make(map[string]bool)
 
 	for i := range definition.TaskDefinition.ContainerDefinitions {
 		cd := definition.TaskDefinition.ContainerDefinitions[i]
@@ -491,6 +493,10 @@ func (t *mqlAwsEcsTask) containers() ([]any, error) {
 				containerLogDriverMap[*cd.Name] = string(cd.LogConfiguration.LogDriver)
 			} else {
 				containerLogDriverMap[*cd.Name] = "none"
+			}
+			containerUserMap[*cd.Name] = convert.ToValue(cd.User)
+			if cd.LinuxParameters != nil {
+				containerInitProcessMap[*cd.Name] = convert.ToValue(cd.LinuxParameters.InitProcessEnabled)
 			}
 		}
 	}
@@ -517,25 +523,27 @@ func (t *mqlAwsEcsTask) containers() ([]any, error) {
 
 		mqlContainer, err := CreateResource(t.MqlRuntime, "aws.ecs.container",
 			map[string]*llx.RawData{
-				"arn":               llx.StringDataPtr(c.ContainerArn),
-				"clusterName":       llx.StringData(t.clusterName),
-				"command":           llx.ArrayData(cmds, types.Any),
-				"containerName":     llx.StringDataPtr(c.Name),
-				"cpuUnits":          llx.StringDataPtr(c.Cpu),
-				"image":             llx.StringData(convert.ToValue(c.Image)),
-				"logDriver":         llx.StringData(containerLogDriverMap[convert.ToValue(c.Name)]),
-				"name":              llx.StringData(name),
-				"platformFamily":    llx.StringData(t.PlatformFamily.Data),
-				"platformVersion":   llx.StringData(t.PlatformVersion.Data),
-				"publicIp":          llx.StringData(publicIp),
-				"region":            llx.StringData(t.region),
-				"runtimeId":         llx.StringDataPtr(c.RuntimeId),
-				"status":            llx.StringDataPtr(c.LastStatus),
-				"taskArn":           llx.StringData(t.Arn.Data),
-				"taskDefinitionArn": llx.StringData(t.Arn.Data),
-				"memorySoftLimit":   llx.StringDataPtr(c.MemoryReservation),
-				"memoryHardLimit":   llx.StringDataPtr(c.Memory),
-				"reason":            llx.StringDataPtr(c.Reason),
+				"arn":                llx.StringDataPtr(c.ContainerArn),
+				"clusterName":        llx.StringData(t.clusterName),
+				"command":            llx.ArrayData(cmds, types.Any),
+				"containerName":      llx.StringDataPtr(c.Name),
+				"cpuUnits":           llx.StringDataPtr(c.Cpu),
+				"image":              llx.StringData(convert.ToValue(c.Image)),
+				"logDriver":          llx.StringData(containerLogDriverMap[convert.ToValue(c.Name)]),
+				"name":               llx.StringData(name),
+				"platformFamily":     llx.StringData(t.PlatformFamily.Data),
+				"platformVersion":    llx.StringData(t.PlatformVersion.Data),
+				"publicIp":           llx.StringData(publicIp),
+				"region":             llx.StringData(t.region),
+				"runtimeId":          llx.StringDataPtr(c.RuntimeId),
+				"status":             llx.StringDataPtr(c.LastStatus),
+				"taskArn":            llx.StringData(t.Arn.Data),
+				"taskDefinitionArn":  llx.StringData(t.Arn.Data),
+				"memorySoftLimit":    llx.StringDataPtr(c.MemoryReservation),
+				"memoryHardLimit":    llx.StringDataPtr(c.Memory),
+				"reason":             llx.StringDataPtr(c.Reason),
+				"user":               llx.StringData(containerUserMap[convert.ToValue(c.Name)]),
+				"initProcessEnabled": llx.BoolData(containerInitProcessMap[convert.ToValue(c.Name)]),
 			})
 		if err != nil {
 			return nil, err
