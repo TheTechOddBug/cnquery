@@ -5,6 +5,8 @@ package resources
 
 import (
 	"fmt"
+	"strings"
+	"sync"
 
 	"github.com/rs/zerolog/log"
 	"go.mondoo.com/mql/v13/llx"
@@ -103,4 +105,94 @@ func initMountPoint(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[
 		"options": llx.MapData(nil, types.String),
 		"mounted": llx.BoolFalse,
 	}, nil, nil
+}
+
+type mqlMountInternal struct {
+	dfFetched bool
+	dfEntries map[string]*mount.DfEntry
+	lock      sync.Mutex
+}
+
+// fetchDfEntries runs "df -P -k" once and caches the result for all mount points.
+func (m *mqlMount) fetchDfEntries() (map[string]*mount.DfEntry, error) {
+	if m.dfFetched {
+		return m.dfEntries, nil
+	}
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	if m.dfFetched {
+		return m.dfEntries, nil
+	}
+
+	o, err := CreateResource(m.MqlRuntime, "command", map[string]*llx.RawData{
+		"command": llx.StringData("df -P -k"),
+	})
+	if err != nil {
+		// df may not exist on this system (e.g., minimal containers)
+		log.Debug().Err(err).Msg("mql[mount]> df command not available")
+		m.dfEntries = map[string]*mount.DfEntry{}
+		m.dfFetched = true
+		return m.dfEntries, nil
+	}
+	cmd := o.(*mqlCommand)
+	if exit := cmd.GetExitcode(); exit.Data != 0 {
+		// df failed (not installed, no permission, etc.) — return empty, not error
+		log.Debug().Str("stderr", cmd.Stderr.Data).Msg("mql[mount]> df command failed")
+		m.dfEntries = map[string]*mount.DfEntry{}
+		m.dfFetched = true
+		return m.dfEntries, nil
+	}
+
+	m.dfEntries = mount.ParseDf(strings.NewReader(cmd.Stdout.Data))
+	m.dfFetched = true
+	return m.dfEntries, nil
+}
+
+func (m *mqlMountPoint) fetchDfEntry() (*mount.DfEntry, error) {
+	obj, err := CreateResource(m.MqlRuntime, "mount", map[string]*llx.RawData{})
+	if err != nil {
+		return nil, err
+	}
+	mnt := obj.(*mqlMount)
+	entries, err := mnt.fetchDfEntries()
+	if err != nil {
+		return nil, err
+	}
+	return entries[m.Path.Data], nil
+}
+
+func (m *mqlMountPoint) size() (int64, error) {
+	entry, err := m.fetchDfEntry()
+	if err != nil {
+		return 0, err
+	}
+	if entry == nil {
+		m.Size.State = plugin.StateIsNull | plugin.StateIsSet
+		return 0, nil
+	}
+	return entry.Size, nil
+}
+
+func (m *mqlMountPoint) used() (int64, error) {
+	entry, err := m.fetchDfEntry()
+	if err != nil {
+		return 0, err
+	}
+	if entry == nil {
+		m.Used.State = plugin.StateIsNull | plugin.StateIsSet
+		return 0, nil
+	}
+	return entry.Used, nil
+}
+
+func (m *mqlMountPoint) available() (int64, error) {
+	entry, err := m.fetchDfEntry()
+	if err != nil {
+		return 0, err
+	}
+	if entry == nil {
+		m.Available.State = plugin.StateIsNull | plugin.StateIsSet
+		return 0, nil
+	}
+	return entry.Available, nil
 }

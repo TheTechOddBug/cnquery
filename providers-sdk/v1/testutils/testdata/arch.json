@@ -84,6 +84,24 @@
           }
         },
         {
+          "Resource": "command",
+          "ID": "df -P -k",
+          "Fields": {
+            "exitcode": {
+              "type": "\u0005",
+              "value": 0
+            },
+            "stderr": {
+              "type": "\u0007",
+              "value": ""
+            },
+            "stdout": {
+              "type": "\u0007",
+              "value": "Filesystem     1024-blocks      Used Available Capacity Mounted on\noverlay         51340776  12165612  36537668      25% /\nproc                   0         0         0       0% /proc\ntmpfs              65536         0     65536       0% /dev"
+            }
+          }
+        },
+        {
           "Resource": "file",
           "ID": "/dummy.array.json",
           "Fields": {
