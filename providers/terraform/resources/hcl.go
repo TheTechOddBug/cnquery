@@ -92,7 +92,7 @@ func (t *mqlTerraform) blocks() ([]any, error) {
 	}
 
 	files := parser.Files()
-	var mqlHclBlocks []any
+	mqlHclBlocks := make([]any, 0)
 	for k := range files {
 		f := files[k]
 		blocks, err := listHclBlocks(t.MqlRuntime, f.Body, f)
@@ -112,10 +112,10 @@ func (t *mqlTerraform) refreshCache(blocks []any) error {
 	}
 
 	t.lock.Lock()
+	defer t.lock.Unlock()
 	if t.blocksByName != nil {
 		return nil
 	}
-	defer t.lock.Unlock()
 
 	t.blocksByName = map[string]*mqlTerraformBlock{}
 	t.relatedBlocks = map[string][]*mqlTerraformBlock{}
@@ -141,7 +141,7 @@ func (t *mqlTerraform) refreshCache(blocks []any) error {
 		case "provider":
 			t.Providers.Data = append(t.Providers.Data, block)
 		case "data":
-			t.Datasources.Data = append(t.Providers.Data, block)
+			t.Datasources.Data = append(t.Datasources.Data, block)
 		case "resource":
 			t.mqlTerraformInternal.resources = append(t.mqlTerraformInternal.resources, block)
 		case "variable":

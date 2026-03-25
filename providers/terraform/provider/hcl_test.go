@@ -15,6 +15,7 @@ import (
 const (
 	terraformHclPath       = "./testdata/terraform"
 	terraformHclModulePath = "./testdata/terraform-module"
+	terraformHclEmptyPath  = "./testdata/terraform-empty"
 )
 
 func TestResource_Terraform(t *testing.T) {
@@ -51,6 +52,29 @@ func TestResource_Terraform(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.Equal(t, "provider", string(dataResp.Data.Value))
+	})
+
+	t.Run("terraform datasources are not empty", func(t *testing.T) {
+		srv, connRes := newTestService(HclConnectionType, terraformHclPath)
+		require.NotEmpty(t, srv)
+
+		// create terraform resource
+		dataResp, err := srv.GetData(&plugin.DataReq{
+			Connection: connRes.Id,
+			Resource:   "terraform",
+		})
+		require.NoError(t, err)
+		resourceId := string(dataResp.Data.Value)
+
+		// fetch datasources — previously broken: appended to Providers.Data instead of Datasources.Data
+		dataResp, err = srv.GetData(&plugin.DataReq{
+			Connection: connRes.Id,
+			Resource:   "terraform",
+			ResourceId: resourceId,
+			Field:      "datasources",
+		})
+		require.NoError(t, err)
+		assert.Equal(t, 2, len(dataResp.Data.Array))
 	})
 
 	t.Run("terraform ignore commented out resources", func(t *testing.T) {
@@ -205,6 +229,60 @@ func TestModuleWithoutResources_Terraform(t *testing.T) {
 		assert.Nil(t, dataResp.Data.Value)
 		assert.Empty(t, dataResp.Data.Array)
 		assert.Empty(t, dataResp.Data.Map)
+	})
+}
+
+// TestEmptyBlocks_NoStackOverflow verifies that terraform files with no HCL
+// blocks (e.g., only comments) don't cause infinite recursion in refreshCache.
+//
+// Root cause: blocks() uses `var mqlHclBlocks []any` which stays nil when no
+// blocks are found. refreshCache(nil) interprets nil as "not yet fetched" and
+// calls GetBlocks() which calls blocks() again — infinite recursion.
+func TestEmptyBlocks_NoStackOverflow(t *testing.T) {
+	t.Run("terraform blocks on empty files", func(t *testing.T) {
+		srv, connRes := newTestService(HclConnectionType, terraformHclEmptyPath)
+		require.NotEmpty(t, srv)
+
+		// create terraform resource
+		dataResp, err := srv.GetData(&plugin.DataReq{
+			Connection: connRes.Id,
+			Resource:   "terraform",
+		})
+		require.NoError(t, err)
+		resourceId := string(dataResp.Data.Value)
+
+		// fetch blocks - this will stack overflow without the fix
+		dataResp, err = srv.GetData(&plugin.DataReq{
+			Connection: connRes.Id,
+			Resource:   "terraform",
+			ResourceId: resourceId,
+			Field:      "blocks",
+		})
+		require.NoError(t, err)
+		assert.Empty(t, dataResp.Data.Array)
+	})
+
+	t.Run("terraform providers on empty files", func(t *testing.T) {
+		srv, connRes := newTestService(HclConnectionType, terraformHclEmptyPath)
+		require.NotEmpty(t, srv)
+
+		// create terraform resource
+		dataResp, err := srv.GetData(&plugin.DataReq{
+			Connection: connRes.Id,
+			Resource:   "terraform",
+		})
+		require.NoError(t, err)
+		resourceId := string(dataResp.Data.Value)
+
+		// fetch providers via refreshCache(nil) path
+		dataResp, err = srv.GetData(&plugin.DataReq{
+			Connection: connRes.Id,
+			Resource:   "terraform",
+			ResourceId: resourceId,
+			Field:      "providers",
+		})
+		require.NoError(t, err)
+		assert.Empty(t, dataResp.Data.Array)
 	})
 }
 
