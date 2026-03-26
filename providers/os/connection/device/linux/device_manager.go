@@ -491,14 +491,10 @@ func (c *LinuxDeviceManager) identifyViaDeviceName(deviceName string, mountAll b
 		return nil, err
 	}
 
-	if mountAll {
-		log.Debug().Str("device", device.Name).Msg("mounting all partitions")
-		return device.GetPartitions(true, includeMounted)
-	}
-
-	pi, err := device.GetMountablePartition()
-	if err != nil {
-		return nil, err
-	}
-	return []*snapshot.Partition{pi}, nil
+	// Return all non-boot partitions so that tryDetectAsset can iterate
+	// through them and find the one containing the OS, which may not be
+	// the largest partition (e.g., Bottlerocket's data partition is larger
+	// than its root partition). When mountAll is true, boot partitions
+	// are included as well.
+	return device.GetPartitions(mountAll, includeMounted)
 }
