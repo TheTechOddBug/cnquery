@@ -5,12 +5,15 @@ package resources
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/service/firehose"
 	firehose_types "github.com/aws/aws-sdk-go-v2/service/firehose/types"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	kinesis_types "github.com/aws/aws-sdk-go-v2/service/kinesis/types"
+	kmsSDK "github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/rs/zerolog/log"
 	"go.mondoo.com/mql/v13/llx"
 	"go.mondoo.com/mql/v13/providers-sdk/v1/plugin"
@@ -178,6 +181,42 @@ func (a *mqlAwsKinesisStream) keyId() (string, error) {
 		return "", err
 	}
 	return a.cachedKeyId, nil
+}
+
+func (a *mqlAwsKinesisStream) kmsKey() (*mqlAwsKmsKey, error) {
+	if err := a.fetchStreamDetails(); err != nil {
+		return nil, err
+	}
+	if a.cachedKeyId == "" {
+		a.KmsKey.State = plugin.StateIsNull | plugin.StateIsSet
+		return nil, nil
+	}
+
+	conn := a.MqlRuntime.Connection.(*connection.AwsConnection)
+	keyArn := a.cachedKeyId
+	if strings.HasPrefix(keyArn, "arn:") {
+		// Already an ARN (handles all partitions: aws, aws-cn, aws-us-gov)
+	} else if strings.HasPrefix(keyArn, "alias/") {
+		// Resolve alias to key ARN via DescribeKey
+		svc := conn.Kms(a.Region.Data)
+		resp, err := svc.DescribeKey(context.Background(), &kmsSDK.DescribeKeyInput{KeyId: &keyArn})
+		if err != nil {
+			return nil, err
+		}
+		keyArn = *resp.KeyMetadata.Arn
+	} else {
+		// Assume raw key ID, construct ARN
+		keyArn = fmt.Sprintf(kmsKeyArnPattern, a.Region.Data, conn.AccountId(), keyArn)
+	}
+
+	mqlKey, err := NewResource(a.MqlRuntime, "aws.kms.key",
+		map[string]*llx.RawData{
+			"arn": llx.StringData(keyArn),
+		})
+	if err != nil {
+		return nil, err
+	}
+	return mqlKey.(*mqlAwsKmsKey), nil
 }
 
 func (a *mqlAwsKinesisStream) retentionPeriodHours() (int64, error) {
