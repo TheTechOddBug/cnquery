@@ -110,6 +110,14 @@ func (a *mqlAzureSubscriptionCosmosDbService) accounts() ([]any, error) {
 	return res, nil
 }
 
+type mqlAzureSubscriptionCosmosDbServiceAccountInternal struct {
+	cacheKeyVaultKeyUri        string
+	cacheBackupType            string
+	cacheBackupIntervalMinutes int64
+	cacheBackupRetentionHours  int64
+	cacheBackupRedundancy      string
+}
+
 func fetchCosmosDBAccounts(ctx context.Context, runtime *plugin.Runtime, conn *connection.AzureConnection, subId string) ([]any, error) {
 	accClient, err := cosmosdb.NewDatabaseAccountsClient(subId, conn.Token(), &arm.ClientOptions{
 		ClientOptions: conn.ClientOptions(),
@@ -138,6 +146,7 @@ func fetchCosmosDBAccounts(ctx context.Context, runtime *plugin.Runtime, conn *c
 			var enableAutomaticFailover *bool
 			var enableMultipleWriteLocations *bool
 			var minimalTlsVersion *string
+			var defaultIdentity *string
 			if account.Properties != nil {
 				publicNetworkAccess = (*string)(account.Properties.PublicNetworkAccess)
 				disableLocalAuth = account.Properties.DisableLocalAuth
@@ -146,6 +155,7 @@ func fetchCosmosDBAccounts(ctx context.Context, runtime *plugin.Runtime, conn *c
 				enableAutomaticFailover = account.Properties.EnableAutomaticFailover
 				enableMultipleWriteLocations = account.Properties.EnableMultipleWriteLocations
 				minimalTlsVersion = (*string)(account.Properties.MinimalTLSVersion)
+				defaultIdentity = account.Properties.DefaultIdentity
 			}
 
 			ipRangeFilter := []any{}
@@ -154,6 +164,55 @@ func fetchCosmosDBAccounts(ctx context.Context, runtime *plugin.Runtime, conn *c
 					if rule != nil && rule.IPAddressOrRange != nil {
 						ipRangeFilter = append(ipRangeFilter, *rule.IPAddressOrRange)
 					}
+				}
+			}
+
+			var backupType string
+			var backupIntervalMinutes, backupRetentionHours int64
+			var backupRedundancy string
+			if account.Properties != nil && account.Properties.BackupPolicy != nil {
+				bp := account.Properties.BackupPolicy
+				if bp.GetBackupPolicy().Type != nil {
+					backupType = string(*bp.GetBackupPolicy().Type)
+				}
+				if periodic, ok := bp.(*cosmosdb.PeriodicModeBackupPolicy); ok && periodic.PeriodicModeProperties != nil {
+					if periodic.PeriodicModeProperties.BackupIntervalInMinutes != nil {
+						backupIntervalMinutes = int64(*periodic.PeriodicModeProperties.BackupIntervalInMinutes)
+					}
+					if periodic.PeriodicModeProperties.BackupRetentionIntervalInHours != nil {
+						backupRetentionHours = int64(*periodic.PeriodicModeProperties.BackupRetentionIntervalInHours)
+					}
+					if periodic.PeriodicModeProperties.BackupStorageRedundancy != nil {
+						backupRedundancy = string(*periodic.PeriodicModeProperties.BackupStorageRedundancy)
+					}
+				}
+			}
+
+			virtualNetworkRules := []any{}
+			if account.Properties != nil && account.Properties.VirtualNetworkRules != nil {
+				for _, rule := range account.Properties.VirtualNetworkRules {
+					if rule == nil {
+						continue
+					}
+					var subnetId string
+					var ignoreMissing bool
+					if rule.ID != nil {
+						subnetId = *rule.ID
+					}
+					if rule.IgnoreMissingVNetServiceEndpoint != nil {
+						ignoreMissing = *rule.IgnoreMissingVNetServiceEndpoint
+					}
+					ruleId := *account.ID + "/virtualNetworkRules/" + subnetId
+					mqlRule, err := CreateResource(runtime, "azure.subscription.cosmosDbService.account.virtualNetworkRule",
+						map[string]*llx.RawData{
+							"id":                               llx.StringData(ruleId),
+							"subnetId":                         llx.StringData(subnetId),
+							"ignoreMissingVNetServiceEndpoint": llx.BoolData(ignoreMissing),
+						})
+					if err != nil {
+						return nil, err
+					}
+					virtualNetworkRules = append(virtualNetworkRules, mqlRule)
 				}
 			}
 
@@ -175,9 +234,19 @@ func fetchCosmosDBAccounts(ctx context.Context, runtime *plugin.Runtime, conn *c
 					"enableMultipleWriteLocations":       llx.BoolDataPtr(enableMultipleWriteLocations),
 					"ipRangeFilter":                      llx.ArrayData(ipRangeFilter, types.String),
 					"minimalTlsVersion":                  llx.StringDataPtr(minimalTlsVersion),
+					"defaultIdentity":                    llx.StringDataPtr(defaultIdentity),
+					"backupType":                         llx.StringData(backupType),
+					"backupIntervalInMinutes":            llx.IntData(backupIntervalMinutes),
+					"backupRetentionIntervalInHours":     llx.IntData(backupRetentionHours),
+					"backupStorageRedundancy":            llx.StringData(backupRedundancy),
+					"virtualNetworkRules":                llx.ArrayData(virtualNetworkRules, types.Resource("azure.subscription.cosmosDbService.account.virtualNetworkRule")),
 				})
 			if err != nil {
 				return nil, err
+			}
+			mqlAccount := mqlCosmosDbAccount.(*mqlAzureSubscriptionCosmosDbServiceAccount)
+			if account.Properties != nil && account.Properties.KeyVaultKeyURI != nil {
+				mqlAccount.cacheKeyVaultKeyUri = *account.Properties.KeyVaultKeyURI
 			}
 			res = append(res, mqlCosmosDbAccount)
 		}
@@ -283,4 +352,12 @@ func fetchCosmosForPostgres(ctx context.Context, runtime *plugin.Runtime, conn *
 		}
 	}
 	return res, nil
+}
+
+func (a *mqlAzureSubscriptionCosmosDbServiceAccount) encryptionKey() (*mqlAzureSubscriptionKeyVaultServiceKey, error) {
+	if a.cacheKeyVaultKeyUri == "" {
+		a.EncryptionKey.State = plugin.StateIsNull | plugin.StateIsSet
+		return nil, nil
+	}
+	return newKeyVaultKeyResource(a.MqlRuntime, a.cacheKeyVaultKeyUri)
 }

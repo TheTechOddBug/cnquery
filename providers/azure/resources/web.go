@@ -109,6 +109,11 @@ func createWebAppResourceFromSite(runtime *plugin.Runtime, resourceType string, 
 		args["enabled"] = llx.BoolDataPtr(site.Properties.Enabled)
 		args["state"] = llx.StringDataPtr(site.Properties.State)
 		args["endToEndEncryptionEnabled"] = llx.BoolDataPtr(site.Properties.EndToEndEncryptionEnabled)
+		var identityType string
+		if site.Identity != nil && site.Identity.Type != nil {
+			identityType = string(*site.Identity.Type)
+		}
+		args["identityType"] = llx.StringData(identityType)
 	}
 
 	return CreateResource(runtime, resourceType, args)
@@ -665,6 +670,109 @@ func (a *mqlAzureSubscriptionWebServiceAppsite) configuration() (*mqlAzureSubscr
 	}
 
 	return res.(*mqlAzureSubscriptionWebServiceAppsiteconfig), nil
+}
+
+func ipSecurityRestrictionsToMql(runtime *plugin.Runtime, configId string, restrictions []any) ([]any, error) {
+	res := []any{}
+	for i, r := range restrictions {
+		ruleMap, ok := r.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		id := fmt.Sprintf("%s/ipSecurityRestrictions/%d", configId, i)
+		name, _ := ruleMap["name"].(string)
+		description, _ := ruleMap["description"].(string)
+		action, _ := ruleMap["action"].(string)
+		ipAddress, _ := ruleMap["ipAddress"].(string)
+		tag, _ := ruleMap["tag"].(string)
+		vnetSubnetResourceId, _ := ruleMap["vnetSubnetResourceId"].(string)
+		subnetMask, _ := ruleMap["subnetMask"].(string)
+
+		var priority int64
+		switch p := ruleMap["priority"].(type) {
+		case float64:
+			priority = int64(p)
+		case int64:
+			priority = p
+		}
+
+		headers, _ := convert.JsonToDict(ruleMap["headers"])
+
+		mqlRule, err := CreateResource(runtime, "azure.subscription.webService.appsiteconfig.ipSecurityRestriction",
+			map[string]*llx.RawData{
+				"id":                   llx.StringData(id),
+				"name":                 llx.StringData(name),
+				"description":          llx.StringData(description),
+				"action":               llx.StringData(action),
+				"ipAddress":            llx.StringData(ipAddress),
+				"priority":             llx.IntData(priority),
+				"tag":                  llx.StringData(tag),
+				"vnetSubnetResourceId": llx.StringData(vnetSubnetResourceId),
+				"subnetMask":           llx.StringData(subnetMask),
+				"headers":              llx.DictData(headers),
+			})
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, mqlRule)
+	}
+	return res, nil
+}
+
+func extractIPRestrictions(propsData any, field string) []any {
+	if propsData == nil {
+		return nil
+	}
+	propsDict, ok := propsData.(map[string]any)
+	if !ok {
+		return nil
+	}
+	restrictions, ok := propsDict[field]
+	if !ok || restrictions == nil {
+		return nil
+	}
+	arr, ok := restrictions.([]any)
+	if !ok {
+		return nil
+	}
+	return arr
+}
+
+func (a *mqlAzureSubscriptionWebServiceAppsiteconfig) ipSecurityRestrictions() ([]any, error) {
+	restrictions := extractIPRestrictions(a.Properties.Data, "ipSecurityRestrictions")
+	if restrictions == nil {
+		return []any{}, nil
+	}
+	return ipSecurityRestrictionsToMql(a.MqlRuntime, a.Id.Data, restrictions)
+}
+
+func (a *mqlAzureSubscriptionWebServiceAppsiteconfig) scmIpSecurityRestrictions() ([]any, error) {
+	restrictions := extractIPRestrictions(a.Properties.Data, "scmIpSecurityRestrictions")
+	if restrictions == nil {
+		return []any{}, nil
+	}
+	return ipSecurityRestrictionsToMql(a.MqlRuntime, a.Id.Data+"/scm", restrictions)
+}
+
+func (a *mqlAzureSubscriptionWebServiceAppsiteconfig) ipSecurityRestrictionsDefaultAction() (string, error) {
+	props := a.Properties.Data
+	if props == nil {
+		return "", nil
+	}
+	propsDict, ok := props.(map[string]any)
+	if !ok {
+		return "", nil
+	}
+	val, ok := propsDict["ipSecurityRestrictionsDefaultAction"]
+	if !ok || val == nil {
+		return "", nil
+	}
+	s, ok := val.(string)
+	if !ok {
+		return "", nil
+	}
+	return s, nil
 }
 
 func (a *mqlAzureSubscriptionWebServiceAppsite) authenticationSettings() (*mqlAzureSubscriptionWebServiceAppsiteauthsettings, error) {
