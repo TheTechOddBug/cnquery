@@ -209,6 +209,7 @@ regexmatchstatement
 regexpatternsetreferencestatement
 resourcegroup
 resourcequota
+richrule
 rpo
 RRULE
 rtsp
@@ -248,6 +249,7 @@ tde
 testutils
 timestream
 toplevel
+toport
 tpu
 trainingjob
 transitgateway
