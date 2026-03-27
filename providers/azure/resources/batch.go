@@ -8,7 +8,7 @@ import (
 	"errors"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	armbatch "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/batch/armbatch/v3"
+	armbatch "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/batch/armbatch/v4"
 	"go.mondoo.com/mql/v13/llx"
 	"go.mondoo.com/mql/v13/providers-sdk/v1/plugin"
 	"go.mondoo.com/mql/v13/providers-sdk/v1/util/convert"
@@ -377,6 +377,11 @@ func createBatchPoolRawData(pool *armbatch.Pool) (map[string]*llx.RawData, error
 		virtualMachineConfigurationData = llx.NilData
 		vmSizeData                      = llx.NilData
 		provisioningStateData           = llx.NilData
+		diskCustomerManagedKeyEnabled   = llx.NilData
+		diskEncryptionTargets           = llx.NilData
+		hostEndpointProtectionMode      = llx.NilData
+		proxyAgentEnabled               = llx.NilData
+		securityEncryptionType          = llx.NilData
 	)
 
 	if pool.Properties != nil {
@@ -409,19 +414,65 @@ func createBatchPoolRawData(pool *armbatch.Pool) (map[string]*llx.RawData, error
 		if pool.Properties.ProvisioningState != nil {
 			provisioningStateData = llx.StringData(string(*pool.Properties.ProvisioningState))
 		}
+
+		// Extract new v4 security fields from deployment configuration
+		if pool.Properties.DeploymentConfiguration != nil && pool.Properties.DeploymentConfiguration.VirtualMachineConfiguration != nil {
+			vmConfig := pool.Properties.DeploymentConfiguration.VirtualMachineConfiguration
+
+			// Disk encryption configuration
+			if vmConfig.DiskEncryptionConfiguration != nil {
+				dec := vmConfig.DiskEncryptionConfiguration
+				diskCustomerManagedKeyEnabled = llx.BoolData(dec.CustomerManagedKey != nil && dec.CustomerManagedKey.KeyURL != nil && *dec.CustomerManagedKey.KeyURL != "")
+				if dec.Targets != nil {
+					targets := []any{}
+					for _, t := range dec.Targets {
+						if t != nil {
+							targets = append(targets, string(*t))
+						}
+					}
+					diskEncryptionTargets = llx.ArrayData(targets, types.String)
+				} else {
+					diskEncryptionTargets = llx.ArrayData([]any{}, types.String)
+				}
+			} else {
+				diskCustomerManagedKeyEnabled = llx.BoolData(false)
+				diskEncryptionTargets = llx.ArrayData([]any{}, types.String)
+			}
+
+			// Security profile
+			if vmConfig.SecurityProfile != nil {
+				sp := vmConfig.SecurityProfile
+				if sp.ProxyAgentSettings != nil {
+					proxyAgentEnabled = llx.BoolDataPtr(sp.ProxyAgentSettings.Enabled)
+					// Imds is of type HostEndpointSettings; Mode is the access control policy
+					// execution mode ("Audit" or "Enforce") for the IMDS endpoint protection.
+					if sp.ProxyAgentSettings.Imds != nil && sp.ProxyAgentSettings.Imds.Mode != nil {
+						hostEndpointProtectionMode = llx.StringData(string(*sp.ProxyAgentSettings.Imds.Mode))
+					}
+				}
+				if sp.SecurityType != nil {
+					securityEncryptionType = llx.StringData(string(*sp.SecurityType))
+				}
+			}
+		}
 	}
 
 	return map[string]*llx.RawData{
-		"id":                          llx.StringDataPtr(pool.ID),
-		"name":                        llx.StringDataPtr(pool.Name),
-		"type":                        llx.StringDataPtr(pool.Type),
-		"etag":                        llx.StringDataPtr(pool.Etag),
-		"identity":                    identityData,
-		"properties":                  propertiesData,
-		"deploymentConfiguration":     deploymentConfigurationData,
-		"virtualMachineConfiguration": virtualMachineConfigurationData,
-		"vmSize":                      vmSizeData,
-		"provisioningState":           provisioningStateData,
+		"id":                            llx.StringDataPtr(pool.ID),
+		"name":                          llx.StringDataPtr(pool.Name),
+		"type":                          llx.StringDataPtr(pool.Type),
+		"etag":                          llx.StringDataPtr(pool.Etag),
+		"identity":                      identityData,
+		"properties":                    propertiesData,
+		"deploymentConfiguration":       deploymentConfigurationData,
+		"virtualMachineConfiguration":   virtualMachineConfigurationData,
+		"vmSize":                        vmSizeData,
+		"provisioningState":             provisioningStateData,
+		"diskCustomerManagedKeyEnabled": diskCustomerManagedKeyEnabled,
+		"diskEncryptionTargets":         diskEncryptionTargets,
+		"hostEndpointProtectionMode":    hostEndpointProtectionMode,
+		"proxyAgentEnabled":             proxyAgentEnabled,
+		"securityEncryptionType":        securityEncryptionType,
 	}, nil
 }
 
