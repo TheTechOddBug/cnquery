@@ -15,6 +15,7 @@ import (
 	"go.mondoo.com/mql/v13/providers/os/detector"
 	"go.mondoo.com/mql/v13/providers/os/id/awsec2"
 	"go.mondoo.com/mql/v13/providers/os/id/awsecs"
+	"go.mondoo.com/mql/v13/providers/os/id/biosuuid"
 	"go.mondoo.com/mql/v13/providers/os/id/clouddetect"
 	"go.mondoo.com/mql/v13/providers/os/id/hostname"
 	"go.mondoo.com/mql/v13/providers/os/id/hypervisor"
@@ -52,6 +53,17 @@ func IdentifyPlatform(conn shared.Connection, req *plugin.ConnectReq, p *invento
 	var platformIds []string
 	var relatedIds []string
 
+	// Detect hypervisor for two purposes: auto-adding the BIOS UUID detector
+	// when no idDetectors are provided, and setting p.Kind at the bottom.
+	var detectedHypervisor string
+	var isVM bool
+	if len(idDetectors) == 0 || p.Kind == "" {
+		detectedHypervisor, isVM = hypervisor.Hypervisor(conn, p)
+		if isVM {
+			log.Debug().Str("hypervisor", detectedHypervisor).Msg("detected hypervisor for ID detection")
+		}
+	}
+
 	if len(idDetectors) == 0 {
 		// fallback to default id detectors
 		//
@@ -64,8 +76,17 @@ func IdentifyPlatform(conn shared.Connection, req *plugin.ConnectReq, p *invento
 			if mql.Features(req.Features).IsActive(mql.SerialNumberAsID) {
 				idDetectors = append(idDetectors, ids.IdDetector_SerialNumber)
 			}
+			// Automatically use BIOS UUID for VMs since serial numbers may not be unique
+			// (e.g., OpenStack passes through the host's serial number to VMs)
+			if mql.Features(req.Features).IsActive(mql.BiosUUIDAsID) || isVM {
+				idDetectors = append(idDetectors, ids.IdDetector_BiosUUID)
+			}
 		case shared.Type_SSH:
 			idDetectors = []string{ids.IdDetector_CloudDetect, ids.IdDetector_Hostname}
+			// Use BIOS UUID for SSH connections when explicitly enabled or when VM is detected
+			if mql.Features(req.Features).IsActive(mql.BiosUUIDAsID) || isVM {
+				idDetectors = append(idDetectors, ids.IdDetector_BiosUUID)
+			}
 		case shared.Type_Tar, shared.Type_FileSystem, shared.Type_DockerSnapshot:
 			idDetectors = []string{ids.IdDetector_Hostname}
 		}
@@ -126,13 +147,11 @@ func IdentifyPlatform(conn shared.Connection, req *plugin.ConnectReq, p *invento
 		})
 	}
 
-	// If at this point we couldn't detect the platform kind, try to detect a hypervisor,
-	// if we detect one, we will assume this asset is a virtual machine
-	if p.Kind == "" {
-		if hv, ok := hypervisor.Hypervisor(conn, p); ok {
-			log.Debug().Str("hypervisor", hv).Msg("detected hypervisor")
-			p.Kind = inventory.AssetKindCloudVM
-		}
+	// If at this point we couldn't detect the platform kind, use the hypervisor
+	// detection result to mark the asset as a virtual machine
+	if p.Kind == "" && isVM {
+		log.Debug().Str("hypervisor", detectedHypervisor).Msg("setting platform kind based on detected hypervisor")
+		p.Kind = inventory.AssetKindCloudVM
 	}
 
 	log.Debug().Interface("id-detector", idDetectors).Strs("platform-ids", platformIds).Msg("detected platform ids")
@@ -190,6 +209,17 @@ func gatherPlatformInfo(conn shared.Connection, pf *inventory.Platform, idDetect
 		serial, err := serialnumber.SerialNumber(conn, pf)
 		if err == nil && len(serial) > 0 {
 			identifier = "//platformid.api.mondoo.app/serialnumber/" + serial
+			return &platformInfo{
+				IDs:                []string{identifier},
+				Name:               "",
+				RelatedPlatformIDs: []string{},
+			}, nil
+		}
+		return &platformInfo{}, nil
+	case ids.IdDetector_BiosUUID:
+		uuid, err := biosuuid.BiosUUID(conn, pf)
+		if err == nil && len(uuid) > 0 {
+			identifier = "//platformid.api.mondoo.app/bios-uuid/" + uuid
 			return &platformInfo{
 				IDs:                []string{identifier},
 				Name:               "",
