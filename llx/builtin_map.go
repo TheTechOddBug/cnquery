@@ -18,14 +18,6 @@ import (
 var mapFunctions map[string]chunkHandlerV2 //nolint:unused
 
 func mapGetIndex(e *blockExecutor, bind *RawData, chunk *Chunk, ref uint64) (*RawData, uint64, error) {
-	return _mapGetIndex(e, bind, chunk, ref, false)
-}
-
-func mapGetConditionalIndex(e *blockExecutor, bind *RawData, chunk *Chunk, ref uint64) (*RawData, uint64, error) {
-	return _mapGetIndex(e, bind, chunk, ref, true)
-}
-
-func _mapGetIndex(e *blockExecutor, bind *RawData, chunk *Chunk, ref uint64, isConditional bool) (*RawData, uint64, error) {
 	args := chunk.Function.Args
 	// TODO: all this needs to go into the compile phase
 	if len(args) < 1 {
@@ -36,13 +28,10 @@ func _mapGetIndex(e *blockExecutor, bind *RawData, chunk *Chunk, ref uint64, isC
 	}
 	// ^^ TODO
 
+	childType := bind.Type.Child()
 	if bind.Value == nil {
-		if isConditional {
-			return &RawData{Type: bind.Type.Child()}, 0, nil
-		} else {
-			field := args[0].LabelV2(e.ctx.code)
-			return nil, 0, errors.New("cannot access map field " + field + ", map is null")
-		}
+		// Propagate null through map access chains instead of erroring.
+		return &RawData{Type: childType}, 0, nil
 	}
 
 	var key string
@@ -63,15 +52,6 @@ func _mapGetIndex(e *blockExecutor, bind *RawData, chunk *Chunk, ref uint64, isC
 		key = string(args[0].Value)
 	default:
 		return nil, 0, errors.New("Called [] with wrong type " + t.Label())
-	}
-
-	childType := bind.Type.Child()
-
-	if bind.Value == nil {
-		return &RawData{
-			Type:  childType,
-			Value: nil,
-		}, 0, nil
 	}
 
 	m, ok := bind.Value.(map[string]any)
@@ -372,14 +352,6 @@ func mapValuesV2(e *blockExecutor, bind *RawData, chunk *Chunk, ref uint64) (*Ra
 }
 
 func dictGetIndex(e *blockExecutor, bind *RawData, chunk *Chunk, ref uint64) (*RawData, uint64, error) {
-	return _dictGetIndex(e, bind, chunk, ref, false)
-}
-
-func dictGetConditionalIndex(e *blockExecutor, bind *RawData, chunk *Chunk, ref uint64) (*RawData, uint64, error) {
-	return _dictGetIndex(e, bind, chunk, ref, true)
-}
-
-func _dictGetIndex(e *blockExecutor, bind *RawData, chunk *Chunk, ref uint64, isConditional bool) (*RawData, uint64, error) {
 	args := chunk.Function.Args
 	// TODO: all this needs to go into the compile phase
 	if len(args) < 1 {
@@ -390,12 +362,10 @@ func _dictGetIndex(e *blockExecutor, bind *RawData, chunk *Chunk, ref uint64, is
 	}
 
 	if bind.Value == nil {
-		if isConditional {
-			return &RawData{Type: bind.Type}, 0, nil
-		} else {
-			field := args[0].LabelV2(e.ctx.code)
-			return nil, 0, errors.New("cannot access field " + field + ", parent element is null")
-		}
+		// Propagate null through dict access chains instead of erroring.
+		// This enables expressions like dict['a']['b'] to evaluate to null
+		// when dict['a'] is nil, rather than failing with a runtime error.
+		return &RawData{Type: bind.Type}, 0, nil
 	}
 
 	switch x := bind.Value.(type) {
