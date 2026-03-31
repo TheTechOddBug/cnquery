@@ -308,7 +308,7 @@
     {
       "permission": "Microsoft.Network/natGateways/read",
       "service": "Microsoft.Network",
-      "action": "NewListAllPager",
+      "action": "Get",
       "source_file": "network.go"
     },
     {
@@ -394,6 +394,12 @@
       "service": "Microsoft.Resources",
       "action": "NewListPager",
       "source_file": "cosmosdb.go"
+    },
+    {
+      "permission": "Microsoft.Resources/resources/read",
+      "service": "Microsoft.Resources",
+      "action": "NewListPager",
+      "source_file": "discovery.go"
     },
     {
       "permission": "Microsoft.Resources/resources/read",
