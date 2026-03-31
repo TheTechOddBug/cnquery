@@ -60,3 +60,15 @@ func (v *inmemoryVault) Get(ctx context.Context, id *vault.SecretID) (*vault.Sec
 	}
 	return s, nil
 }
+
+func (v *inmemoryVault) Delete(ctx context.Context, id *vault.SecretID) (*vault.Empty, error) {
+	if id == nil {
+		return nil, errors.New("secret id is empty")
+	}
+
+	if _, ok := v.secrets[id.Key]; !ok {
+		return nil, vault.NotFoundError
+	}
+	delete(v.secrets, id.Key)
+	return &vault.Empty{}, nil
+}
