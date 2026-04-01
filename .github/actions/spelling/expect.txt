@@ -1,6 +1,7 @@
 aad
 ACCOUNTADMIN
 ACTIVEMQ
+adr
 advancedthreatprotection
 alloydb
 alpn
@@ -57,6 +58,7 @@ datapath
 DATAUSER
 datetime
 ddos
+dedup
 dedupratio
 deliverychannel
 depsdev
@@ -144,9 +146,9 @@ maxmemory
 mcp
 mcr
 meid
-metageneration
 memorydb
 messagestoragepolicy
+metageneration
 mfs
 mgroup
 minfree
@@ -194,9 +196,9 @@ pipefail
 portgroup
 posix
 postgre
-processingjob
 POWERUSER
 priorityclass
+processingjob
 psc
 PTn
 pushconfig
@@ -263,12 +265,12 @@ Uocm
 usb
 Utc
 valkey
-vertexai
 VAULTNAME
 Vcpus
 Veth
 vdcs
 vdev
+vertexai
 VGeneration
 virtualmachine
 vlans
