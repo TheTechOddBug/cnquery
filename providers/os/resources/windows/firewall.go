@@ -4,7 +4,9 @@
 package windows
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 )
 
@@ -33,24 +35,56 @@ type WindowsFirewallRule struct {
 	PolicyStoreSourceType int64  `json:"PolicyStoreSourceType"`
 }
 
+// streamDecodeJSONArray stream-decodes a JSON array from input, returning
+// elements one at a time to avoid buffering the entire payload. It also
+// handles the PowerShell quirk where a single-element result is emitted as
+// a bare object instead of a one-element array.
+func streamDecodeJSONArray[T any](input io.Reader) ([]T, error) {
+	dec := json.NewDecoder(input)
+
+	// Read the opening token of the JSON value.
+	tok, err := dec.Token()
+	if err == io.EOF {
+		return []T{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	delim, isDelim := tok.(json.Delim)
+
+	// PowerShell emits a bare object when there is exactly one element.
+	if isDelim && delim == '{' {
+		var item T
+		if err := json.NewDecoder(io.MultiReader(
+			bytes.NewReader([]byte{'{'}),
+			dec.Buffered(),
+			input,
+		)).Decode(&item); err != nil {
+			return nil, err
+		}
+		return []T{item}, nil
+	}
+
+	if !isDelim || delim != '[' {
+		return nil, fmt.Errorf("unexpected JSON token %v; expected '[' or '{'", tok)
+	}
+
+	// Stream-decode array elements one at a time.
+	var items []T
+	for dec.More() {
+		var item T
+		if err := dec.Decode(&item); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+
+	return items, nil
+}
+
 func ParseWindowsFirewallRules(input io.Reader) ([]WindowsFirewallRule, error) {
-	data, err := io.ReadAll(input)
-	if err != nil {
-		return nil, err
-	}
-
-	// for empty result set do not get the '{}', therefore lets abort here
-	if len(data) == 0 {
-		return []WindowsFirewallRule{}, nil
-	}
-
-	var winFirewallRules []WindowsFirewallRule
-	err = json.Unmarshal(data, &winFirewallRules)
-	if err != nil {
-		return nil, err
-	}
-
-	return winFirewallRules, nil
+	return streamDecodeJSONArray[WindowsFirewallRule](input)
 }
 
 type WindowsFirewallSettings struct {
@@ -119,21 +153,5 @@ type WindowsFirewallProfile struct {
 }
 
 func ParseWindowsFirewallProfiles(input io.Reader) ([]WindowsFirewallProfile, error) {
-	data, err := io.ReadAll(input)
-	if err != nil {
-		return nil, err
-	}
-
-	// for empty result set do not get the '{}', therefore lets abort here
-	if len(data) == 0 {
-		return []WindowsFirewallProfile{}, nil
-	}
-
-	var winFirewallProfiles []WindowsFirewallProfile
-	err = json.Unmarshal(data, &winFirewallProfiles)
-	if err != nil {
-		return nil, err
-	}
-
-	return winFirewallProfiles, nil
+	return streamDecodeJSONArray[WindowsFirewallProfile](input)
 }
