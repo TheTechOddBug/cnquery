@@ -1,7 +1,7 @@
 {
   "provider": "aws",
   "version": "13.6.2",
-  "generated_at": "2026-04-03T11:27:13-07:00",
+  "generated_at": "2026-04-03T15:35:46-07:00",
   "permissions": [
     "access-analyzer:ListAnalyzers",
     "access-analyzer:ListFindingsV2",
@@ -71,6 +71,8 @@
     "config:DescribeConfigurationAggregators",
     "config:DescribeConfigurationRecorders",
     "config:DescribeDeliveryChannels",
+    "dax:DescribeClusters",
+    "dax:ListTags",
     "dms:DescribeReplicationInstances",
     "drs:DescribeJobs",
     "drs:DescribeSourceServers",
@@ -224,6 +226,10 @@
     "inspector2:ListCoverage",
     "inspector2:ListFindings",
     "kafka:ListClustersV2",
+    "keyspaces:GetTable",
+    "keyspaces:ListKeyspaces",
+    "keyspaces:ListTables",
+    "keyspaces:ListTagsForResource",
     "kinesis:DescribeStreamSummary",
     "kinesis:ListStreamConsumers",
     "kinesis:ListStreams",
@@ -801,6 +807,18 @@
       "service": "config",
       "action": "DescribeDeliveryChannels",
       "source_file": "aws_config.go"
+    },
+    {
+      "permission": "dax:DescribeClusters",
+      "service": "dax",
+      "action": "DescribeClusters",
+      "source_file": "aws_dax.go"
+    },
+    {
+      "permission": "dax:ListTags",
+      "service": "dax",
+      "action": "ListTags",
+      "source_file": "aws_dax.go"
     },
     {
       "permission": "dms:DescribeReplicationInstances",
@@ -1757,6 +1775,30 @@
       "source_file": "aws_msk.go"
     },
     {
+      "permission": "keyspaces:GetTable",
+      "service": "keyspaces",
+      "action": "GetTable",
+      "source_file": "aws_keyspaces.go"
+    },
+    {
+      "permission": "keyspaces:ListKeyspaces",
+      "service": "keyspaces",
+      "action": "ListKeyspaces",
+      "source_file": "aws_keyspaces.go"
+    },
+    {
+      "permission": "keyspaces:ListTables",
+      "service": "keyspaces",
+      "action": "ListTables",
+      "source_file": "aws_keyspaces.go"
+    },
+    {
+      "permission": "keyspaces:ListTagsForResource",
+      "service": "keyspaces",
+      "action": "ListTagsForResource",
+      "source_file": "aws_keyspaces.go"
+    },
+    {
       "permission": "kinesis:DescribeStreamSummary",
       "service": "kinesis",
       "action": "DescribeStreamSummary",
@@ -2241,6 +2283,12 @@
       "service": "rds",
       "action": "DescribePendingMaintenanceActions",
       "source_file": "aws_rds.go"
+    },
+    {
+      "permission": "rds:ListTagsForResource",
+      "service": "rds",
+      "action": "ListTagsForResource",
+      "source_file": "aws_documentdb.go"
     },
     {
       "permission": "rds:ListTagsForResource",
