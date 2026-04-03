@@ -1,0 +1,541 @@
+// Copyright Mondoo, Inc. 2024, 2026
+// SPDX-License-Identifier: BUSL-1.1
+
+option provider = "go.mondoo.com/mql/v13/providers/activedirectory"
+option go_package = "go.mondoo.com/mql/v13/providers/activedirectory/resources"
+
+// Active Directory Domain Services
+activedirectory @defaults("domain functionalLevel") {
+  // Domain DNS name (e.g., corp.example.com)
+  domain string
+  // Domain NetBIOS name (requires additional LDAP query against CN=Partitions)
+  netbiosName() string
+  // Domain distinguished name (e.g., DC=corp,DC=example,DC=com)
+  distinguishedName string
+  // Domain SID
+  domainSid string
+  // Domain functional level (e.g., "2016")
+  functionalLevel string
+  // Forest functional level
+  forestFunctionalLevel string
+  // Forest DNS name
+  forestName string
+  // Domain controllers
+  domainControllers() []activedirectory.domainController
+  // All user accounts
+  users() []activedirectory.user
+  // All groups
+  groups() []activedirectory.group
+  // All computer accounts
+  computers() []activedirectory.computer
+  // Organizational Units
+  organizationalUnits() []activedirectory.ou
+  // Group Policy Objects
+  gpos() []activedirectory.gpo
+  // Domain trusts
+  trusts() []activedirectory.trust
+  // Password policy (default domain policy)
+  passwordPolicy() activedirectory.domainPasswordPolicy
+  // Fine-Grained Password Policies
+  fineGrainedPasswordPolicies() []activedirectory.fineGrainedPasswordPolicy
+  // Certificate templates (ADCS)
+  certificateTemplates() []activedirectory.certificateTemplate
+  // Certificate authorities
+  certificateAuthorities() []activedirectory.certificateAuthority
+  // PKI objects for ESC5 analysis
+  pkiObjects() []activedirectory.pkiObject
+  // DNS zones
+  dnsZones() []activedirectory.dnsZone
+  // Whether LAPS schema extension is present
+  lapsEnabled() bool
+  // Schema version
+  schemaVersion() int
+  // Dangerous ACL delegations on critical AD objects
+  dangerousPermissions() []activedirectory.dangerousPermission
+  // Number of machine accounts any user can create (ms-DS-MachineAccountQuota; should be 0)
+  machineAccountQuota() int
+  // Whether the AD Recycle Bin optional feature is enabled
+  recycleBinEnabled() bool
+  // Whether the DC requires LDAP signing (detected via unsigned simple bind probe with invalid credentials)
+  ldapSigningRequired() bool
+  // Whether the DC requires SMB signing (detected via pre-auth negotiate probe on port 445)
+  smbSigningRequired() bool
+  // Whether the DC still accepts SMBv1 connections (detected via explicit SMB1 negotiate probe)
+  smbv1Enabled() bool
+  // Whether the DC advertises SMB3 encryption capability
+  smbEncryptionSupported() bool
+  // Whether the DC accepts SMB null sessions (unauthenticated access)
+  smbNullSessionAllowed() bool
+  // Whether the DC falls back to guest session on invalid credentials
+  smbGuestAccessAllowed() bool
+  // Highest SMB dialect negotiated by the DC (e.g., "3.1.1", "3.0", "2.1")
+  smbHighestDialect() string
+  // Whether LDAP channel binding is required (LdapEnforceChannelBinding == 2 via remote registry)
+  ldapChannelBindingRequired() bool
+}
+
+// Active Directory Domain Controller
+activedirectory.domainController @defaults("name operatingSystem") {
+  // DNS hostname
+  name string
+  // Distinguished name
+  distinguishedName string
+  // Operating system
+  operatingSystem string
+  // Operating system version
+  operatingSystemVersion string
+  // Is Global Catalog
+  isGlobalCatalog bool
+  // Is Read-Only Domain Controller
+  isRODC bool
+  // Last password set timestamp
+  pwdLastSet time
+  // Last logon timestamp
+  lastLogonTimestamp time
+  // Site name
+  site string
+}
+
+// Active Directory default domain password policy
+activedirectory.domainPasswordPolicy @defaults("minPasswordLength maxPasswordAge lockoutThreshold") {
+  // Minimum password length
+  minPasswordLength int
+  // Maximum password age in days
+  maxPasswordAge int
+  // Minimum password age in days
+  minPasswordAge int
+  // Password history count
+  passwordHistoryCount int
+  // Whether password complexity is required
+  complexityEnabled bool
+  // Whether reversible encryption is enabled
+  reversibleEncryption bool
+  // Account lockout threshold
+  lockoutThreshold int
+  // Account lockout duration in minutes
+  lockoutDuration int
+  // Account lockout observation window in minutes
+  lockoutObservationWindow int
+}
+
+// Active Directory Fine-Grained Password Policy
+activedirectory.fineGrainedPasswordPolicy @defaults("name precedence minPasswordLength") {
+  // Policy name
+  name string
+  // Distinguished name
+  distinguishedName string
+  // Precedence value (lower = higher priority)
+  precedence int
+  // Minimum password length
+  minPasswordLength int
+  // Maximum password age in days
+  maxPasswordAge int
+  // Minimum password age in days
+  minPasswordAge int
+  // Password history count
+  passwordHistoryCount int
+  // Whether password complexity is required
+  complexityEnabled bool
+  // Whether reversible encryption is enabled
+  reversibleEncryption bool
+  // Account lockout threshold
+  lockoutThreshold int
+  // Account lockout duration in minutes
+  lockoutDuration int
+  // Subjects the policy applies to
+  appliesTo []string
+}
+
+// Active Directory user account
+activedirectory.user @defaults("sAMAccountName displayName enabled") {
+  // sAMAccountName (pre-Windows 2000 logon name)
+  sAMAccountName string
+  // User Principal Name (user@domain.com)
+  userPrincipalName string
+  // Display name
+  displayName string
+  // Distinguished name
+  distinguishedName string
+  // Object SID
+  sid string
+  // Whether the account is enabled
+  enabled bool
+  // Whether password never expires
+  passwordNeverExpires bool
+  // Whether password is not required
+  passwordNotRequired bool
+  // Whether Kerberos pre-authentication is disabled (AS-REP roastable)
+  kerberosPreAuthNotRequired bool
+  // Whether account is sensitive and cannot be delegated
+  sensitiveAndCannotBeDelegated bool
+  // Whether account is a member of Protected Users group
+  protectedUser() bool
+  // Whether account uses DES-only Kerberos encryption
+  useDesKeyOnly bool
+  // Whether reversible password encryption is allowed for the account
+  reversibleEncryption bool
+  // userAccountControl raw flags
+  userAccountControl int
+  // Admin count flag (indicates adminSDHolder protection)
+  adminCount bool
+  // Service Principal Names
+  servicePrincipalNames []string
+  // Whether the account is Kerberoastable (has SPN and is not krbtgt/computer)
+  kerberoastable bool
+  // Last password set timestamp
+  pwdLastSet time
+  // Last logon timestamp (from lastLogonTimestamp)
+  lastLogonTimestamp time
+  // Account creation timestamp
+  whenCreated time
+  // Password age in days
+  passwordAgeDays int
+  // Days since last logon
+  daysSinceLastLogon int
+  // Whether the account is stale (>90 days since last logon)
+  isStale bool
+  // Group memberships (direct)
+  memberOf []string
+  // Whether user is member of Domain Admins
+  isDomainAdmin() bool
+  // Whether user is member of Enterprise Admins
+  isEnterpriseAdmin() bool
+  // Whether user is member of Schema Admins
+  isSchemaAdmin() bool
+  // Whether user is member of any privileged group
+  isPrivileged() bool
+  // Description (may contain credentials in misconfigured environments)
+  description string
+  // Email address
+  email string
+  // Organizational Unit path
+  ouPath string
+  // SID history (for migration tracking / potential abuse)
+  sidHistory []string
+  // Constrained delegation targets (msDS-AllowedToDelegateTo)
+  constrainedDelegationTargets []string
+  // Whether the account is a Group Managed Service Account
+  isGMSA bool
+}
+
+// Active Directory group
+activedirectory.group @defaults("sAMAccountName groupType") {
+  // sAMAccountName
+  sAMAccountName string
+  // Distinguished name
+  distinguishedName string
+  // Display name
+  displayName string
+  // Object SID
+  sid string
+  // Group type description (Security/Distribution, Global/Universal/DomainLocal)
+  groupType string
+  // Raw groupType flags
+  groupTypeRaw int
+  // Description
+  description string
+  // Admin count flag
+  adminCount bool
+  // Direct members
+  members() []activedirectory.groupMember
+  // Member count
+  memberCount() int
+  // Whether this is a built-in privileged group
+  isPrivileged bool
+  // Creation timestamp
+  whenCreated time
+  // Organizational Unit path
+  ouPath string
+}
+
+// Active Directory group member (can be user, group, or computer)
+activedirectory.groupMember @defaults("name type") {
+  // sAMAccountName or name
+  name string
+  // Distinguished name
+  distinguishedName string
+  // Object SID
+  sid string
+  // Member type (user, group, computer)
+  type string
+}
+
+// Active Directory computer account
+activedirectory.computer @defaults("name operatingSystem enabled") {
+  // sAMAccountName (includes trailing $)
+  sAMAccountName string
+  // DNS hostname
+  name string
+  // Distinguished name
+  distinguishedName string
+  // Object SID
+  sid string
+  // Whether the account is enabled
+  enabled bool
+  // Operating system name
+  operatingSystem string
+  // Operating system version
+  operatingSystemVersion string
+  // Operating system service pack
+  operatingSystemServicePack string
+  // Last password set timestamp
+  pwdLastSet time
+  // Last logon timestamp (from lastLogonTimestamp)
+  lastLogonTimestamp time
+  // Creation timestamp
+  whenCreated time
+  // Password age in days
+  passwordAgeDays int
+  // Days since last logon
+  daysSinceLastLogon int
+  // Whether the account is stale (>90 days)
+  isStale bool
+  // userAccountControl flags
+  userAccountControl int
+  // Whether unconstrained delegation is enabled
+  unconstrainedDelegation bool
+  // Whether constrained delegation is configured
+  constrainedDelegation bool
+  // Constrained delegation targets
+  constrainedDelegationTargets []string
+  // Resource-based constrained delegation configured
+  rbcd bool
+  // Service Principal Names
+  servicePrincipalNames []string
+  // Whether LAPS is deployed on this computer
+  lapsEnabled bool
+  // LAPS password expiration time
+  lapsExpirationTime time
+  // Description
+  description string
+  // Organizational Unit path
+  ouPath string
+  // Whether the computer is a domain controller
+  isDomainController bool
+  // Whether protocol transition (S4U2Self) is enabled via TRUSTED_TO_AUTH_FOR_DELEGATION
+  protocolTransition bool
+}
+
+// Active Directory Organizational Unit
+activedirectory.ou @defaults("name") {
+  // OU name
+  name string
+  // Distinguished name
+  distinguishedName string
+  // Description
+  description string
+  // Whether GPO inheritance is blocked
+  gpoInheritanceBlocked bool
+  // Linked GPOs in link order
+  linkedGpos() []activedirectory.gpoLink
+  // Creation timestamp
+  whenCreated time
+}
+
+// Active Directory Group Policy Object
+activedirectory.gpo @defaults("displayName") {
+  // GPO GUID
+  id string
+  // Display name
+  displayName string
+  // Distinguished name
+  distinguishedName string
+  // GPO status (enabled, disabled, user disabled, computer disabled)
+  gpoStatus string
+  // Path in SYSVOL
+  gpcFileSysPath string
+  // Whether the GPO is linked anywhere
+  isLinked bool
+  // Link metadata for each OU/domain/site this GPO is attached to
+  links() []activedirectory.gpoLink
+  // Creation timestamp
+  whenCreated time
+  // Last modified timestamp
+  whenChanged time
+  // Version number
+  version int
+}
+
+// Active Directory GPO link
+activedirectory.gpoLink @defaults("target") {
+  // Target DN or site this link applies to
+  target string
+  // Link order; 1 is highest precedence (applied last)
+  order int
+  // Whether the link is enforced
+  enforced bool
+  // Whether the link is enabled
+  enabled bool
+}
+
+// Active Directory domain trust
+activedirectory.trust @defaults("targetDomain trustType trustDirection") {
+  // Target domain name
+  targetDomain string
+  // Source domain name
+  sourceDomain string
+  // Trust type (External, Forest, ParentChild, CrossLink, MIT)
+  trustType string
+  // Trust direction (Inbound, Outbound, Bidirectional)
+  trustDirection string
+  // Whether SID filtering is enabled
+  sidFilteringEnabled bool
+  // Whether SID history is enabled across the trust
+  sidHistoryEnabled bool
+  // Whether selective authentication is used
+  selectiveAuthentication bool
+  // Whether the trust uses AES encryption
+  aesEncryption bool
+  // Whether the trust uses RC4 encryption (weak)
+  rc4Encryption bool
+  // Whether TGT delegation is enabled
+  tgtDelegation bool
+  // Trust creation timestamp
+  whenCreated time
+  // Whether the trust is to Azure AD
+  isAzureADTrust bool
+  // Whether the trust is transitive
+  isTransitive bool
+  // Trust attributes raw value
+  trustAttributes int
+}
+
+// Active Directory Certificate Services template
+activedirectory.certificateTemplate @defaults("name") {
+  // Template common name
+  name string
+  // Template display name
+  displayName string
+  // Distinguished name in CN=Certificate Templates
+  distinguishedName string
+  // Template OID
+  oid string
+  // Schema version (1, 2, 3, or 4)
+  schemaVersion int
+  // Whether enrollee can supply the Subject Alternative Name (ESC1 indicator)
+  enrolleeSuppliesSubject bool
+  // Extended Key Usages (OIDs)
+  extendedKeyUsages []string
+  // Whether template has authentication EKU
+  hasAuthenticationEku bool
+  // Whether template has "Any Purpose" EKU (2.5.29.37.0)
+  hasAnyPurposeEku bool
+  // Whether template has no EKU (subordinate CA risk - ESC2)
+  hasNoEku bool
+  // Whether manager approval is required
+  managerApprovalRequired bool
+  // Number of authorized signatures required
+  authorizedSignaturesRequired int
+  // Enrollment flags raw value
+  enrollmentFlags int
+  // Certificate name flags raw value
+  certificateNameFlags int
+  // Validity period
+  validityPeriod string
+  // Renewal period
+  renewalPeriod string
+  // Whether the template is published on at least one Enterprise CA
+  isPublished bool
+  // Whether the template is vulnerable to ESC1
+  isVulnerableESC1 bool
+  // Whether the template is vulnerable to ESC2
+  isVulnerableESC2 bool
+  // Whether the template is vulnerable to ESC3 (Certificate Request Agent EKU abuse)
+  isVulnerableESC3 bool
+  // Whether the template is vulnerable to ESC4 (overly permissive template ACL)
+  isVulnerableESC4 bool
+  // Principals that can enroll
+  enrollmentPermissions []string
+  // Whether low-privileged users can enroll
+  lowPrivilegedEnrollment bool
+  // Creation timestamp
+  whenCreated time
+  // Last modified timestamp
+  whenChanged time
+  // Whether CT_FLAG_NO_SECURITY_EXTENSION is set in enrollment flags
+  noSecurityExtension bool
+  // Whether the template is vulnerable to ESC9 (no security extension with auth EKU)
+  isVulnerableESC9 bool
+  // Issuance policy OIDs (msPKI-Certificate-Policy) referenced by this template
+  issuancePolicies []string
+  // Whether the template is vulnerable to ESC13 (issuance policy OID linked to privileged group)
+  isVulnerableESC13 bool
+}
+
+// Active Directory Certificate Authority (Enrollment Service)
+activedirectory.certificateAuthority @defaults("name") {
+  // CA name
+  name string
+  // Distinguished name
+  distinguishedName string
+  // DNS hostname of the CA server
+  dnsHostname string
+  // CA type (Enterprise Root, Enterprise Subordinate, etc.)
+  caType string
+  // Certificate template CN names published on this CA
+  certificateTemplates []string
+  // CA certificate expiration
+  certificateExpiration time
+  // Whether any low-privilege principal has ManageCA rights (ESC7)
+  isVulnerableESC7 bool
+  // Principals with ManageCA or ManageCertificates rights
+  dangerousCAPermissions []string
+  // HTTP(S) enrollment endpoint URLs registered for this CA
+  httpEnrollmentEndpoints []string
+  // Whether the CA has HTTP (non-TLS) enrollment endpoints (ESC8)
+  hasHttpEnrollment bool
+  // Whether enrollment agent restrictions are configured on this CA
+  enrollmentAgentRestrictionsConfigured bool
+}
+
+// Active Directory PKI object under CN=Public Key Services for ESC5 analysis
+activedirectory.pkiObject @defaults("name objectClass") {
+  // Relative name of the PKI object
+  name string
+  // Distinguished name
+  distinguishedName string
+  // Primary object class
+  objectClass string
+  // Creation timestamp
+  whenCreated time
+  // Last modified timestamp
+  whenChanged time
+  // Whether the object is vulnerable to ESC5 (dangerous write-equivalent ACLs)
+  isVulnerableESC5 bool
+  // Principals with dangerous write-equivalent rights
+  dangerousAclPrincipals []string
+}
+
+// Active Directory-integrated DNS zone
+activedirectory.dnsZone @defaults("name") {
+  // Zone name
+  name string
+  // Distinguished name
+  distinguishedName string
+  // Zone type
+  zoneType string
+  // Whether dynamic updates are enabled
+  dynamicUpdate bool
+  // Whether secure-only dynamic updates
+  secureOnly bool
+}
+
+// Dangerous ACL delegation found on a critical AD object.
+// These represent attack paths where a low-privilege principal holds
+// powerful rights (GenericAll, WriteDACL, WriteOwner, DCSync, etc.)
+// on sensitive objects like the domain head, AdminSDHolder, or
+// privileged group/DC computer accounts.
+activedirectory.dangerousPermission @defaults("targetName rightType principalSID") {
+  // DN of the AD object with the dangerous ACL
+  targetDN string
+  // Friendly name of the target object
+  targetName string
+  // Category of the target (domain, adminSDHolder, group, computer, user, ou)
+  targetType string
+  // SID of the principal granted dangerous access
+  principalSID string
+  // Type of dangerous right (GenericAll, WriteDACL, WriteOwner, GenericWrite, DCSync, ForceChangePassword)
+  rightType string
+  // Raw access mask value
+  accessMask int
+}
