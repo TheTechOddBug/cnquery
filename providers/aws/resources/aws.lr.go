@@ -22,6 +22,7 @@ const (
 	ResourceAwsOrganization                                                     string = "aws.organization"
 	ResourceAwsOrganizationDelegatedAdministrator                               string = "aws.organization.delegatedAdministrator"
 	ResourceAwsOrganizationDelegatedService                                     string = "aws.organization.delegatedService"
+	ResourceAwsOrganizationOrganizationalUnit                                   string = "aws.organization.organizationalUnit"
 	ResourceAwsVpc                                                              string = "aws.vpc"
 	ResourceAwsVpcRoutetable                                                    string = "aws.vpc.routetable"
 	ResourceAwsVpcRoutetableRoute                                               string = "aws.vpc.routetable.route"
@@ -106,6 +107,7 @@ const (
 	ResourceAwsSagemakerProcessingjob                                           string = "aws.sagemaker.processingjob"
 	ResourceAwsSagemakerPipeline                                                string = "aws.sagemaker.pipeline"
 	ResourceAwsSagemakerDomain                                                  string = "aws.sagemaker.domain"
+	ResourceAwsSagemakerInferenceComponent                                      string = "aws.sagemaker.inferenceComponent"
 	ResourceAwsSns                                                              string = "aws.sns"
 	ResourceAwsSnsTopic                                                         string = "aws.sns.topic"
 	ResourceAwsSnsSubscription                                                  string = "aws.sns.subscription"
@@ -188,6 +190,7 @@ const (
 	ResourceAwsCloudwatchLoggroup                                               string = "aws.cloudwatch.loggroup"
 	ResourceAwsCloudwatchLoggroupMetricsfilter                                  string = "aws.cloudwatch.loggroup.metricsfilter"
 	ResourceAwsCloudfront                                                       string = "aws.cloudfront"
+	ResourceAwsCloudfrontAnycastIpList                                          string = "aws.cloudfront.anycastIpList"
 	ResourceAwsCloudfrontDistribution                                           string = "aws.cloudfront.distribution"
 	ResourceAwsCloudfrontDistributionLoggingConfig                              string = "aws.cloudfront.distribution.loggingConfig"
 	ResourceAwsCloudfrontDistributionOrigin                                     string = "aws.cloudfront.distribution.origin"
@@ -201,6 +204,7 @@ const (
 	ResourceAwsS3BucketCorsrule                                                 string = "aws.s3.bucket.corsrule"
 	ResourceAwsS3BucketEncryptionRule                                           string = "aws.s3.bucket.encryptionRule"
 	ResourceAwsS3BucketReplicationRule                                          string = "aws.s3.bucket.replicationRule"
+	ResourceAwsS3BucketMetricsConfiguration                                     string = "aws.s3.bucket.metricsConfiguration"
 	ResourceAwsS3BucketPolicy                                                   string = "aws.s3.bucket.policy"
 	ResourceAwsS3BucketWebsiteConfiguration                                     string = "aws.s3.bucket.websiteConfiguration"
 	ResourceAwsS3BucketWebsiteConfigurationRedirectAllRequestsToConf            string = "aws.s3.bucket.websiteConfiguration.redirectAllRequestsToConf"
@@ -353,7 +357,9 @@ const (
 	ResourceAwsWorkdocsUser                                                     string = "aws.workdocs.user"
 	ResourceAwsAppstream                                                        string = "aws.appstream"
 	ResourceAwsAppstreamFleet                                                   string = "aws.appstream.fleet"
+	ResourceAwsAppstreamFleetComputeCapacityStatus                              string = "aws.appstream.fleet.computeCapacityStatus"
 	ResourceAwsAppstreamStack                                                   string = "aws.appstream.stack"
+	ResourceAwsAppstreamStackContentRedirection                                 string = "aws.appstream.stack.contentRedirection"
 	ResourceAwsAppstreamImageBuilder                                            string = "aws.appstream.imageBuilder"
 	ResourceAwsAthena                                                           string = "aws.athena"
 	ResourceAwsAthenaWorkgroup                                                  string = "aws.athena.workgroup"
@@ -450,6 +456,10 @@ func init() {
 		"aws.organization.delegatedService": {
 			// to override args, implement: initAwsOrganizationDelegatedService(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error)
 			Create: createAwsOrganizationDelegatedService,
+		},
+		"aws.organization.organizationalUnit": {
+			// to override args, implement: initAwsOrganizationOrganizationalUnit(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error)
+			Create: createAwsOrganizationOrganizationalUnit,
 		},
 		"aws.vpc": {
 			Init:   initAwsVpc,
@@ -787,6 +797,10 @@ func init() {
 			// to override args, implement: initAwsSagemakerDomain(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error)
 			Create: createAwsSagemakerDomain,
 		},
+		"aws.sagemaker.inferenceComponent": {
+			// to override args, implement: initAwsSagemakerInferenceComponent(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error)
+			Create: createAwsSagemakerInferenceComponent,
+		},
 		"aws.sns": {
 			// to override args, implement: initAwsSns(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error)
 			Create: createAwsSns,
@@ -1115,6 +1129,10 @@ func init() {
 			// to override args, implement: initAwsCloudfront(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error)
 			Create: createAwsCloudfront,
 		},
+		"aws.cloudfront.anycastIpList": {
+			// to override args, implement: initAwsCloudfrontAnycastIpList(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error)
+			Create: createAwsCloudfrontAnycastIpList,
+		},
 		"aws.cloudfront.distribution": {
 			Init:   initAwsCloudfrontDistribution,
 			Create: createAwsCloudfrontDistribution,
@@ -1166,6 +1184,10 @@ func init() {
 		"aws.s3.bucket.replicationRule": {
 			// to override args, implement: initAwsS3BucketReplicationRule(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error)
 			Create: createAwsS3BucketReplicationRule,
+		},
+		"aws.s3.bucket.metricsConfiguration": {
+			// to override args, implement: initAwsS3BucketMetricsConfiguration(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error)
+			Create: createAwsS3BucketMetricsConfiguration,
 		},
 		"aws.s3.bucket.policy": {
 			Init:   initAwsS3BucketPolicy,
@@ -1775,9 +1797,17 @@ func init() {
 			// to override args, implement: initAwsAppstreamFleet(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error)
 			Create: createAwsAppstreamFleet,
 		},
+		"aws.appstream.fleet.computeCapacityStatus": {
+			// to override args, implement: initAwsAppstreamFleetComputeCapacityStatus(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error)
+			Create: createAwsAppstreamFleetComputeCapacityStatus,
+		},
 		"aws.appstream.stack": {
 			// to override args, implement: initAwsAppstreamStack(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error)
 			Create: createAwsAppstreamStack,
+		},
+		"aws.appstream.stack.contentRedirection": {
+			// to override args, implement: initAwsAppstreamStackContentRedirection(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error)
+			Create: createAwsAppstreamStackContentRedirection,
 		},
 		"aws.appstream.imageBuilder": {
 			// to override args, implement: initAwsAppstreamImageBuilder(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error)
@@ -2151,6 +2181,9 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	"aws.account.operationsContact": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsAccount).GetOperationsContact()).ToDataRes(types.Resource("aws.account.alternateContact"))
 	},
+	"aws.account.paths": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsAccount).GetPaths()).ToDataRes(types.Array(types.String))
+	},
 	"aws.account.alternateContact.accountId": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsAccountAlternateContact).GetAccountId()).ToDataRes(types.String)
 	},
@@ -2193,6 +2226,9 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	"aws.organization.delegatedAdministrators": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsOrganization).GetDelegatedAdministrators()).ToDataRes(types.Array(types.Resource("aws.organization.delegatedAdministrator")))
 	},
+	"aws.organization.organizationalUnits": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsOrganization).GetOrganizationalUnits()).ToDataRes(types.Array(types.Resource("aws.organization.organizationalUnit")))
+	},
 	"aws.organization.delegatedAdministrator.arn": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsOrganizationDelegatedAdministrator).GetArn()).ToDataRes(types.String)
 	},
@@ -2228,6 +2264,18 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	},
 	"aws.organization.delegatedService.delegationEnabledDate": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsOrganizationDelegatedService).GetDelegationEnabledDate()).ToDataRes(types.Time)
+	},
+	"aws.organization.organizationalUnit.arn": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsOrganizationOrganizationalUnit).GetArn()).ToDataRes(types.String)
+	},
+	"aws.organization.organizationalUnit.id": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsOrganizationOrganizationalUnit).GetId()).ToDataRes(types.String)
+	},
+	"aws.organization.organizationalUnit.name": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsOrganizationOrganizationalUnit).GetName()).ToDataRes(types.String)
+	},
+	"aws.organization.organizationalUnit.path": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsOrganizationOrganizationalUnit).GetPath()).ToDataRes(types.String)
 	},
 	"aws.vpc.arn": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsVpc).GetArn()).ToDataRes(types.String)
@@ -3927,6 +3975,9 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	"aws.sagemaker.domains": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsSagemaker).GetDomains()).ToDataRes(types.Array(types.Resource("aws.sagemaker.domain")))
 	},
+	"aws.sagemaker.inferenceComponents": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsSagemaker).GetInferenceComponents()).ToDataRes(types.Array(types.Resource("aws.sagemaker.inferenceComponent")))
+	},
 	"aws.sagemaker.notebookinstance.arn": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsSagemakerNotebookinstance).GetArn()).ToDataRes(types.String)
 	},
@@ -4211,6 +4262,51 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	},
 	"aws.sagemaker.domain.defaultUserSettings": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsSagemakerDomain).GetDefaultUserSettings()).ToDataRes(types.Dict)
+	},
+	"aws.sagemaker.inferenceComponent.arn": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsSagemakerInferenceComponent).GetArn()).ToDataRes(types.String)
+	},
+	"aws.sagemaker.inferenceComponent.name": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsSagemakerInferenceComponent).GetName()).ToDataRes(types.String)
+	},
+	"aws.sagemaker.inferenceComponent.endpointName": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsSagemakerInferenceComponent).GetEndpointName()).ToDataRes(types.String)
+	},
+	"aws.sagemaker.inferenceComponent.endpointArn": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsSagemakerInferenceComponent).GetEndpointArn()).ToDataRes(types.String)
+	},
+	"aws.sagemaker.inferenceComponent.endpoint": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsSagemakerInferenceComponent).GetEndpoint()).ToDataRes(types.Resource("aws.sagemaker.endpoint"))
+	},
+	"aws.sagemaker.inferenceComponent.variantName": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsSagemakerInferenceComponent).GetVariantName()).ToDataRes(types.String)
+	},
+	"aws.sagemaker.inferenceComponent.status": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsSagemakerInferenceComponent).GetStatus()).ToDataRes(types.String)
+	},
+	"aws.sagemaker.inferenceComponent.createdAt": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsSagemakerInferenceComponent).GetCreatedAt()).ToDataRes(types.Time)
+	},
+	"aws.sagemaker.inferenceComponent.lastModifiedAt": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsSagemakerInferenceComponent).GetLastModifiedAt()).ToDataRes(types.Time)
+	},
+	"aws.sagemaker.inferenceComponent.region": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsSagemakerInferenceComponent).GetRegion()).ToDataRes(types.String)
+	},
+	"aws.sagemaker.inferenceComponent.tags": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsSagemakerInferenceComponent).GetTags()).ToDataRes(types.Map(types.String, types.String))
+	},
+	"aws.sagemaker.inferenceComponent.placementStrategy": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsSagemakerInferenceComponent).GetPlacementStrategy()).ToDataRes(types.String)
+	},
+	"aws.sagemaker.inferenceComponent.copyCount": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsSagemakerInferenceComponent).GetCopyCount()).ToDataRes(types.Int)
+	},
+	"aws.sagemaker.inferenceComponent.runtimeConfig": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsSagemakerInferenceComponent).GetRuntimeConfig()).ToDataRes(types.Dict)
+	},
+	"aws.sagemaker.inferenceComponent.specification": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsSagemakerInferenceComponent).GetSpecification()).ToDataRes(types.Dict)
 	},
 	"aws.sns.topics": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsSns).GetTopics()).ToDataRes(types.Array(types.Resource("aws.sns.topic")))
@@ -6153,6 +6249,36 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	"aws.cloudfront.functions": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsCloudfront).GetFunctions()).ToDataRes(types.Array(types.Resource("aws.cloudfront.function")))
 	},
+	"aws.cloudfront.anycastIpLists": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsCloudfront).GetAnycastIpLists()).ToDataRes(types.Array(types.Resource("aws.cloudfront.anycastIpList")))
+	},
+	"aws.cloudfront.anycastIpList.arn": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsCloudfrontAnycastIpList).GetArn()).ToDataRes(types.String)
+	},
+	"aws.cloudfront.anycastIpList.id": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsCloudfrontAnycastIpList).GetId()).ToDataRes(types.String)
+	},
+	"aws.cloudfront.anycastIpList.name": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsCloudfrontAnycastIpList).GetName()).ToDataRes(types.String)
+	},
+	"aws.cloudfront.anycastIpList.status": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsCloudfrontAnycastIpList).GetStatus()).ToDataRes(types.String)
+	},
+	"aws.cloudfront.anycastIpList.ipCount": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsCloudfrontAnycastIpList).GetIpCount()).ToDataRes(types.Int)
+	},
+	"aws.cloudfront.anycastIpList.anycastIps": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsCloudfrontAnycastIpList).GetAnycastIps()).ToDataRes(types.Array(types.String))
+	},
+	"aws.cloudfront.anycastIpList.lastModifiedAt": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsCloudfrontAnycastIpList).GetLastModifiedAt()).ToDataRes(types.Time)
+	},
+	"aws.cloudfront.anycastIpList.tags": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsCloudfrontAnycastIpList).GetTags()).ToDataRes(types.Map(types.String, types.String))
+	},
+	"aws.cloudfront.anycastIpList.region": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsCloudfrontAnycastIpList).GetRegion()).ToDataRes(types.String)
+	},
 	"aws.cloudfront.distribution.arn": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsCloudfrontDistribution).GetArn()).ToDataRes(types.String)
 	},
@@ -6387,6 +6513,9 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	"aws.s3.bucket.objectLockEnabled": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsS3Bucket).GetObjectLockEnabled()).ToDataRes(types.Bool)
 	},
+	"aws.s3.bucket.metricsConfigurations": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsS3Bucket).GetMetricsConfigurations()).ToDataRes(types.Array(types.Resource("aws.s3.bucket.metricsConfiguration")))
+	},
 	"aws.s3.bucket.exists": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsS3Bucket).GetExists()).ToDataRes(types.Bool)
 	},
@@ -6461,6 +6590,12 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	},
 	"aws.s3.bucket.replicationRule.prefix": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsS3BucketReplicationRule).GetPrefix()).ToDataRes(types.String)
+	},
+	"aws.s3.bucket.metricsConfiguration.id": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsS3BucketMetricsConfiguration).GetId()).ToDataRes(types.String)
+	},
+	"aws.s3.bucket.metricsConfiguration.filter": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsS3BucketMetricsConfiguration).GetFilter()).ToDataRes(types.Dict)
 	},
 	"aws.s3.bucket.policy.name": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsS3BucketPolicy).GetName()).ToDataRes(types.String)
@@ -11280,11 +11415,47 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	"aws.appstream.fleet.createdAt": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsAppstreamFleet).GetCreatedAt()).ToDataRes(types.Time)
 	},
+	"aws.appstream.fleet.computeCapacityStatus": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsAppstreamFleet).GetComputeCapacityStatus()).ToDataRes(types.Resource("aws.appstream.fleet.computeCapacityStatus"))
+	},
 	"aws.appstream.fleet.tags": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsAppstreamFleet).GetTags()).ToDataRes(types.Map(types.String, types.String))
 	},
 	"aws.appstream.fleet.region": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsAppstreamFleet).GetRegion()).ToDataRes(types.String)
+	},
+	"aws.appstream.fleet.computeCapacityStatus.desired": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsAppstreamFleetComputeCapacityStatus).GetDesired()).ToDataRes(types.Int)
+	},
+	"aws.appstream.fleet.computeCapacityStatus.running": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsAppstreamFleetComputeCapacityStatus).GetRunning()).ToDataRes(types.Int)
+	},
+	"aws.appstream.fleet.computeCapacityStatus.inUse": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsAppstreamFleetComputeCapacityStatus).GetInUse()).ToDataRes(types.Int)
+	},
+	"aws.appstream.fleet.computeCapacityStatus.available": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsAppstreamFleetComputeCapacityStatus).GetAvailable()).ToDataRes(types.Int)
+	},
+	"aws.appstream.fleet.computeCapacityStatus.activeUserSessions": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsAppstreamFleetComputeCapacityStatus).GetActiveUserSessions()).ToDataRes(types.Int)
+	},
+	"aws.appstream.fleet.computeCapacityStatus.actualUserSessions": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsAppstreamFleetComputeCapacityStatus).GetActualUserSessions()).ToDataRes(types.Int)
+	},
+	"aws.appstream.fleet.computeCapacityStatus.availableUserSessions": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsAppstreamFleetComputeCapacityStatus).GetAvailableUserSessions()).ToDataRes(types.Int)
+	},
+	"aws.appstream.fleet.computeCapacityStatus.desiredUserSessions": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsAppstreamFleetComputeCapacityStatus).GetDesiredUserSessions()).ToDataRes(types.Int)
+	},
+	"aws.appstream.fleet.computeCapacityStatus.draining": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsAppstreamFleetComputeCapacityStatus).GetDraining()).ToDataRes(types.Int)
+	},
+	"aws.appstream.fleet.computeCapacityStatus.drainModeActiveUserSessions": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsAppstreamFleetComputeCapacityStatus).GetDrainModeActiveUserSessions()).ToDataRes(types.Int)
+	},
+	"aws.appstream.fleet.computeCapacityStatus.drainModeUnusedUserSessions": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsAppstreamFleetComputeCapacityStatus).GetDrainModeUnusedUserSessions()).ToDataRes(types.Int)
 	},
 	"aws.appstream.stack.arn": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsAppstreamStack).GetArn()).ToDataRes(types.String)
@@ -11313,11 +11484,23 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	"aws.appstream.stack.embedHostDomains": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsAppstreamStack).GetEmbedHostDomains()).ToDataRes(types.Array(types.String))
 	},
+	"aws.appstream.stack.contentRedirection": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsAppstreamStack).GetContentRedirection()).ToDataRes(types.Resource("aws.appstream.stack.contentRedirection"))
+	},
 	"aws.appstream.stack.tags": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsAppstreamStack).GetTags()).ToDataRes(types.Map(types.String, types.String))
 	},
 	"aws.appstream.stack.region": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsAppstreamStack).GetRegion()).ToDataRes(types.String)
+	},
+	"aws.appstream.stack.contentRedirection.hostToClientEnabled": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsAppstreamStackContentRedirection).GetHostToClientEnabled()).ToDataRes(types.Bool)
+	},
+	"aws.appstream.stack.contentRedirection.hostToClientAllowedUrls": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsAppstreamStackContentRedirection).GetHostToClientAllowedUrls()).ToDataRes(types.Array(types.String))
+	},
+	"aws.appstream.stack.contentRedirection.hostToClientDeniedUrls": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsAppstreamStackContentRedirection).GetHostToClientDeniedUrls()).ToDataRes(types.Array(types.String))
 	},
 	"aws.appstream.imageBuilder.arn": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsAppstreamImageBuilder).GetArn()).ToDataRes(types.String)
@@ -13525,6 +13708,10 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 		r.(*mqlAwsAccount).OperationsContact, ok = plugin.RawToTValue[*mqlAwsAccountAlternateContact](v.Value, v.Error)
 		return
 	},
+	"aws.account.paths": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsAccount).Paths, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
 	"aws.account.alternateContact.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlAwsAccountAlternateContact).__id, ok = v.Value.(string)
 		return
@@ -13589,6 +13776,10 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 		r.(*mqlAwsOrganization).DelegatedAdministrators, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
 		return
 	},
+	"aws.organization.organizationalUnits": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsOrganization).OrganizationalUnits, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
 	"aws.organization.delegatedAdministrator.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlAwsOrganizationDelegatedAdministrator).__id, ok = v.Value.(string)
 		return
@@ -13643,6 +13834,26 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 	},
 	"aws.organization.delegatedService.delegationEnabledDate": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlAwsOrganizationDelegatedService).DelegationEnabledDate, ok = plugin.RawToTValue[*time.Time](v.Value, v.Error)
+		return
+	},
+	"aws.organization.organizationalUnit.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsOrganizationOrganizationalUnit).__id, ok = v.Value.(string)
+		return
+	},
+	"aws.organization.organizationalUnit.arn": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsOrganizationOrganizationalUnit).Arn, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.organization.organizationalUnit.id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsOrganizationOrganizationalUnit).Id, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.organization.organizationalUnit.name": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsOrganizationOrganizationalUnit).Name, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.organization.organizationalUnit.path": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsOrganizationOrganizationalUnit).Path, ok = plugin.RawToTValue[string](v.Value, v.Error)
 		return
 	},
 	"aws.vpc.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
@@ -16213,6 +16424,10 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 		r.(*mqlAwsSagemaker).Domains, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
 		return
 	},
+	"aws.sagemaker.inferenceComponents": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsSagemaker).InferenceComponents, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
 	"aws.sagemaker.notebookinstance.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlAwsSagemakerNotebookinstance).__id, ok = v.Value.(string)
 		return
@@ -16623,6 +16838,70 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 	},
 	"aws.sagemaker.domain.defaultUserSettings": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlAwsSagemakerDomain).DefaultUserSettings, ok = plugin.RawToTValue[any](v.Value, v.Error)
+		return
+	},
+	"aws.sagemaker.inferenceComponent.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsSagemakerInferenceComponent).__id, ok = v.Value.(string)
+		return
+	},
+	"aws.sagemaker.inferenceComponent.arn": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsSagemakerInferenceComponent).Arn, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.sagemaker.inferenceComponent.name": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsSagemakerInferenceComponent).Name, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.sagemaker.inferenceComponent.endpointName": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsSagemakerInferenceComponent).EndpointName, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.sagemaker.inferenceComponent.endpointArn": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsSagemakerInferenceComponent).EndpointArn, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.sagemaker.inferenceComponent.endpoint": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsSagemakerInferenceComponent).Endpoint, ok = plugin.RawToTValue[*mqlAwsSagemakerEndpoint](v.Value, v.Error)
+		return
+	},
+	"aws.sagemaker.inferenceComponent.variantName": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsSagemakerInferenceComponent).VariantName, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.sagemaker.inferenceComponent.status": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsSagemakerInferenceComponent).Status, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.sagemaker.inferenceComponent.createdAt": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsSagemakerInferenceComponent).CreatedAt, ok = plugin.RawToTValue[*time.Time](v.Value, v.Error)
+		return
+	},
+	"aws.sagemaker.inferenceComponent.lastModifiedAt": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsSagemakerInferenceComponent).LastModifiedAt, ok = plugin.RawToTValue[*time.Time](v.Value, v.Error)
+		return
+	},
+	"aws.sagemaker.inferenceComponent.region": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsSagemakerInferenceComponent).Region, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.sagemaker.inferenceComponent.tags": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsSagemakerInferenceComponent).Tags, ok = plugin.RawToTValue[map[string]any](v.Value, v.Error)
+		return
+	},
+	"aws.sagemaker.inferenceComponent.placementStrategy": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsSagemakerInferenceComponent).PlacementStrategy, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.sagemaker.inferenceComponent.copyCount": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsSagemakerInferenceComponent).CopyCount, ok = plugin.RawToTValue[int64](v.Value, v.Error)
+		return
+	},
+	"aws.sagemaker.inferenceComponent.runtimeConfig": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsSagemakerInferenceComponent).RuntimeConfig, ok = plugin.RawToTValue[any](v.Value, v.Error)
+		return
+	},
+	"aws.sagemaker.inferenceComponent.specification": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsSagemakerInferenceComponent).Specification, ok = plugin.RawToTValue[any](v.Value, v.Error)
 		return
 	},
 	"aws.sns.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
@@ -19541,6 +19820,50 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 		r.(*mqlAwsCloudfront).Functions, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
 		return
 	},
+	"aws.cloudfront.anycastIpLists": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsCloudfront).AnycastIpLists, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
+	"aws.cloudfront.anycastIpList.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsCloudfrontAnycastIpList).__id, ok = v.Value.(string)
+		return
+	},
+	"aws.cloudfront.anycastIpList.arn": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsCloudfrontAnycastIpList).Arn, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.cloudfront.anycastIpList.id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsCloudfrontAnycastIpList).Id, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.cloudfront.anycastIpList.name": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsCloudfrontAnycastIpList).Name, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.cloudfront.anycastIpList.status": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsCloudfrontAnycastIpList).Status, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.cloudfront.anycastIpList.ipCount": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsCloudfrontAnycastIpList).IpCount, ok = plugin.RawToTValue[int64](v.Value, v.Error)
+		return
+	},
+	"aws.cloudfront.anycastIpList.anycastIps": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsCloudfrontAnycastIpList).AnycastIps, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
+	"aws.cloudfront.anycastIpList.lastModifiedAt": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsCloudfrontAnycastIpList).LastModifiedAt, ok = plugin.RawToTValue[*time.Time](v.Value, v.Error)
+		return
+	},
+	"aws.cloudfront.anycastIpList.tags": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsCloudfrontAnycastIpList).Tags, ok = plugin.RawToTValue[map[string]any](v.Value, v.Error)
+		return
+	},
+	"aws.cloudfront.anycastIpList.region": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsCloudfrontAnycastIpList).Region, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
 	"aws.cloudfront.distribution.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlAwsCloudfrontDistribution).__id, ok = v.Value.(string)
 		return
@@ -19889,6 +20212,10 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 		r.(*mqlAwsS3Bucket).ObjectLockEnabled, ok = plugin.RawToTValue[bool](v.Value, v.Error)
 		return
 	},
+	"aws.s3.bucket.metricsConfigurations": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsS3Bucket).MetricsConfigurations, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
 	"aws.s3.bucket.exists": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlAwsS3Bucket).Exists, ok = plugin.RawToTValue[bool](v.Value, v.Error)
 		return
@@ -20003,6 +20330,18 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 	},
 	"aws.s3.bucket.replicationRule.prefix": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlAwsS3BucketReplicationRule).Prefix, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.s3.bucket.metricsConfiguration.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsS3BucketMetricsConfiguration).__id, ok = v.Value.(string)
+		return
+	},
+	"aws.s3.bucket.metricsConfiguration.id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsS3BucketMetricsConfiguration).Id, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.s3.bucket.metricsConfiguration.filter": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsS3BucketMetricsConfiguration).Filter, ok = plugin.RawToTValue[any](v.Value, v.Error)
 		return
 	},
 	"aws.s3.bucket.policy.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
@@ -27037,12 +27376,64 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 		r.(*mqlAwsAppstreamFleet).CreatedAt, ok = plugin.RawToTValue[*time.Time](v.Value, v.Error)
 		return
 	},
+	"aws.appstream.fleet.computeCapacityStatus": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsAppstreamFleet).ComputeCapacityStatus, ok = plugin.RawToTValue[*mqlAwsAppstreamFleetComputeCapacityStatus](v.Value, v.Error)
+		return
+	},
 	"aws.appstream.fleet.tags": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlAwsAppstreamFleet).Tags, ok = plugin.RawToTValue[map[string]any](v.Value, v.Error)
 		return
 	},
 	"aws.appstream.fleet.region": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlAwsAppstreamFleet).Region, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.appstream.fleet.computeCapacityStatus.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsAppstreamFleetComputeCapacityStatus).__id, ok = v.Value.(string)
+		return
+	},
+	"aws.appstream.fleet.computeCapacityStatus.desired": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsAppstreamFleetComputeCapacityStatus).Desired, ok = plugin.RawToTValue[int64](v.Value, v.Error)
+		return
+	},
+	"aws.appstream.fleet.computeCapacityStatus.running": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsAppstreamFleetComputeCapacityStatus).Running, ok = plugin.RawToTValue[int64](v.Value, v.Error)
+		return
+	},
+	"aws.appstream.fleet.computeCapacityStatus.inUse": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsAppstreamFleetComputeCapacityStatus).InUse, ok = plugin.RawToTValue[int64](v.Value, v.Error)
+		return
+	},
+	"aws.appstream.fleet.computeCapacityStatus.available": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsAppstreamFleetComputeCapacityStatus).Available, ok = plugin.RawToTValue[int64](v.Value, v.Error)
+		return
+	},
+	"aws.appstream.fleet.computeCapacityStatus.activeUserSessions": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsAppstreamFleetComputeCapacityStatus).ActiveUserSessions, ok = plugin.RawToTValue[int64](v.Value, v.Error)
+		return
+	},
+	"aws.appstream.fleet.computeCapacityStatus.actualUserSessions": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsAppstreamFleetComputeCapacityStatus).ActualUserSessions, ok = plugin.RawToTValue[int64](v.Value, v.Error)
+		return
+	},
+	"aws.appstream.fleet.computeCapacityStatus.availableUserSessions": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsAppstreamFleetComputeCapacityStatus).AvailableUserSessions, ok = plugin.RawToTValue[int64](v.Value, v.Error)
+		return
+	},
+	"aws.appstream.fleet.computeCapacityStatus.desiredUserSessions": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsAppstreamFleetComputeCapacityStatus).DesiredUserSessions, ok = plugin.RawToTValue[int64](v.Value, v.Error)
+		return
+	},
+	"aws.appstream.fleet.computeCapacityStatus.draining": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsAppstreamFleetComputeCapacityStatus).Draining, ok = plugin.RawToTValue[int64](v.Value, v.Error)
+		return
+	},
+	"aws.appstream.fleet.computeCapacityStatus.drainModeActiveUserSessions": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsAppstreamFleetComputeCapacityStatus).DrainModeActiveUserSessions, ok = plugin.RawToTValue[int64](v.Value, v.Error)
+		return
+	},
+	"aws.appstream.fleet.computeCapacityStatus.drainModeUnusedUserSessions": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsAppstreamFleetComputeCapacityStatus).DrainModeUnusedUserSessions, ok = plugin.RawToTValue[int64](v.Value, v.Error)
 		return
 	},
 	"aws.appstream.stack.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
@@ -27085,12 +27476,32 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 		r.(*mqlAwsAppstreamStack).EmbedHostDomains, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
 		return
 	},
+	"aws.appstream.stack.contentRedirection": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsAppstreamStack).ContentRedirection, ok = plugin.RawToTValue[*mqlAwsAppstreamStackContentRedirection](v.Value, v.Error)
+		return
+	},
 	"aws.appstream.stack.tags": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlAwsAppstreamStack).Tags, ok = plugin.RawToTValue[map[string]any](v.Value, v.Error)
 		return
 	},
 	"aws.appstream.stack.region": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlAwsAppstreamStack).Region, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.appstream.stack.contentRedirection.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsAppstreamStackContentRedirection).__id, ok = v.Value.(string)
+		return
+	},
+	"aws.appstream.stack.contentRedirection.hostToClientEnabled": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsAppstreamStackContentRedirection).HostToClientEnabled, ok = plugin.RawToTValue[bool](v.Value, v.Error)
+		return
+	},
+	"aws.appstream.stack.contentRedirection.hostToClientAllowedUrls": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsAppstreamStackContentRedirection).HostToClientAllowedUrls, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
+	"aws.appstream.stack.contentRedirection.hostToClientDeniedUrls": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsAppstreamStackContentRedirection).HostToClientDeniedUrls, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
 		return
 	},
 	"aws.appstream.imageBuilder.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
@@ -30318,6 +30729,7 @@ type mqlAwsAccount struct {
 	SecurityContact    plugin.TValue[*mqlAwsAccountAlternateContact]
 	BillingContact     plugin.TValue[*mqlAwsAccountAlternateContact]
 	OperationsContact  plugin.TValue[*mqlAwsAccountAlternateContact]
+	Paths              plugin.TValue[[]any]
 }
 
 // createAwsAccount creates a new instance of this resource
@@ -30459,6 +30871,12 @@ func (c *mqlAwsAccount) GetOperationsContact() *plugin.TValue[*mqlAwsAccountAlte
 	})
 }
 
+func (c *mqlAwsAccount) GetPaths() *plugin.TValue[[]any] {
+	return plugin.GetOrCompute[[]any](&c.Paths, func() ([]any, error) {
+		return c.paths()
+	})
+}
+
 // mqlAwsAccountAlternateContact for the aws.account.alternateContact resource
 type mqlAwsAccountAlternateContact struct {
 	MqlRuntime *plugin.Runtime
@@ -30550,6 +30968,7 @@ type mqlAwsOrganization struct {
 	Accounts                plugin.TValue[[]any]
 	Id                      plugin.TValue[string]
 	DelegatedAdministrators plugin.TValue[[]any]
+	OrganizationalUnits     plugin.TValue[[]any]
 }
 
 // createAwsOrganization creates a new instance of this resource
@@ -30633,6 +31052,22 @@ func (c *mqlAwsOrganization) GetDelegatedAdministrators() *plugin.TValue[[]any] 
 		}
 
 		return c.delegatedAdministrators()
+	})
+}
+
+func (c *mqlAwsOrganization) GetOrganizationalUnits() *plugin.TValue[[]any] {
+	return plugin.GetOrCompute[[]any](&c.OrganizationalUnits, func() ([]any, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("aws.organization", c.__id, "organizationalUnits")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.([]any), nil
+			}
+		}
+
+		return c.organizationalUnits()
 	})
 }
 
@@ -30806,6 +31241,70 @@ func (c *mqlAwsOrganizationDelegatedService) GetServicePrincipal() *plugin.TValu
 
 func (c *mqlAwsOrganizationDelegatedService) GetDelegationEnabledDate() *plugin.TValue[*time.Time] {
 	return &c.DelegationEnabledDate
+}
+
+// mqlAwsOrganizationOrganizationalUnit for the aws.organization.organizationalUnit resource
+type mqlAwsOrganizationOrganizationalUnit struct {
+	MqlRuntime *plugin.Runtime
+	__id       string
+	// optional: if you define mqlAwsOrganizationOrganizationalUnitInternal it will be used here
+	Arn  plugin.TValue[string]
+	Id   plugin.TValue[string]
+	Name plugin.TValue[string]
+	Path plugin.TValue[string]
+}
+
+// createAwsOrganizationOrganizationalUnit creates a new instance of this resource
+func createAwsOrganizationOrganizationalUnit(runtime *plugin.Runtime, args map[string]*llx.RawData) (plugin.Resource, error) {
+	res := &mqlAwsOrganizationOrganizationalUnit{
+		MqlRuntime: runtime,
+	}
+
+	err := SetAllData(res, args)
+	if err != nil {
+		return res, err
+	}
+
+	if res.__id == "" {
+		res.__id, err = res.id()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if runtime.HasRecording {
+		args, err = runtime.ResourceFromRecording("aws.organization.organizationalUnit", res.__id)
+		if err != nil || args == nil {
+			return res, err
+		}
+		return res, SetAllData(res, args)
+	}
+
+	return res, nil
+}
+
+func (c *mqlAwsOrganizationOrganizationalUnit) MqlName() string {
+	return "aws.organization.organizationalUnit"
+}
+
+func (c *mqlAwsOrganizationOrganizationalUnit) MqlID() string {
+	return c.__id
+}
+
+func (c *mqlAwsOrganizationOrganizationalUnit) GetArn() *plugin.TValue[string] {
+	return &c.Arn
+}
+
+func (c *mqlAwsOrganizationOrganizationalUnit) GetId() *plugin.TValue[string] {
+	return &c.Id
+}
+
+func (c *mqlAwsOrganizationOrganizationalUnit) GetName() *plugin.TValue[string] {
+	return &c.Name
+}
+
+func (c *mqlAwsOrganizationOrganizationalUnit) GetPath() *plugin.TValue[string] {
+	return &c.Path
 }
 
 // mqlAwsVpc for the aws.vpc resource
@@ -37763,13 +38262,14 @@ type mqlAwsSagemaker struct {
 	MqlRuntime *plugin.Runtime
 	__id       string
 	// optional: if you define mqlAwsSagemakerInternal it will be used here
-	Endpoints         plugin.TValue[[]any]
-	NotebookInstances plugin.TValue[[]any]
-	Models            plugin.TValue[[]any]
-	TrainingJobs      plugin.TValue[[]any]
-	ProcessingJobs    plugin.TValue[[]any]
-	Pipelines         plugin.TValue[[]any]
-	Domains           plugin.TValue[[]any]
+	Endpoints           plugin.TValue[[]any]
+	NotebookInstances   plugin.TValue[[]any]
+	Models              plugin.TValue[[]any]
+	TrainingJobs        plugin.TValue[[]any]
+	ProcessingJobs      plugin.TValue[[]any]
+	Pipelines           plugin.TValue[[]any]
+	Domains             plugin.TValue[[]any]
+	InferenceComponents plugin.TValue[[]any]
 }
 
 // createAwsSagemaker creates a new instance of this resource
@@ -37918,6 +38418,22 @@ func (c *mqlAwsSagemaker) GetDomains() *plugin.TValue[[]any] {
 		}
 
 		return c.domains()
+	})
+}
+
+func (c *mqlAwsSagemaker) GetInferenceComponents() *plugin.TValue[[]any] {
+	return plugin.GetOrCompute[[]any](&c.InferenceComponents, func() ([]any, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("aws.sagemaker", c.__id, "inferenceComponents")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.([]any), nil
+			}
+		}
+
+		return c.inferenceComponents()
 	})
 }
 
@@ -38919,6 +39435,147 @@ func (c *mqlAwsSagemakerDomain) GetHomeEfsFileSystemId() *plugin.TValue[string] 
 func (c *mqlAwsSagemakerDomain) GetDefaultUserSettings() *plugin.TValue[any] {
 	return plugin.GetOrCompute[any](&c.DefaultUserSettings, func() (any, error) {
 		return c.defaultUserSettings()
+	})
+}
+
+// mqlAwsSagemakerInferenceComponent for the aws.sagemaker.inferenceComponent resource
+type mqlAwsSagemakerInferenceComponent struct {
+	MqlRuntime *plugin.Runtime
+	__id       string
+	mqlAwsSagemakerInferenceComponentInternal
+	Arn               plugin.TValue[string]
+	Name              plugin.TValue[string]
+	EndpointName      plugin.TValue[string]
+	EndpointArn       plugin.TValue[string]
+	Endpoint          plugin.TValue[*mqlAwsSagemakerEndpoint]
+	VariantName       plugin.TValue[string]
+	Status            plugin.TValue[string]
+	CreatedAt         plugin.TValue[*time.Time]
+	LastModifiedAt    plugin.TValue[*time.Time]
+	Region            plugin.TValue[string]
+	Tags              plugin.TValue[map[string]any]
+	PlacementStrategy plugin.TValue[string]
+	CopyCount         plugin.TValue[int64]
+	RuntimeConfig     plugin.TValue[any]
+	Specification     plugin.TValue[any]
+}
+
+// createAwsSagemakerInferenceComponent creates a new instance of this resource
+func createAwsSagemakerInferenceComponent(runtime *plugin.Runtime, args map[string]*llx.RawData) (plugin.Resource, error) {
+	res := &mqlAwsSagemakerInferenceComponent{
+		MqlRuntime: runtime,
+	}
+
+	err := SetAllData(res, args)
+	if err != nil {
+		return res, err
+	}
+
+	if res.__id == "" {
+		res.__id, err = res.id()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if runtime.HasRecording {
+		args, err = runtime.ResourceFromRecording("aws.sagemaker.inferenceComponent", res.__id)
+		if err != nil || args == nil {
+			return res, err
+		}
+		return res, SetAllData(res, args)
+	}
+
+	return res, nil
+}
+
+func (c *mqlAwsSagemakerInferenceComponent) MqlName() string {
+	return "aws.sagemaker.inferenceComponent"
+}
+
+func (c *mqlAwsSagemakerInferenceComponent) MqlID() string {
+	return c.__id
+}
+
+func (c *mqlAwsSagemakerInferenceComponent) GetArn() *plugin.TValue[string] {
+	return &c.Arn
+}
+
+func (c *mqlAwsSagemakerInferenceComponent) GetName() *plugin.TValue[string] {
+	return &c.Name
+}
+
+func (c *mqlAwsSagemakerInferenceComponent) GetEndpointName() *plugin.TValue[string] {
+	return &c.EndpointName
+}
+
+func (c *mqlAwsSagemakerInferenceComponent) GetEndpointArn() *plugin.TValue[string] {
+	return &c.EndpointArn
+}
+
+func (c *mqlAwsSagemakerInferenceComponent) GetEndpoint() *plugin.TValue[*mqlAwsSagemakerEndpoint] {
+	return plugin.GetOrCompute[*mqlAwsSagemakerEndpoint](&c.Endpoint, func() (*mqlAwsSagemakerEndpoint, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("aws.sagemaker.inferenceComponent", c.__id, "endpoint")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.(*mqlAwsSagemakerEndpoint), nil
+			}
+		}
+
+		return c.endpoint()
+	})
+}
+
+func (c *mqlAwsSagemakerInferenceComponent) GetVariantName() *plugin.TValue[string] {
+	return &c.VariantName
+}
+
+func (c *mqlAwsSagemakerInferenceComponent) GetStatus() *plugin.TValue[string] {
+	return &c.Status
+}
+
+func (c *mqlAwsSagemakerInferenceComponent) GetCreatedAt() *plugin.TValue[*time.Time] {
+	return &c.CreatedAt
+}
+
+func (c *mqlAwsSagemakerInferenceComponent) GetLastModifiedAt() *plugin.TValue[*time.Time] {
+	return &c.LastModifiedAt
+}
+
+func (c *mqlAwsSagemakerInferenceComponent) GetRegion() *plugin.TValue[string] {
+	return &c.Region
+}
+
+func (c *mqlAwsSagemakerInferenceComponent) GetTags() *plugin.TValue[map[string]any] {
+	return plugin.GetOrCompute[map[string]any](&c.Tags, func() (map[string]any, error) {
+		return c.tags()
+	})
+}
+
+func (c *mqlAwsSagemakerInferenceComponent) GetPlacementStrategy() *plugin.TValue[string] {
+	return plugin.GetOrCompute[string](&c.PlacementStrategy, func() (string, error) {
+		return c.placementStrategy()
+	})
+}
+
+func (c *mqlAwsSagemakerInferenceComponent) GetCopyCount() *plugin.TValue[int64] {
+	return plugin.GetOrCompute[int64](&c.CopyCount, func() (int64, error) {
+		return c.copyCount()
+	})
+}
+
+func (c *mqlAwsSagemakerInferenceComponent) GetRuntimeConfig() *plugin.TValue[any] {
+	return plugin.GetOrCompute[any](&c.RuntimeConfig, func() (any, error) {
+		return c.runtimeConfig()
+	})
+}
+
+func (c *mqlAwsSagemakerInferenceComponent) GetSpecification() *plugin.TValue[any] {
+	return plugin.GetOrCompute[any](&c.Specification, func() (any, error) {
+		return c.specification()
 	})
 }
 
@@ -46868,8 +47525,9 @@ type mqlAwsCloudfront struct {
 	MqlRuntime *plugin.Runtime
 	__id       string
 	// optional: if you define mqlAwsCloudfrontInternal it will be used here
-	Distributions plugin.TValue[[]any]
-	Functions     plugin.TValue[[]any]
+	Distributions  plugin.TValue[[]any]
+	Functions      plugin.TValue[[]any]
+	AnycastIpLists plugin.TValue[[]any]
 }
 
 // createAwsCloudfront creates a new instance of this resource
@@ -46939,6 +47597,115 @@ func (c *mqlAwsCloudfront) GetFunctions() *plugin.TValue[[]any] {
 
 		return c.functions()
 	})
+}
+
+func (c *mqlAwsCloudfront) GetAnycastIpLists() *plugin.TValue[[]any] {
+	return plugin.GetOrCompute[[]any](&c.AnycastIpLists, func() ([]any, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("aws.cloudfront", c.__id, "anycastIpLists")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.([]any), nil
+			}
+		}
+
+		return c.anycastIpLists()
+	})
+}
+
+// mqlAwsCloudfrontAnycastIpList for the aws.cloudfront.anycastIpList resource
+type mqlAwsCloudfrontAnycastIpList struct {
+	MqlRuntime *plugin.Runtime
+	__id       string
+	mqlAwsCloudfrontAnycastIpListInternal
+	Arn            plugin.TValue[string]
+	Id             plugin.TValue[string]
+	Name           plugin.TValue[string]
+	Status         plugin.TValue[string]
+	IpCount        plugin.TValue[int64]
+	AnycastIps     plugin.TValue[[]any]
+	LastModifiedAt plugin.TValue[*time.Time]
+	Tags           plugin.TValue[map[string]any]
+	Region         plugin.TValue[string]
+}
+
+// createAwsCloudfrontAnycastIpList creates a new instance of this resource
+func createAwsCloudfrontAnycastIpList(runtime *plugin.Runtime, args map[string]*llx.RawData) (plugin.Resource, error) {
+	res := &mqlAwsCloudfrontAnycastIpList{
+		MqlRuntime: runtime,
+	}
+
+	err := SetAllData(res, args)
+	if err != nil {
+		return res, err
+	}
+
+	if res.__id == "" {
+		res.__id, err = res.id()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if runtime.HasRecording {
+		args, err = runtime.ResourceFromRecording("aws.cloudfront.anycastIpList", res.__id)
+		if err != nil || args == nil {
+			return res, err
+		}
+		return res, SetAllData(res, args)
+	}
+
+	return res, nil
+}
+
+func (c *mqlAwsCloudfrontAnycastIpList) MqlName() string {
+	return "aws.cloudfront.anycastIpList"
+}
+
+func (c *mqlAwsCloudfrontAnycastIpList) MqlID() string {
+	return c.__id
+}
+
+func (c *mqlAwsCloudfrontAnycastIpList) GetArn() *plugin.TValue[string] {
+	return &c.Arn
+}
+
+func (c *mqlAwsCloudfrontAnycastIpList) GetId() *plugin.TValue[string] {
+	return &c.Id
+}
+
+func (c *mqlAwsCloudfrontAnycastIpList) GetName() *plugin.TValue[string] {
+	return &c.Name
+}
+
+func (c *mqlAwsCloudfrontAnycastIpList) GetStatus() *plugin.TValue[string] {
+	return &c.Status
+}
+
+func (c *mqlAwsCloudfrontAnycastIpList) GetIpCount() *plugin.TValue[int64] {
+	return &c.IpCount
+}
+
+func (c *mqlAwsCloudfrontAnycastIpList) GetAnycastIps() *plugin.TValue[[]any] {
+	return plugin.GetOrCompute[[]any](&c.AnycastIps, func() ([]any, error) {
+		return c.anycastIps()
+	})
+}
+
+func (c *mqlAwsCloudfrontAnycastIpList) GetLastModifiedAt() *plugin.TValue[*time.Time] {
+	return &c.LastModifiedAt
+}
+
+func (c *mqlAwsCloudfrontAnycastIpList) GetTags() *plugin.TValue[map[string]any] {
+	return plugin.GetOrCompute[map[string]any](&c.Tags, func() (map[string]any, error) {
+		return c.tags()
+	})
+}
+
+func (c *mqlAwsCloudfrontAnycastIpList) GetRegion() *plugin.TValue[string] {
+	return &c.Region
 }
 
 // mqlAwsCloudfrontDistribution for the aws.cloudfront.distribution resource
@@ -47668,28 +48435,29 @@ type mqlAwsS3Bucket struct {
 	MqlRuntime *plugin.Runtime
 	__id       string
 	mqlAwsS3BucketInternal
-	Arn                  plugin.TValue[string]
-	Name                 plugin.TValue[string]
-	Policy               plugin.TValue[*mqlAwsS3BucketPolicy]
-	Tags                 plugin.TValue[map[string]any]
-	Acl                  plugin.TValue[[]any]
-	Owner                plugin.TValue[map[string]any]
-	Public               plugin.TValue[bool]
-	Cors                 plugin.TValue[[]any]
-	Location             plugin.TValue[string]
-	Versioning           plugin.TValue[map[string]any]
-	Logging              plugin.TValue[map[string]any]
-	StaticWebsiteHosting plugin.TValue[map[string]any]
-	Website              plugin.TValue[*mqlAwsS3BucketWebsiteConfiguration]
-	DefaultLock          plugin.TValue[string]
-	Replication          plugin.TValue[any]
-	Encryption           plugin.TValue[any]
-	EncryptionRules      plugin.TValue[[]any]
-	ReplicationRules     plugin.TValue[[]any]
-	PublicAccessBlock    plugin.TValue[any]
-	ObjectLockEnabled    plugin.TValue[bool]
-	Exists               plugin.TValue[bool]
-	CreatedAt            plugin.TValue[*time.Time]
+	Arn                   plugin.TValue[string]
+	Name                  plugin.TValue[string]
+	Policy                plugin.TValue[*mqlAwsS3BucketPolicy]
+	Tags                  plugin.TValue[map[string]any]
+	Acl                   plugin.TValue[[]any]
+	Owner                 plugin.TValue[map[string]any]
+	Public                plugin.TValue[bool]
+	Cors                  plugin.TValue[[]any]
+	Location              plugin.TValue[string]
+	Versioning            plugin.TValue[map[string]any]
+	Logging               plugin.TValue[map[string]any]
+	StaticWebsiteHosting  plugin.TValue[map[string]any]
+	Website               plugin.TValue[*mqlAwsS3BucketWebsiteConfiguration]
+	DefaultLock           plugin.TValue[string]
+	Replication           plugin.TValue[any]
+	Encryption            plugin.TValue[any]
+	EncryptionRules       plugin.TValue[[]any]
+	ReplicationRules      plugin.TValue[[]any]
+	PublicAccessBlock     plugin.TValue[any]
+	ObjectLockEnabled     plugin.TValue[bool]
+	MetricsConfigurations plugin.TValue[[]any]
+	Exists                plugin.TValue[bool]
+	CreatedAt             plugin.TValue[*time.Time]
 }
 
 // createAwsS3Bucket creates a new instance of this resource
@@ -47902,6 +48670,22 @@ func (c *mqlAwsS3Bucket) GetPublicAccessBlock() *plugin.TValue[any] {
 func (c *mqlAwsS3Bucket) GetObjectLockEnabled() *plugin.TValue[bool] {
 	return plugin.GetOrCompute[bool](&c.ObjectLockEnabled, func() (bool, error) {
 		return c.objectLockEnabled()
+	})
+}
+
+func (c *mqlAwsS3Bucket) GetMetricsConfigurations() *plugin.TValue[[]any] {
+	return plugin.GetOrCompute[[]any](&c.MetricsConfigurations, func() ([]any, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("aws.s3.bucket", c.__id, "metricsConfigurations")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.([]any), nil
+			}
+		}
+
+		return c.metricsConfigurations()
 	})
 }
 
@@ -48202,6 +48986,60 @@ func (c *mqlAwsS3BucketReplicationRule) GetDeleteMarkerReplicationEnabled() *plu
 
 func (c *mqlAwsS3BucketReplicationRule) GetPrefix() *plugin.TValue[string] {
 	return &c.Prefix
+}
+
+// mqlAwsS3BucketMetricsConfiguration for the aws.s3.bucket.metricsConfiguration resource
+type mqlAwsS3BucketMetricsConfiguration struct {
+	MqlRuntime *plugin.Runtime
+	__id       string
+	// optional: if you define mqlAwsS3BucketMetricsConfigurationInternal it will be used here
+	Id     plugin.TValue[string]
+	Filter plugin.TValue[any]
+}
+
+// createAwsS3BucketMetricsConfiguration creates a new instance of this resource
+func createAwsS3BucketMetricsConfiguration(runtime *plugin.Runtime, args map[string]*llx.RawData) (plugin.Resource, error) {
+	res := &mqlAwsS3BucketMetricsConfiguration{
+		MqlRuntime: runtime,
+	}
+
+	err := SetAllData(res, args)
+	if err != nil {
+		return res, err
+	}
+
+	if res.__id == "" {
+		res.__id, err = res.id()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if runtime.HasRecording {
+		args, err = runtime.ResourceFromRecording("aws.s3.bucket.metricsConfiguration", res.__id)
+		if err != nil || args == nil {
+			return res, err
+		}
+		return res, SetAllData(res, args)
+	}
+
+	return res, nil
+}
+
+func (c *mqlAwsS3BucketMetricsConfiguration) MqlName() string {
+	return "aws.s3.bucket.metricsConfiguration"
+}
+
+func (c *mqlAwsS3BucketMetricsConfiguration) MqlID() string {
+	return c.__id
+}
+
+func (c *mqlAwsS3BucketMetricsConfiguration) GetId() *plugin.TValue[string] {
+	return &c.Id
+}
+
+func (c *mqlAwsS3BucketMetricsConfiguration) GetFilter() *plugin.TValue[any] {
+	return &c.Filter
 }
 
 // mqlAwsS3BucketPolicy for the aws.s3.bucket.policy resource
@@ -65139,7 +65977,7 @@ func (c *mqlAwsAppstream) GetImageBuilders() *plugin.TValue[[]any] {
 type mqlAwsAppstreamFleet struct {
 	MqlRuntime *plugin.Runtime
 	__id       string
-	// optional: if you define mqlAwsAppstreamFleetInternal it will be used here
+	mqlAwsAppstreamFleetInternal
 	Arn                            plugin.TValue[string]
 	Name                           plugin.TValue[string]
 	State                          plugin.TValue[string]
@@ -65158,6 +65996,7 @@ type mqlAwsAppstreamFleet struct {
 	ImageArn                       plugin.TValue[string]
 	Platform                       plugin.TValue[string]
 	CreatedAt                      plugin.TValue[*time.Time]
+	ComputeCapacityStatus          plugin.TValue[*mqlAwsAppstreamFleetComputeCapacityStatus]
 	Tags                           plugin.TValue[map[string]any]
 	Region                         plugin.TValue[string]
 }
@@ -65271,6 +66110,22 @@ func (c *mqlAwsAppstreamFleet) GetCreatedAt() *plugin.TValue[*time.Time] {
 	return &c.CreatedAt
 }
 
+func (c *mqlAwsAppstreamFleet) GetComputeCapacityStatus() *plugin.TValue[*mqlAwsAppstreamFleetComputeCapacityStatus] {
+	return plugin.GetOrCompute[*mqlAwsAppstreamFleetComputeCapacityStatus](&c.ComputeCapacityStatus, func() (*mqlAwsAppstreamFleetComputeCapacityStatus, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("aws.appstream.fleet", c.__id, "computeCapacityStatus")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.(*mqlAwsAppstreamFleetComputeCapacityStatus), nil
+			}
+		}
+
+		return c.computeCapacityStatus()
+	})
+}
+
 func (c *mqlAwsAppstreamFleet) GetTags() *plugin.TValue[map[string]any] {
 	return plugin.GetOrCompute[map[string]any](&c.Tags, func() (map[string]any, error) {
 		return c.tags()
@@ -65281,11 +66136,110 @@ func (c *mqlAwsAppstreamFleet) GetRegion() *plugin.TValue[string] {
 	return &c.Region
 }
 
+// mqlAwsAppstreamFleetComputeCapacityStatus for the aws.appstream.fleet.computeCapacityStatus resource
+type mqlAwsAppstreamFleetComputeCapacityStatus struct {
+	MqlRuntime *plugin.Runtime
+	__id       string
+	// optional: if you define mqlAwsAppstreamFleetComputeCapacityStatusInternal it will be used here
+	Desired                     plugin.TValue[int64]
+	Running                     plugin.TValue[int64]
+	InUse                       plugin.TValue[int64]
+	Available                   plugin.TValue[int64]
+	ActiveUserSessions          plugin.TValue[int64]
+	ActualUserSessions          plugin.TValue[int64]
+	AvailableUserSessions       plugin.TValue[int64]
+	DesiredUserSessions         plugin.TValue[int64]
+	Draining                    plugin.TValue[int64]
+	DrainModeActiveUserSessions plugin.TValue[int64]
+	DrainModeUnusedUserSessions plugin.TValue[int64]
+}
+
+// createAwsAppstreamFleetComputeCapacityStatus creates a new instance of this resource
+func createAwsAppstreamFleetComputeCapacityStatus(runtime *plugin.Runtime, args map[string]*llx.RawData) (plugin.Resource, error) {
+	res := &mqlAwsAppstreamFleetComputeCapacityStatus{
+		MqlRuntime: runtime,
+	}
+
+	err := SetAllData(res, args)
+	if err != nil {
+		return res, err
+	}
+
+	if res.__id == "" {
+		res.__id, err = res.id()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if runtime.HasRecording {
+		args, err = runtime.ResourceFromRecording("aws.appstream.fleet.computeCapacityStatus", res.__id)
+		if err != nil || args == nil {
+			return res, err
+		}
+		return res, SetAllData(res, args)
+	}
+
+	return res, nil
+}
+
+func (c *mqlAwsAppstreamFleetComputeCapacityStatus) MqlName() string {
+	return "aws.appstream.fleet.computeCapacityStatus"
+}
+
+func (c *mqlAwsAppstreamFleetComputeCapacityStatus) MqlID() string {
+	return c.__id
+}
+
+func (c *mqlAwsAppstreamFleetComputeCapacityStatus) GetDesired() *plugin.TValue[int64] {
+	return &c.Desired
+}
+
+func (c *mqlAwsAppstreamFleetComputeCapacityStatus) GetRunning() *plugin.TValue[int64] {
+	return &c.Running
+}
+
+func (c *mqlAwsAppstreamFleetComputeCapacityStatus) GetInUse() *plugin.TValue[int64] {
+	return &c.InUse
+}
+
+func (c *mqlAwsAppstreamFleetComputeCapacityStatus) GetAvailable() *plugin.TValue[int64] {
+	return &c.Available
+}
+
+func (c *mqlAwsAppstreamFleetComputeCapacityStatus) GetActiveUserSessions() *plugin.TValue[int64] {
+	return &c.ActiveUserSessions
+}
+
+func (c *mqlAwsAppstreamFleetComputeCapacityStatus) GetActualUserSessions() *plugin.TValue[int64] {
+	return &c.ActualUserSessions
+}
+
+func (c *mqlAwsAppstreamFleetComputeCapacityStatus) GetAvailableUserSessions() *plugin.TValue[int64] {
+	return &c.AvailableUserSessions
+}
+
+func (c *mqlAwsAppstreamFleetComputeCapacityStatus) GetDesiredUserSessions() *plugin.TValue[int64] {
+	return &c.DesiredUserSessions
+}
+
+func (c *mqlAwsAppstreamFleetComputeCapacityStatus) GetDraining() *plugin.TValue[int64] {
+	return &c.Draining
+}
+
+func (c *mqlAwsAppstreamFleetComputeCapacityStatus) GetDrainModeActiveUserSessions() *plugin.TValue[int64] {
+	return &c.DrainModeActiveUserSessions
+}
+
+func (c *mqlAwsAppstreamFleetComputeCapacityStatus) GetDrainModeUnusedUserSessions() *plugin.TValue[int64] {
+	return &c.DrainModeUnusedUserSessions
+}
+
 // mqlAwsAppstreamStack for the aws.appstream.stack resource
 type mqlAwsAppstreamStack struct {
 	MqlRuntime *plugin.Runtime
 	__id       string
-	// optional: if you define mqlAwsAppstreamStackInternal it will be used here
+	mqlAwsAppstreamStackInternal
 	Arn                 plugin.TValue[string]
 	Name                plugin.TValue[string]
 	Description         plugin.TValue[string]
@@ -65295,6 +66249,7 @@ type mqlAwsAppstreamStack struct {
 	StorageConnectors   plugin.TValue[[]any]
 	UserSettings        plugin.TValue[[]any]
 	EmbedHostDomains    plugin.TValue[[]any]
+	ContentRedirection  plugin.TValue[*mqlAwsAppstreamStackContentRedirection]
 	Tags                plugin.TValue[map[string]any]
 	Region              plugin.TValue[string]
 }
@@ -65372,6 +66327,22 @@ func (c *mqlAwsAppstreamStack) GetEmbedHostDomains() *plugin.TValue[[]any] {
 	return &c.EmbedHostDomains
 }
 
+func (c *mqlAwsAppstreamStack) GetContentRedirection() *plugin.TValue[*mqlAwsAppstreamStackContentRedirection] {
+	return plugin.GetOrCompute[*mqlAwsAppstreamStackContentRedirection](&c.ContentRedirection, func() (*mqlAwsAppstreamStackContentRedirection, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("aws.appstream.stack", c.__id, "contentRedirection")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.(*mqlAwsAppstreamStackContentRedirection), nil
+			}
+		}
+
+		return c.contentRedirection()
+	})
+}
+
 func (c *mqlAwsAppstreamStack) GetTags() *plugin.TValue[map[string]any] {
 	return plugin.GetOrCompute[map[string]any](&c.Tags, func() (map[string]any, error) {
 		return c.tags()
@@ -65380,6 +66351,65 @@ func (c *mqlAwsAppstreamStack) GetTags() *plugin.TValue[map[string]any] {
 
 func (c *mqlAwsAppstreamStack) GetRegion() *plugin.TValue[string] {
 	return &c.Region
+}
+
+// mqlAwsAppstreamStackContentRedirection for the aws.appstream.stack.contentRedirection resource
+type mqlAwsAppstreamStackContentRedirection struct {
+	MqlRuntime *plugin.Runtime
+	__id       string
+	// optional: if you define mqlAwsAppstreamStackContentRedirectionInternal it will be used here
+	HostToClientEnabled     plugin.TValue[bool]
+	HostToClientAllowedUrls plugin.TValue[[]any]
+	HostToClientDeniedUrls  plugin.TValue[[]any]
+}
+
+// createAwsAppstreamStackContentRedirection creates a new instance of this resource
+func createAwsAppstreamStackContentRedirection(runtime *plugin.Runtime, args map[string]*llx.RawData) (plugin.Resource, error) {
+	res := &mqlAwsAppstreamStackContentRedirection{
+		MqlRuntime: runtime,
+	}
+
+	err := SetAllData(res, args)
+	if err != nil {
+		return res, err
+	}
+
+	if res.__id == "" {
+		res.__id, err = res.id()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if runtime.HasRecording {
+		args, err = runtime.ResourceFromRecording("aws.appstream.stack.contentRedirection", res.__id)
+		if err != nil || args == nil {
+			return res, err
+		}
+		return res, SetAllData(res, args)
+	}
+
+	return res, nil
+}
+
+func (c *mqlAwsAppstreamStackContentRedirection) MqlName() string {
+	return "aws.appstream.stack.contentRedirection"
+}
+
+func (c *mqlAwsAppstreamStackContentRedirection) MqlID() string {
+	return c.__id
+}
+
+func (c *mqlAwsAppstreamStackContentRedirection) GetHostToClientEnabled() *plugin.TValue[bool] {
+	return &c.HostToClientEnabled
+}
+
+func (c *mqlAwsAppstreamStackContentRedirection) GetHostToClientAllowedUrls() *plugin.TValue[[]any] {
+	return &c.HostToClientAllowedUrls
+}
+
+func (c *mqlAwsAppstreamStackContentRedirection) GetHostToClientDeniedUrls() *plugin.TValue[[]any] {
+	return &c.HostToClientDeniedUrls
 }
 
 // mqlAwsAppstreamImageBuilder for the aws.appstream.imageBuilder resource
