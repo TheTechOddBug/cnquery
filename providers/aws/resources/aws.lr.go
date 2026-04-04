@@ -295,6 +295,16 @@ const (
 	ResourceAwsEc2Vgwtelemetry                                                  string = "aws.ec2.vgwtelemetry"
 	ResourceAwsEc2Internetgateway                                               string = "aws.ec2.internetgateway"
 	ResourceAwsEc2Transitgateway                                                string = "aws.ec2.transitgateway"
+	ResourceAwsEc2TransitgatewayAttachment                                      string = "aws.ec2.transitgateway.attachment"
+	ResourceAwsEc2TransitgatewayRouteTable                                      string = "aws.ec2.transitgateway.routeTable"
+	ResourceAwsEc2DhcpOptions                                                   string = "aws.ec2.dhcpOptions"
+	ResourceAwsEc2TransitgatewayPeeringAttachment                               string = "aws.ec2.transitgateway.peeringAttachment"
+	ResourceAwsEc2ManagedPrefixList                                             string = "aws.ec2.managedPrefixList"
+	ResourceAwsEc2ManagedPrefixListEntry                                        string = "aws.ec2.managedPrefixList.entry"
+	ResourceAwsEc2ClientVpnEndpoint                                             string = "aws.ec2.clientVpnEndpoint"
+	ResourceAwsEc2CustomerGateway                                               string = "aws.ec2.customerGateway"
+	ResourceAwsEc2EgressOnlyInternetGateway                                     string = "aws.ec2.egressOnlyInternetGateway"
+	ResourceAwsEc2VpcEndpointServiceConfiguration                               string = "aws.ec2.vpcEndpointServiceConfiguration"
 	ResourceAwsEc2Launchtemplate                                                string = "aws.ec2.launchtemplate"
 	ResourceAwsEc2Launchconfiguration                                           string = "aws.ec2.launchconfiguration"
 	ResourceAwsEc2LaunchconfigurationBlockDeviceMapping                         string = "aws.ec2.launchconfiguration.blockDeviceMapping"
@@ -495,7 +505,7 @@ func init() {
 			Create: createAwsVpcFlowlog,
 		},
 		"aws.vpc.vpnGateway": {
-			// to override args, implement: initAwsVpcVpnGateway(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error)
+			Init:   initAwsVpcVpnGateway,
 			Create: createAwsVpcVpnGateway,
 		},
 		"aws.waf": {
@@ -1554,6 +1564,46 @@ func init() {
 			// to override args, implement: initAwsEc2Transitgateway(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error)
 			Create: createAwsEc2Transitgateway,
 		},
+		"aws.ec2.transitgateway.attachment": {
+			// to override args, implement: initAwsEc2TransitgatewayAttachment(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error)
+			Create: createAwsEc2TransitgatewayAttachment,
+		},
+		"aws.ec2.transitgateway.routeTable": {
+			// to override args, implement: initAwsEc2TransitgatewayRouteTable(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error)
+			Create: createAwsEc2TransitgatewayRouteTable,
+		},
+		"aws.ec2.dhcpOptions": {
+			// to override args, implement: initAwsEc2DhcpOptions(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error)
+			Create: createAwsEc2DhcpOptions,
+		},
+		"aws.ec2.transitgateway.peeringAttachment": {
+			// to override args, implement: initAwsEc2TransitgatewayPeeringAttachment(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error)
+			Create: createAwsEc2TransitgatewayPeeringAttachment,
+		},
+		"aws.ec2.managedPrefixList": {
+			// to override args, implement: initAwsEc2ManagedPrefixList(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error)
+			Create: createAwsEc2ManagedPrefixList,
+		},
+		"aws.ec2.managedPrefixList.entry": {
+			// to override args, implement: initAwsEc2ManagedPrefixListEntry(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error)
+			Create: createAwsEc2ManagedPrefixListEntry,
+		},
+		"aws.ec2.clientVpnEndpoint": {
+			// to override args, implement: initAwsEc2ClientVpnEndpoint(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error)
+			Create: createAwsEc2ClientVpnEndpoint,
+		},
+		"aws.ec2.customerGateway": {
+			Init:   initAwsEc2CustomerGateway,
+			Create: createAwsEc2CustomerGateway,
+		},
+		"aws.ec2.egressOnlyInternetGateway": {
+			// to override args, implement: initAwsEc2EgressOnlyInternetGateway(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error)
+			Create: createAwsEc2EgressOnlyInternetGateway,
+		},
+		"aws.ec2.vpcEndpointServiceConfiguration": {
+			// to override args, implement: initAwsEc2VpcEndpointServiceConfiguration(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error)
+			Create: createAwsEc2VpcEndpointServiceConfiguration,
+		},
 		"aws.ec2.launchtemplate": {
 			// to override args, implement: initAwsEc2Launchtemplate(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error)
 			Create: createAwsEc2Launchtemplate,
@@ -1631,7 +1681,7 @@ func init() {
 			Create: createAwsEc2Instance,
 		},
 		"aws.ec2.networkinterface": {
-			// to override args, implement: initAwsEc2Networkinterface(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error)
+			Init:   initAwsEc2Networkinterface,
 			Create: createAwsEc2Networkinterface,
 		},
 		"aws.ec2.keypair": {
@@ -2368,6 +2418,15 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	"aws.vpc.vpnGateways": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsVpc).GetVpnGateways()).ToDataRes(types.Array(types.Resource("aws.vpc.vpnGateway")))
 	},
+	"aws.vpc.dhcpOptions": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsVpc).GetDhcpOptions()).ToDataRes(types.Resource("aws.ec2.dhcpOptions"))
+	},
+	"aws.vpc.enableDnsSupport": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsVpc).GetEnableDnsSupport()).ToDataRes(types.Bool)
+	},
+	"aws.vpc.enableDnsHostnames": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsVpc).GetEnableDnsHostnames()).ToDataRes(types.Bool)
+	},
 	"aws.vpc.routetable.arn": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsVpcRoutetable).GetArn()).ToDataRes(types.String)
 	},
@@ -2500,6 +2559,18 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	"aws.vpc.subnet.routeTable": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsVpcSubnet).GetRouteTable()).ToDataRes(types.Resource("aws.vpc.routetable"))
 	},
+	"aws.vpc.subnet.networkAcl": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsVpcSubnet).GetNetworkAcl()).ToDataRes(types.Resource("aws.ec2.networkacl"))
+	},
+	"aws.vpc.subnet.natGateway": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsVpcSubnet).GetNatGateway()).ToDataRes(types.Resource("aws.vpc.natgateway"))
+	},
+	"aws.vpc.subnet.flowLogs": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsVpcSubnet).GetFlowLogs()).ToDataRes(types.Array(types.Resource("aws.vpc.flowlog")))
+	},
+	"aws.vpc.subnet.ipv6CidrBlock": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsVpcSubnet).GetIpv6CidrBlock()).ToDataRes(types.String)
+	},
 	"aws.vpc.endpoint.id": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsVpcEndpoint).GetId()).ToDataRes(types.String)
 	},
@@ -2529,6 +2600,18 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	},
 	"aws.vpc.endpoint.createdAt": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsVpcEndpoint).GetCreatedAt()).ToDataRes(types.Time)
+	},
+	"aws.vpc.endpoint.securityGroups": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsVpcEndpoint).GetSecurityGroups()).ToDataRes(types.Array(types.Resource("aws.ec2.securitygroup")))
+	},
+	"aws.vpc.endpoint.routeTables": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsVpcEndpoint).GetRouteTables()).ToDataRes(types.Array(types.Resource("aws.vpc.routetable")))
+	},
+	"aws.vpc.endpoint.networkInterfaces": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsVpcEndpoint).GetNetworkInterfaces()).ToDataRes(types.Array(types.Resource("aws.ec2.networkinterface")))
+	},
+	"aws.vpc.endpoint.dnsEntries": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsVpcEndpoint).GetDnsEntries()).ToDataRes(types.Array(types.Dict))
 	},
 	"aws.vpc.flowlog.id": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsVpcFlowlog).GetId()).ToDataRes(types.String)
@@ -2566,6 +2649,15 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	"aws.vpc.flowlog.trafficType": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsVpcFlowlog).GetTrafficType()).ToDataRes(types.String)
 	},
+	"aws.vpc.flowlog.iamRole": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsVpcFlowlog).GetIamRole()).ToDataRes(types.Resource("aws.iam.role"))
+	},
+	"aws.vpc.flowlog.logGroup": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsVpcFlowlog).GetLogGroup()).ToDataRes(types.Resource("aws.cloudwatch.loggroup"))
+	},
+	"aws.vpc.flowlog.s3Bucket": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsVpcFlowlog).GetS3Bucket()).ToDataRes(types.Resource("aws.s3.bucket"))
+	},
 	"aws.vpc.vpnGateway.id": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsVpcVpnGateway).GetId()).ToDataRes(types.String)
 	},
@@ -2592,6 +2684,9 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	},
 	"aws.vpc.vpnGateway.tags": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsVpcVpnGateway).GetTags()).ToDataRes(types.Map(types.String, types.String))
+	},
+	"aws.vpc.vpnGateway.vpnConnections": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsVpcVpnGateway).GetVpnConnections()).ToDataRes(types.Array(types.Resource("aws.ec2.vpnconnection")))
 	},
 	"aws.waf.acls": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsWaf).GetAcls()).ToDataRes(types.Array(types.Resource("aws.waf.acl")))
@@ -9136,6 +9231,21 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	"aws.ec2.launchConfigurations": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsEc2).GetLaunchConfigurations()).ToDataRes(types.Array(types.Resource("aws.ec2.launchconfiguration")))
 	},
+	"aws.ec2.managedPrefixLists": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2).GetManagedPrefixLists()).ToDataRes(types.Array(types.Resource("aws.ec2.managedPrefixList")))
+	},
+	"aws.ec2.clientVpnEndpoints": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2).GetClientVpnEndpoints()).ToDataRes(types.Array(types.Resource("aws.ec2.clientVpnEndpoint")))
+	},
+	"aws.ec2.customerGateways": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2).GetCustomerGateways()).ToDataRes(types.Array(types.Resource("aws.ec2.customerGateway")))
+	},
+	"aws.ec2.egressOnlyInternetGateways": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2).GetEgressOnlyInternetGateways()).ToDataRes(types.Array(types.Resource("aws.ec2.egressOnlyInternetGateway")))
+	},
+	"aws.ec2.vpcEndpointServiceConfigurations": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2).GetVpcEndpointServiceConfigurations()).ToDataRes(types.Array(types.Resource("aws.ec2.vpcEndpointServiceConfiguration")))
+	},
 	"aws.ec2.eip.publicIp": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsEc2Eip).GetPublicIp()).ToDataRes(types.String)
 	},
@@ -9162,6 +9272,9 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	},
 	"aws.ec2.eip.region": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsEc2Eip).GetRegion()).ToDataRes(types.String)
+	},
+	"aws.ec2.eip.networkInterface": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2Eip).GetNetworkInterface()).ToDataRes(types.Resource("aws.ec2.networkinterface"))
 	},
 	"aws.vpc.natgateway.createdAt": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsVpcNatgateway).GetCreatedAt()).ToDataRes(types.Time)
@@ -9256,6 +9369,15 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	"aws.vpc.peeringConnection.tags": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsVpcPeeringConnection).GetTags()).ToDataRes(types.Map(types.String, types.String))
 	},
+	"aws.vpc.peeringConnection.requesterAccountId": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsVpcPeeringConnection).GetRequesterAccountId()).ToDataRes(types.String)
+	},
+	"aws.vpc.peeringConnection.accepterAccountId": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsVpcPeeringConnection).GetAccepterAccountId()).ToDataRes(types.String)
+	},
+	"aws.vpc.peeringConnection.dnsResolutionEnabled": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsVpcPeeringConnection).GetDnsResolutionEnabled()).ToDataRes(types.Bool)
+	},
 	"aws.vpc.peeringConnection.peeringVpc.allowDnsResolutionFromRemoteVpc": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsVpcPeeringConnectionPeeringVpc).GetAllowDnsResolutionFromRemoteVpc()).ToDataRes(types.Bool)
 	},
@@ -9307,6 +9429,9 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	"aws.ec2.networkacl.association.subnetId": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsEc2NetworkaclAssociation).GetSubnetId()).ToDataRes(types.String)
 	},
+	"aws.ec2.networkacl.association.subnet": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2NetworkaclAssociation).GetSubnet()).ToDataRes(types.Resource("aws.vpc.subnet"))
+	},
 	"aws.ec2.networkacl.entry.egress": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsEc2NetworkaclEntry).GetEgress()).ToDataRes(types.Bool)
 	},
@@ -9342,6 +9467,57 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	},
 	"aws.ec2.vpnconnection.arn": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsEc2Vpnconnection).GetArn()).ToDataRes(types.String)
+	},
+	"aws.ec2.vpnconnection.id": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2Vpnconnection).GetId()).ToDataRes(types.String)
+	},
+	"aws.ec2.vpnconnection.region": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2Vpnconnection).GetRegion()).ToDataRes(types.String)
+	},
+	"aws.ec2.vpnconnection.state": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2Vpnconnection).GetState()).ToDataRes(types.String)
+	},
+	"aws.ec2.vpnconnection.type": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2Vpnconnection).GetType()).ToDataRes(types.String)
+	},
+	"aws.ec2.vpnconnection.category": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2Vpnconnection).GetCategory()).ToDataRes(types.String)
+	},
+	"aws.ec2.vpnconnection.vpnGateway": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2Vpnconnection).GetVpnGateway()).ToDataRes(types.Resource("aws.vpc.vpnGateway"))
+	},
+	"aws.ec2.vpnconnection.transitGateway": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2Vpnconnection).GetTransitGateway()).ToDataRes(types.Resource("aws.ec2.transitgateway"))
+	},
+	"aws.ec2.vpnconnection.customerGateway": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2Vpnconnection).GetCustomerGateway()).ToDataRes(types.Resource("aws.ec2.customerGateway"))
+	},
+	"aws.ec2.vpnconnection.staticRoutesOnly": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2Vpnconnection).GetStaticRoutesOnly()).ToDataRes(types.Bool)
+	},
+	"aws.ec2.vpnconnection.enableAcceleration": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2Vpnconnection).GetEnableAcceleration()).ToDataRes(types.Bool)
+	},
+	"aws.ec2.vpnconnection.localIpv4NetworkCidr": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2Vpnconnection).GetLocalIpv4NetworkCidr()).ToDataRes(types.String)
+	},
+	"aws.ec2.vpnconnection.remoteIpv4NetworkCidr": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2Vpnconnection).GetRemoteIpv4NetworkCidr()).ToDataRes(types.String)
+	},
+	"aws.ec2.vpnconnection.localIpv6NetworkCidr": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2Vpnconnection).GetLocalIpv6NetworkCidr()).ToDataRes(types.String)
+	},
+	"aws.ec2.vpnconnection.remoteIpv6NetworkCidr": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2Vpnconnection).GetRemoteIpv6NetworkCidr()).ToDataRes(types.String)
+	},
+	"aws.ec2.vpnconnection.outsideIpAddressType": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2Vpnconnection).GetOutsideIpAddressType()).ToDataRes(types.String)
+	},
+	"aws.ec2.vpnconnection.tunnelInsideIpVersion": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2Vpnconnection).GetTunnelInsideIpVersion()).ToDataRes(types.String)
+	},
+	"aws.ec2.vpnconnection.tags": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2Vpnconnection).GetTags()).ToDataRes(types.Map(types.String, types.String))
 	},
 	"aws.ec2.vpnconnection.vgwTelemetry": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsEc2Vpnconnection).GetVgwTelemetry()).ToDataRes(types.Array(types.Resource("aws.ec2.vgwtelemetry")))
@@ -9423,6 +9599,294 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	},
 	"aws.ec2.transitgateway.propagationDefaultRouteTableId": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsEc2Transitgateway).GetPropagationDefaultRouteTableId()).ToDataRes(types.String)
+	},
+	"aws.ec2.transitgateway.attachments": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2Transitgateway).GetAttachments()).ToDataRes(types.Array(types.Resource("aws.ec2.transitgateway.attachment")))
+	},
+	"aws.ec2.transitgateway.routeTables": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2Transitgateway).GetRouteTables()).ToDataRes(types.Array(types.Resource("aws.ec2.transitgateway.routeTable")))
+	},
+	"aws.ec2.transitgateway.peeringAttachments": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2Transitgateway).GetPeeringAttachments()).ToDataRes(types.Array(types.Resource("aws.ec2.transitgateway.peeringAttachment")))
+	},
+	"aws.ec2.transitgateway.attachment.id": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2TransitgatewayAttachment).GetId()).ToDataRes(types.String)
+	},
+	"aws.ec2.transitgateway.attachment.transitGatewayId": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2TransitgatewayAttachment).GetTransitGatewayId()).ToDataRes(types.String)
+	},
+	"aws.ec2.transitgateway.attachment.resourceId": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2TransitgatewayAttachment).GetResourceId()).ToDataRes(types.String)
+	},
+	"aws.ec2.transitgateway.attachment.resourceType": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2TransitgatewayAttachment).GetResourceType()).ToDataRes(types.String)
+	},
+	"aws.ec2.transitgateway.attachment.state": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2TransitgatewayAttachment).GetState()).ToDataRes(types.String)
+	},
+	"aws.ec2.transitgateway.attachment.tags": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2TransitgatewayAttachment).GetTags()).ToDataRes(types.Map(types.String, types.String))
+	},
+	"aws.ec2.transitgateway.attachment.region": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2TransitgatewayAttachment).GetRegion()).ToDataRes(types.String)
+	},
+	"aws.ec2.transitgateway.routeTable.id": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2TransitgatewayRouteTable).GetId()).ToDataRes(types.String)
+	},
+	"aws.ec2.transitgateway.routeTable.transitGatewayId": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2TransitgatewayRouteTable).GetTransitGatewayId()).ToDataRes(types.String)
+	},
+	"aws.ec2.transitgateway.routeTable.state": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2TransitgatewayRouteTable).GetState()).ToDataRes(types.String)
+	},
+	"aws.ec2.transitgateway.routeTable.defaultAssociationRouteTable": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2TransitgatewayRouteTable).GetDefaultAssociationRouteTable()).ToDataRes(types.Bool)
+	},
+	"aws.ec2.transitgateway.routeTable.defaultPropagationRouteTable": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2TransitgatewayRouteTable).GetDefaultPropagationRouteTable()).ToDataRes(types.Bool)
+	},
+	"aws.ec2.transitgateway.routeTable.tags": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2TransitgatewayRouteTable).GetTags()).ToDataRes(types.Map(types.String, types.String))
+	},
+	"aws.ec2.transitgateway.routeTable.region": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2TransitgatewayRouteTable).GetRegion()).ToDataRes(types.String)
+	},
+	"aws.ec2.dhcpOptions.id": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2DhcpOptions).GetId()).ToDataRes(types.String)
+	},
+	"aws.ec2.dhcpOptions.region": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2DhcpOptions).GetRegion()).ToDataRes(types.String)
+	},
+	"aws.ec2.dhcpOptions.tags": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2DhcpOptions).GetTags()).ToDataRes(types.Map(types.String, types.String))
+	},
+	"aws.ec2.dhcpOptions.configurations": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2DhcpOptions).GetConfigurations()).ToDataRes(types.Array(types.Dict))
+	},
+	"aws.ec2.transitgateway.peeringAttachment.id": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2TransitgatewayPeeringAttachment).GetId()).ToDataRes(types.String)
+	},
+	"aws.ec2.transitgateway.peeringAttachment.state": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2TransitgatewayPeeringAttachment).GetState()).ToDataRes(types.String)
+	},
+	"aws.ec2.transitgateway.peeringAttachment.createdAt": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2TransitgatewayPeeringAttachment).GetCreatedAt()).ToDataRes(types.Time)
+	},
+	"aws.ec2.transitgateway.peeringAttachment.tags": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2TransitgatewayPeeringAttachment).GetTags()).ToDataRes(types.Map(types.String, types.String))
+	},
+	"aws.ec2.transitgateway.peeringAttachment.region": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2TransitgatewayPeeringAttachment).GetRegion()).ToDataRes(types.String)
+	},
+	"aws.ec2.transitgateway.peeringAttachment.requesterTgwInfo": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2TransitgatewayPeeringAttachment).GetRequesterTgwInfo()).ToDataRes(types.Dict)
+	},
+	"aws.ec2.transitgateway.peeringAttachment.accepterTgwInfo": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2TransitgatewayPeeringAttachment).GetAccepterTgwInfo()).ToDataRes(types.Dict)
+	},
+	"aws.ec2.transitgateway.peeringAttachment.statusCode": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2TransitgatewayPeeringAttachment).GetStatusCode()).ToDataRes(types.String)
+	},
+	"aws.ec2.transitgateway.peeringAttachment.statusMessage": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2TransitgatewayPeeringAttachment).GetStatusMessage()).ToDataRes(types.String)
+	},
+	"aws.ec2.managedPrefixList.id": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2ManagedPrefixList).GetId()).ToDataRes(types.String)
+	},
+	"aws.ec2.managedPrefixList.arn": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2ManagedPrefixList).GetArn()).ToDataRes(types.String)
+	},
+	"aws.ec2.managedPrefixList.name": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2ManagedPrefixList).GetName()).ToDataRes(types.String)
+	},
+	"aws.ec2.managedPrefixList.region": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2ManagedPrefixList).GetRegion()).ToDataRes(types.String)
+	},
+	"aws.ec2.managedPrefixList.state": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2ManagedPrefixList).GetState()).ToDataRes(types.String)
+	},
+	"aws.ec2.managedPrefixList.addressFamily": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2ManagedPrefixList).GetAddressFamily()).ToDataRes(types.String)
+	},
+	"aws.ec2.managedPrefixList.maxEntries": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2ManagedPrefixList).GetMaxEntries()).ToDataRes(types.Int)
+	},
+	"aws.ec2.managedPrefixList.version": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2ManagedPrefixList).GetVersion()).ToDataRes(types.Int)
+	},
+	"aws.ec2.managedPrefixList.ownerId": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2ManagedPrefixList).GetOwnerId()).ToDataRes(types.String)
+	},
+	"aws.ec2.managedPrefixList.tags": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2ManagedPrefixList).GetTags()).ToDataRes(types.Map(types.String, types.String))
+	},
+	"aws.ec2.managedPrefixList.entries": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2ManagedPrefixList).GetEntries()).ToDataRes(types.Array(types.Resource("aws.ec2.managedPrefixList.entry")))
+	},
+	"aws.ec2.managedPrefixList.entry.cidr": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2ManagedPrefixListEntry).GetCidr()).ToDataRes(types.String)
+	},
+	"aws.ec2.managedPrefixList.entry.description": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2ManagedPrefixListEntry).GetDescription()).ToDataRes(types.String)
+	},
+	"aws.ec2.clientVpnEndpoint.id": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2ClientVpnEndpoint).GetId()).ToDataRes(types.String)
+	},
+	"aws.ec2.clientVpnEndpoint.arn": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2ClientVpnEndpoint).GetArn()).ToDataRes(types.String)
+	},
+	"aws.ec2.clientVpnEndpoint.region": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2ClientVpnEndpoint).GetRegion()).ToDataRes(types.String)
+	},
+	"aws.ec2.clientVpnEndpoint.description": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2ClientVpnEndpoint).GetDescription()).ToDataRes(types.String)
+	},
+	"aws.ec2.clientVpnEndpoint.status": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2ClientVpnEndpoint).GetStatus()).ToDataRes(types.String)
+	},
+	"aws.ec2.clientVpnEndpoint.createdAt": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2ClientVpnEndpoint).GetCreatedAt()).ToDataRes(types.Time)
+	},
+	"aws.ec2.clientVpnEndpoint.vpc": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2ClientVpnEndpoint).GetVpc()).ToDataRes(types.Resource("aws.vpc"))
+	},
+	"aws.ec2.clientVpnEndpoint.serverCertificateArn": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2ClientVpnEndpoint).GetServerCertificateArn()).ToDataRes(types.String)
+	},
+	"aws.ec2.clientVpnEndpoint.transportProtocol": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2ClientVpnEndpoint).GetTransportProtocol()).ToDataRes(types.String)
+	},
+	"aws.ec2.clientVpnEndpoint.vpnProtocol": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2ClientVpnEndpoint).GetVpnProtocol()).ToDataRes(types.String)
+	},
+	"aws.ec2.clientVpnEndpoint.splitTunnel": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2ClientVpnEndpoint).GetSplitTunnel()).ToDataRes(types.Bool)
+	},
+	"aws.ec2.clientVpnEndpoint.vpnPort": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2ClientVpnEndpoint).GetVpnPort()).ToDataRes(types.Int)
+	},
+	"aws.ec2.clientVpnEndpoint.selfServicePortalUrl": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2ClientVpnEndpoint).GetSelfServicePortalUrl()).ToDataRes(types.String)
+	},
+	"aws.ec2.clientVpnEndpoint.dnsServers": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2ClientVpnEndpoint).GetDnsServers()).ToDataRes(types.Array(types.String))
+	},
+	"aws.ec2.clientVpnEndpoint.securityGroups": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2ClientVpnEndpoint).GetSecurityGroups()).ToDataRes(types.Array(types.Resource("aws.ec2.securitygroup")))
+	},
+	"aws.ec2.clientVpnEndpoint.sessionTimeoutHours": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2ClientVpnEndpoint).GetSessionTimeoutHours()).ToDataRes(types.Int)
+	},
+	"aws.ec2.clientVpnEndpoint.clientConnectOptions": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2ClientVpnEndpoint).GetClientConnectOptions()).ToDataRes(types.Dict)
+	},
+	"aws.ec2.clientVpnEndpoint.clientLoginBannerOptions": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2ClientVpnEndpoint).GetClientLoginBannerOptions()).ToDataRes(types.Dict)
+	},
+	"aws.ec2.clientVpnEndpoint.connectionLogOptions": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2ClientVpnEndpoint).GetConnectionLogOptions()).ToDataRes(types.Dict)
+	},
+	"aws.ec2.clientVpnEndpoint.authenticationOptions": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2ClientVpnEndpoint).GetAuthenticationOptions()).ToDataRes(types.Array(types.Dict))
+	},
+	"aws.ec2.clientVpnEndpoint.tags": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2ClientVpnEndpoint).GetTags()).ToDataRes(types.Map(types.String, types.String))
+	},
+	"aws.ec2.customerGateway.id": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2CustomerGateway).GetId()).ToDataRes(types.String)
+	},
+	"aws.ec2.customerGateway.arn": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2CustomerGateway).GetArn()).ToDataRes(types.String)
+	},
+	"aws.ec2.customerGateway.region": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2CustomerGateway).GetRegion()).ToDataRes(types.String)
+	},
+	"aws.ec2.customerGateway.state": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2CustomerGateway).GetState()).ToDataRes(types.String)
+	},
+	"aws.ec2.customerGateway.type": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2CustomerGateway).GetType()).ToDataRes(types.String)
+	},
+	"aws.ec2.customerGateway.bgpAsn": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2CustomerGateway).GetBgpAsn()).ToDataRes(types.String)
+	},
+	"aws.ec2.customerGateway.bgpAsnExtended": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2CustomerGateway).GetBgpAsnExtended()).ToDataRes(types.String)
+	},
+	"aws.ec2.customerGateway.ipAddress": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2CustomerGateway).GetIpAddress()).ToDataRes(types.String)
+	},
+	"aws.ec2.customerGateway.certificateArn": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2CustomerGateway).GetCertificateArn()).ToDataRes(types.String)
+	},
+	"aws.ec2.customerGateway.deviceName": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2CustomerGateway).GetDeviceName()).ToDataRes(types.String)
+	},
+	"aws.ec2.customerGateway.tags": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2CustomerGateway).GetTags()).ToDataRes(types.Map(types.String, types.String))
+	},
+	"aws.ec2.egressOnlyInternetGateway.id": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2EgressOnlyInternetGateway).GetId()).ToDataRes(types.String)
+	},
+	"aws.ec2.egressOnlyInternetGateway.arn": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2EgressOnlyInternetGateway).GetArn()).ToDataRes(types.String)
+	},
+	"aws.ec2.egressOnlyInternetGateway.region": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2EgressOnlyInternetGateway).GetRegion()).ToDataRes(types.String)
+	},
+	"aws.ec2.egressOnlyInternetGateway.attachments": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2EgressOnlyInternetGateway).GetAttachments()).ToDataRes(types.Array(types.Dict))
+	},
+	"aws.ec2.egressOnlyInternetGateway.tags": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2EgressOnlyInternetGateway).GetTags()).ToDataRes(types.Map(types.String, types.String))
+	},
+	"aws.ec2.vpcEndpointServiceConfiguration.id": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2VpcEndpointServiceConfiguration).GetId()).ToDataRes(types.String)
+	},
+	"aws.ec2.vpcEndpointServiceConfiguration.arn": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2VpcEndpointServiceConfiguration).GetArn()).ToDataRes(types.String)
+	},
+	"aws.ec2.vpcEndpointServiceConfiguration.region": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2VpcEndpointServiceConfiguration).GetRegion()).ToDataRes(types.String)
+	},
+	"aws.ec2.vpcEndpointServiceConfiguration.name": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2VpcEndpointServiceConfiguration).GetName()).ToDataRes(types.String)
+	},
+	"aws.ec2.vpcEndpointServiceConfiguration.state": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2VpcEndpointServiceConfiguration).GetState()).ToDataRes(types.String)
+	},
+	"aws.ec2.vpcEndpointServiceConfiguration.serviceType": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2VpcEndpointServiceConfiguration).GetServiceType()).ToDataRes(types.String)
+	},
+	"aws.ec2.vpcEndpointServiceConfiguration.acceptanceRequired": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2VpcEndpointServiceConfiguration).GetAcceptanceRequired()).ToDataRes(types.Bool)
+	},
+	"aws.ec2.vpcEndpointServiceConfiguration.privateDnsName": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2VpcEndpointServiceConfiguration).GetPrivateDnsName()).ToDataRes(types.String)
+	},
+	"aws.ec2.vpcEndpointServiceConfiguration.privateDnsNameVerificationState": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2VpcEndpointServiceConfiguration).GetPrivateDnsNameVerificationState()).ToDataRes(types.String)
+	},
+	"aws.ec2.vpcEndpointServiceConfiguration.availabilityZones": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2VpcEndpointServiceConfiguration).GetAvailabilityZones()).ToDataRes(types.Array(types.String))
+	},
+	"aws.ec2.vpcEndpointServiceConfiguration.gatewayLoadBalancerArns": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2VpcEndpointServiceConfiguration).GetGatewayLoadBalancerArns()).ToDataRes(types.Array(types.String))
+	},
+	"aws.ec2.vpcEndpointServiceConfiguration.networkLoadBalancerArns": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2VpcEndpointServiceConfiguration).GetNetworkLoadBalancerArns()).ToDataRes(types.Array(types.String))
+	},
+	"aws.ec2.vpcEndpointServiceConfiguration.managesVpcEndpoints": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2VpcEndpointServiceConfiguration).GetManagesVpcEndpoints()).ToDataRes(types.Bool)
+	},
+	"aws.ec2.vpcEndpointServiceConfiguration.payerResponsibility": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2VpcEndpointServiceConfiguration).GetPayerResponsibility()).ToDataRes(types.String)
+	},
+	"aws.ec2.vpcEndpointServiceConfiguration.supportedIpAddressTypes": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2VpcEndpointServiceConfiguration).GetSupportedIpAddressTypes()).ToDataRes(types.Array(types.String))
+	},
+	"aws.ec2.vpcEndpointServiceConfiguration.tags": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAwsEc2VpcEndpointServiceConfiguration).GetTags()).ToDataRes(types.Map(types.String, types.String))
 	},
 	"aws.ec2.launchtemplate.id": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAwsEc2Launchtemplate).GetId()).ToDataRes(types.String)
@@ -14078,6 +14542,18 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 		r.(*mqlAwsVpc).VpnGateways, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
 		return
 	},
+	"aws.vpc.dhcpOptions": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsVpc).DhcpOptions, ok = plugin.RawToTValue[*mqlAwsEc2DhcpOptions](v.Value, v.Error)
+		return
+	},
+	"aws.vpc.enableDnsSupport": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsVpc).EnableDnsSupport, ok = plugin.RawToTValue[bool](v.Value, v.Error)
+		return
+	},
+	"aws.vpc.enableDnsHostnames": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsVpc).EnableDnsHostnames, ok = plugin.RawToTValue[bool](v.Value, v.Error)
+		return
+	},
 	"aws.vpc.routetable.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlAwsVpcRoutetable).__id, ok = v.Value.(string)
 		return
@@ -14270,6 +14746,22 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 		r.(*mqlAwsVpcSubnet).RouteTable, ok = plugin.RawToTValue[*mqlAwsVpcRoutetable](v.Value, v.Error)
 		return
 	},
+	"aws.vpc.subnet.networkAcl": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsVpcSubnet).NetworkAcl, ok = plugin.RawToTValue[*mqlAwsEc2Networkacl](v.Value, v.Error)
+		return
+	},
+	"aws.vpc.subnet.natGateway": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsVpcSubnet).NatGateway, ok = plugin.RawToTValue[*mqlAwsVpcNatgateway](v.Value, v.Error)
+		return
+	},
+	"aws.vpc.subnet.flowLogs": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsVpcSubnet).FlowLogs, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
+	"aws.vpc.subnet.ipv6CidrBlock": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsVpcSubnet).Ipv6CidrBlock, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
 	"aws.vpc.endpoint.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlAwsVpcEndpoint).__id, ok = v.Value.(string)
 		return
@@ -14312,6 +14804,22 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 	},
 	"aws.vpc.endpoint.createdAt": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlAwsVpcEndpoint).CreatedAt, ok = plugin.RawToTValue[*time.Time](v.Value, v.Error)
+		return
+	},
+	"aws.vpc.endpoint.securityGroups": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsVpcEndpoint).SecurityGroups, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
+	"aws.vpc.endpoint.routeTables": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsVpcEndpoint).RouteTables, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
+	"aws.vpc.endpoint.networkInterfaces": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsVpcEndpoint).NetworkInterfaces, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
+	"aws.vpc.endpoint.dnsEntries": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsVpcEndpoint).DnsEntries, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
 		return
 	},
 	"aws.vpc.flowlog.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
@@ -14366,6 +14874,18 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 		r.(*mqlAwsVpcFlowlog).TrafficType, ok = plugin.RawToTValue[string](v.Value, v.Error)
 		return
 	},
+	"aws.vpc.flowlog.iamRole": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsVpcFlowlog).IamRole, ok = plugin.RawToTValue[*mqlAwsIamRole](v.Value, v.Error)
+		return
+	},
+	"aws.vpc.flowlog.logGroup": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsVpcFlowlog).LogGroup, ok = plugin.RawToTValue[*mqlAwsCloudwatchLoggroup](v.Value, v.Error)
+		return
+	},
+	"aws.vpc.flowlog.s3Bucket": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsVpcFlowlog).S3Bucket, ok = plugin.RawToTValue[*mqlAwsS3Bucket](v.Value, v.Error)
+		return
+	},
 	"aws.vpc.vpnGateway.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlAwsVpcVpnGateway).__id, ok = v.Value.(string)
 		return
@@ -14404,6 +14924,10 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 	},
 	"aws.vpc.vpnGateway.tags": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlAwsVpcVpnGateway).Tags, ok = plugin.RawToTValue[map[string]any](v.Value, v.Error)
+		return
+	},
+	"aws.vpc.vpnGateway.vpnConnections": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsVpcVpnGateway).VpnConnections, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
 		return
 	},
 	"aws.waf.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
@@ -24130,6 +24654,26 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 		r.(*mqlAwsEc2).LaunchConfigurations, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
 		return
 	},
+	"aws.ec2.managedPrefixLists": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2).ManagedPrefixLists, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.clientVpnEndpoints": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2).ClientVpnEndpoints, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.customerGateways": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2).CustomerGateways, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.egressOnlyInternetGateways": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2).EgressOnlyInternetGateways, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.vpcEndpointServiceConfigurations": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2).VpcEndpointServiceConfigurations, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
 	"aws.ec2.eip.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlAwsEc2Eip).__id, ok = v.Value.(string)
 		return
@@ -24168,6 +24712,10 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 	},
 	"aws.ec2.eip.region": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlAwsEc2Eip).Region, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.eip.networkInterface": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2Eip).NetworkInterface, ok = plugin.RawToTValue[*mqlAwsEc2Networkinterface](v.Value, v.Error)
 		return
 	},
 	"aws.vpc.natgateway.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
@@ -24310,6 +24858,18 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 		r.(*mqlAwsVpcPeeringConnection).Tags, ok = plugin.RawToTValue[map[string]any](v.Value, v.Error)
 		return
 	},
+	"aws.vpc.peeringConnection.requesterAccountId": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsVpcPeeringConnection).RequesterAccountId, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.vpc.peeringConnection.accepterAccountId": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsVpcPeeringConnection).AccepterAccountId, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.vpc.peeringConnection.dnsResolutionEnabled": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsVpcPeeringConnection).DnsResolutionEnabled, ok = plugin.RawToTValue[bool](v.Value, v.Error)
+		return
+	},
 	"aws.vpc.peeringConnection.peeringVpc.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlAwsVpcPeeringConnectionPeeringVpc).__id, ok = v.Value.(string)
 		return
@@ -24390,6 +24950,10 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 		r.(*mqlAwsEc2NetworkaclAssociation).SubnetId, ok = plugin.RawToTValue[string](v.Value, v.Error)
 		return
 	},
+	"aws.ec2.networkacl.association.subnet": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2NetworkaclAssociation).Subnet, ok = plugin.RawToTValue[*mqlAwsVpcSubnet](v.Value, v.Error)
+		return
+	},
 	"aws.ec2.networkacl.entry.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlAwsEc2NetworkaclEntry).__id, ok = v.Value.(string)
 		return
@@ -24448,6 +25012,74 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 	},
 	"aws.ec2.vpnconnection.arn": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlAwsEc2Vpnconnection).Arn, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.vpnconnection.id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2Vpnconnection).Id, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.vpnconnection.region": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2Vpnconnection).Region, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.vpnconnection.state": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2Vpnconnection).State, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.vpnconnection.type": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2Vpnconnection).Type, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.vpnconnection.category": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2Vpnconnection).Category, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.vpnconnection.vpnGateway": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2Vpnconnection).VpnGateway, ok = plugin.RawToTValue[*mqlAwsVpcVpnGateway](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.vpnconnection.transitGateway": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2Vpnconnection).TransitGateway, ok = plugin.RawToTValue[*mqlAwsEc2Transitgateway](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.vpnconnection.customerGateway": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2Vpnconnection).CustomerGateway, ok = plugin.RawToTValue[*mqlAwsEc2CustomerGateway](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.vpnconnection.staticRoutesOnly": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2Vpnconnection).StaticRoutesOnly, ok = plugin.RawToTValue[bool](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.vpnconnection.enableAcceleration": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2Vpnconnection).EnableAcceleration, ok = plugin.RawToTValue[bool](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.vpnconnection.localIpv4NetworkCidr": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2Vpnconnection).LocalIpv4NetworkCidr, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.vpnconnection.remoteIpv4NetworkCidr": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2Vpnconnection).RemoteIpv4NetworkCidr, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.vpnconnection.localIpv6NetworkCidr": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2Vpnconnection).LocalIpv6NetworkCidr, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.vpnconnection.remoteIpv6NetworkCidr": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2Vpnconnection).RemoteIpv6NetworkCidr, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.vpnconnection.outsideIpAddressType": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2Vpnconnection).OutsideIpAddressType, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.vpnconnection.tunnelInsideIpVersion": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2Vpnconnection).TunnelInsideIpVersion, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.vpnconnection.tags": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2Vpnconnection).Tags, ok = plugin.RawToTValue[map[string]any](v.Value, v.Error)
 		return
 	},
 	"aws.ec2.vpnconnection.vgwTelemetry": func(r plugin.Resource, v *llx.RawData) (ok bool) {
@@ -24568,6 +25200,430 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 	},
 	"aws.ec2.transitgateway.propagationDefaultRouteTableId": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlAwsEc2Transitgateway).PropagationDefaultRouteTableId, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.transitgateway.attachments": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2Transitgateway).Attachments, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.transitgateway.routeTables": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2Transitgateway).RouteTables, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.transitgateway.peeringAttachments": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2Transitgateway).PeeringAttachments, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.transitgateway.attachment.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2TransitgatewayAttachment).__id, ok = v.Value.(string)
+		return
+	},
+	"aws.ec2.transitgateway.attachment.id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2TransitgatewayAttachment).Id, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.transitgateway.attachment.transitGatewayId": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2TransitgatewayAttachment).TransitGatewayId, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.transitgateway.attachment.resourceId": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2TransitgatewayAttachment).ResourceId, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.transitgateway.attachment.resourceType": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2TransitgatewayAttachment).ResourceType, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.transitgateway.attachment.state": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2TransitgatewayAttachment).State, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.transitgateway.attachment.tags": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2TransitgatewayAttachment).Tags, ok = plugin.RawToTValue[map[string]any](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.transitgateway.attachment.region": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2TransitgatewayAttachment).Region, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.transitgateway.routeTable.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2TransitgatewayRouteTable).__id, ok = v.Value.(string)
+		return
+	},
+	"aws.ec2.transitgateway.routeTable.id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2TransitgatewayRouteTable).Id, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.transitgateway.routeTable.transitGatewayId": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2TransitgatewayRouteTable).TransitGatewayId, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.transitgateway.routeTable.state": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2TransitgatewayRouteTable).State, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.transitgateway.routeTable.defaultAssociationRouteTable": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2TransitgatewayRouteTable).DefaultAssociationRouteTable, ok = plugin.RawToTValue[bool](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.transitgateway.routeTable.defaultPropagationRouteTable": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2TransitgatewayRouteTable).DefaultPropagationRouteTable, ok = plugin.RawToTValue[bool](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.transitgateway.routeTable.tags": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2TransitgatewayRouteTable).Tags, ok = plugin.RawToTValue[map[string]any](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.transitgateway.routeTable.region": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2TransitgatewayRouteTable).Region, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.dhcpOptions.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2DhcpOptions).__id, ok = v.Value.(string)
+		return
+	},
+	"aws.ec2.dhcpOptions.id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2DhcpOptions).Id, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.dhcpOptions.region": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2DhcpOptions).Region, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.dhcpOptions.tags": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2DhcpOptions).Tags, ok = plugin.RawToTValue[map[string]any](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.dhcpOptions.configurations": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2DhcpOptions).Configurations, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.transitgateway.peeringAttachment.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2TransitgatewayPeeringAttachment).__id, ok = v.Value.(string)
+		return
+	},
+	"aws.ec2.transitgateway.peeringAttachment.id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2TransitgatewayPeeringAttachment).Id, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.transitgateway.peeringAttachment.state": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2TransitgatewayPeeringAttachment).State, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.transitgateway.peeringAttachment.createdAt": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2TransitgatewayPeeringAttachment).CreatedAt, ok = plugin.RawToTValue[*time.Time](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.transitgateway.peeringAttachment.tags": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2TransitgatewayPeeringAttachment).Tags, ok = plugin.RawToTValue[map[string]any](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.transitgateway.peeringAttachment.region": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2TransitgatewayPeeringAttachment).Region, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.transitgateway.peeringAttachment.requesterTgwInfo": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2TransitgatewayPeeringAttachment).RequesterTgwInfo, ok = plugin.RawToTValue[any](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.transitgateway.peeringAttachment.accepterTgwInfo": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2TransitgatewayPeeringAttachment).AccepterTgwInfo, ok = plugin.RawToTValue[any](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.transitgateway.peeringAttachment.statusCode": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2TransitgatewayPeeringAttachment).StatusCode, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.transitgateway.peeringAttachment.statusMessage": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2TransitgatewayPeeringAttachment).StatusMessage, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.managedPrefixList.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2ManagedPrefixList).__id, ok = v.Value.(string)
+		return
+	},
+	"aws.ec2.managedPrefixList.id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2ManagedPrefixList).Id, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.managedPrefixList.arn": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2ManagedPrefixList).Arn, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.managedPrefixList.name": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2ManagedPrefixList).Name, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.managedPrefixList.region": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2ManagedPrefixList).Region, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.managedPrefixList.state": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2ManagedPrefixList).State, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.managedPrefixList.addressFamily": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2ManagedPrefixList).AddressFamily, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.managedPrefixList.maxEntries": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2ManagedPrefixList).MaxEntries, ok = plugin.RawToTValue[int64](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.managedPrefixList.version": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2ManagedPrefixList).Version, ok = plugin.RawToTValue[int64](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.managedPrefixList.ownerId": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2ManagedPrefixList).OwnerId, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.managedPrefixList.tags": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2ManagedPrefixList).Tags, ok = plugin.RawToTValue[map[string]any](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.managedPrefixList.entries": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2ManagedPrefixList).Entries, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.managedPrefixList.entry.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2ManagedPrefixListEntry).__id, ok = v.Value.(string)
+		return
+	},
+	"aws.ec2.managedPrefixList.entry.cidr": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2ManagedPrefixListEntry).Cidr, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.managedPrefixList.entry.description": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2ManagedPrefixListEntry).Description, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.clientVpnEndpoint.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2ClientVpnEndpoint).__id, ok = v.Value.(string)
+		return
+	},
+	"aws.ec2.clientVpnEndpoint.id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2ClientVpnEndpoint).Id, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.clientVpnEndpoint.arn": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2ClientVpnEndpoint).Arn, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.clientVpnEndpoint.region": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2ClientVpnEndpoint).Region, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.clientVpnEndpoint.description": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2ClientVpnEndpoint).Description, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.clientVpnEndpoint.status": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2ClientVpnEndpoint).Status, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.clientVpnEndpoint.createdAt": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2ClientVpnEndpoint).CreatedAt, ok = plugin.RawToTValue[*time.Time](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.clientVpnEndpoint.vpc": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2ClientVpnEndpoint).Vpc, ok = plugin.RawToTValue[*mqlAwsVpc](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.clientVpnEndpoint.serverCertificateArn": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2ClientVpnEndpoint).ServerCertificateArn, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.clientVpnEndpoint.transportProtocol": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2ClientVpnEndpoint).TransportProtocol, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.clientVpnEndpoint.vpnProtocol": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2ClientVpnEndpoint).VpnProtocol, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.clientVpnEndpoint.splitTunnel": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2ClientVpnEndpoint).SplitTunnel, ok = plugin.RawToTValue[bool](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.clientVpnEndpoint.vpnPort": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2ClientVpnEndpoint).VpnPort, ok = plugin.RawToTValue[int64](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.clientVpnEndpoint.selfServicePortalUrl": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2ClientVpnEndpoint).SelfServicePortalUrl, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.clientVpnEndpoint.dnsServers": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2ClientVpnEndpoint).DnsServers, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.clientVpnEndpoint.securityGroups": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2ClientVpnEndpoint).SecurityGroups, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.clientVpnEndpoint.sessionTimeoutHours": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2ClientVpnEndpoint).SessionTimeoutHours, ok = plugin.RawToTValue[int64](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.clientVpnEndpoint.clientConnectOptions": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2ClientVpnEndpoint).ClientConnectOptions, ok = plugin.RawToTValue[any](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.clientVpnEndpoint.clientLoginBannerOptions": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2ClientVpnEndpoint).ClientLoginBannerOptions, ok = plugin.RawToTValue[any](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.clientVpnEndpoint.connectionLogOptions": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2ClientVpnEndpoint).ConnectionLogOptions, ok = plugin.RawToTValue[any](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.clientVpnEndpoint.authenticationOptions": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2ClientVpnEndpoint).AuthenticationOptions, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.clientVpnEndpoint.tags": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2ClientVpnEndpoint).Tags, ok = plugin.RawToTValue[map[string]any](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.customerGateway.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2CustomerGateway).__id, ok = v.Value.(string)
+		return
+	},
+	"aws.ec2.customerGateway.id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2CustomerGateway).Id, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.customerGateway.arn": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2CustomerGateway).Arn, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.customerGateway.region": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2CustomerGateway).Region, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.customerGateway.state": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2CustomerGateway).State, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.customerGateway.type": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2CustomerGateway).Type, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.customerGateway.bgpAsn": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2CustomerGateway).BgpAsn, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.customerGateway.bgpAsnExtended": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2CustomerGateway).BgpAsnExtended, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.customerGateway.ipAddress": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2CustomerGateway).IpAddress, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.customerGateway.certificateArn": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2CustomerGateway).CertificateArn, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.customerGateway.deviceName": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2CustomerGateway).DeviceName, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.customerGateway.tags": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2CustomerGateway).Tags, ok = plugin.RawToTValue[map[string]any](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.egressOnlyInternetGateway.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2EgressOnlyInternetGateway).__id, ok = v.Value.(string)
+		return
+	},
+	"aws.ec2.egressOnlyInternetGateway.id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2EgressOnlyInternetGateway).Id, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.egressOnlyInternetGateway.arn": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2EgressOnlyInternetGateway).Arn, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.egressOnlyInternetGateway.region": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2EgressOnlyInternetGateway).Region, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.egressOnlyInternetGateway.attachments": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2EgressOnlyInternetGateway).Attachments, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.egressOnlyInternetGateway.tags": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2EgressOnlyInternetGateway).Tags, ok = plugin.RawToTValue[map[string]any](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.vpcEndpointServiceConfiguration.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2VpcEndpointServiceConfiguration).__id, ok = v.Value.(string)
+		return
+	},
+	"aws.ec2.vpcEndpointServiceConfiguration.id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2VpcEndpointServiceConfiguration).Id, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.vpcEndpointServiceConfiguration.arn": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2VpcEndpointServiceConfiguration).Arn, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.vpcEndpointServiceConfiguration.region": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2VpcEndpointServiceConfiguration).Region, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.vpcEndpointServiceConfiguration.name": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2VpcEndpointServiceConfiguration).Name, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.vpcEndpointServiceConfiguration.state": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2VpcEndpointServiceConfiguration).State, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.vpcEndpointServiceConfiguration.serviceType": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2VpcEndpointServiceConfiguration).ServiceType, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.vpcEndpointServiceConfiguration.acceptanceRequired": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2VpcEndpointServiceConfiguration).AcceptanceRequired, ok = plugin.RawToTValue[bool](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.vpcEndpointServiceConfiguration.privateDnsName": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2VpcEndpointServiceConfiguration).PrivateDnsName, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.vpcEndpointServiceConfiguration.privateDnsNameVerificationState": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2VpcEndpointServiceConfiguration).PrivateDnsNameVerificationState, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.vpcEndpointServiceConfiguration.availabilityZones": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2VpcEndpointServiceConfiguration).AvailabilityZones, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.vpcEndpointServiceConfiguration.gatewayLoadBalancerArns": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2VpcEndpointServiceConfiguration).GatewayLoadBalancerArns, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.vpcEndpointServiceConfiguration.networkLoadBalancerArns": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2VpcEndpointServiceConfiguration).NetworkLoadBalancerArns, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.vpcEndpointServiceConfiguration.managesVpcEndpoints": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2VpcEndpointServiceConfiguration).ManagesVpcEndpoints, ok = plugin.RawToTValue[bool](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.vpcEndpointServiceConfiguration.payerResponsibility": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2VpcEndpointServiceConfiguration).PayerResponsibility, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.vpcEndpointServiceConfiguration.supportedIpAddressTypes": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2VpcEndpointServiceConfiguration).SupportedIpAddressTypes, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
+	"aws.ec2.vpcEndpointServiceConfiguration.tags": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAwsEc2VpcEndpointServiceConfiguration).Tags, ok = plugin.RawToTValue[map[string]any](v.Value, v.Error)
 		return
 	},
 	"aws.ec2.launchtemplate.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
@@ -31624,6 +32680,9 @@ type mqlAwsVpc struct {
 	SecurityGroups           plugin.TValue[[]any]
 	NetworkAcls              plugin.TValue[[]any]
 	VpnGateways              plugin.TValue[[]any]
+	DhcpOptions              plugin.TValue[*mqlAwsEc2DhcpOptions]
+	EnableDnsSupport         plugin.TValue[bool]
+	EnableDnsHostnames       plugin.TValue[bool]
 }
 
 // createAwsVpc creates a new instance of this resource
@@ -31880,6 +32939,34 @@ func (c *mqlAwsVpc) GetVpnGateways() *plugin.TValue[[]any] {
 		}
 
 		return c.vpnGateways()
+	})
+}
+
+func (c *mqlAwsVpc) GetDhcpOptions() *plugin.TValue[*mqlAwsEc2DhcpOptions] {
+	return plugin.GetOrCompute[*mqlAwsEc2DhcpOptions](&c.DhcpOptions, func() (*mqlAwsEc2DhcpOptions, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("aws.vpc", c.__id, "dhcpOptions")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.(*mqlAwsEc2DhcpOptions), nil
+			}
+		}
+
+		return c.dhcpOptions()
+	})
+}
+
+func (c *mqlAwsVpc) GetEnableDnsSupport() *plugin.TValue[bool] {
+	return plugin.GetOrCompute[bool](&c.EnableDnsSupport, func() (bool, error) {
+		return c.enableDnsSupport()
+	})
+}
+
+func (c *mqlAwsVpc) GetEnableDnsHostnames() *plugin.TValue[bool] {
+	return plugin.GetOrCompute[bool](&c.EnableDnsHostnames, func() (bool, error) {
+		return c.enableDnsHostnames()
 	})
 }
 
@@ -32215,6 +33302,10 @@ type mqlAwsVpcSubnet struct {
 	InternetGatewayBlockMode    plugin.TValue[string]
 	Tags                        plugin.TValue[map[string]any]
 	RouteTable                  plugin.TValue[*mqlAwsVpcRoutetable]
+	NetworkAcl                  plugin.TValue[*mqlAwsEc2Networkacl]
+	NatGateway                  plugin.TValue[*mqlAwsVpcNatgateway]
+	FlowLogs                    plugin.TValue[[]any]
+	Ipv6CidrBlock               plugin.TValue[string]
 }
 
 // createAwsVpcSubnet creates a new instance of this resource
@@ -32322,11 +33413,63 @@ func (c *mqlAwsVpcSubnet) GetRouteTable() *plugin.TValue[*mqlAwsVpcRoutetable] {
 	})
 }
 
+func (c *mqlAwsVpcSubnet) GetNetworkAcl() *plugin.TValue[*mqlAwsEc2Networkacl] {
+	return plugin.GetOrCompute[*mqlAwsEc2Networkacl](&c.NetworkAcl, func() (*mqlAwsEc2Networkacl, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("aws.vpc.subnet", c.__id, "networkAcl")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.(*mqlAwsEc2Networkacl), nil
+			}
+		}
+
+		return c.networkAcl()
+	})
+}
+
+func (c *mqlAwsVpcSubnet) GetNatGateway() *plugin.TValue[*mqlAwsVpcNatgateway] {
+	return plugin.GetOrCompute[*mqlAwsVpcNatgateway](&c.NatGateway, func() (*mqlAwsVpcNatgateway, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("aws.vpc.subnet", c.__id, "natGateway")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.(*mqlAwsVpcNatgateway), nil
+			}
+		}
+
+		return c.natGateway()
+	})
+}
+
+func (c *mqlAwsVpcSubnet) GetFlowLogs() *plugin.TValue[[]any] {
+	return plugin.GetOrCompute[[]any](&c.FlowLogs, func() ([]any, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("aws.vpc.subnet", c.__id, "flowLogs")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.([]any), nil
+			}
+		}
+
+		return c.flowLogs()
+	})
+}
+
+func (c *mqlAwsVpcSubnet) GetIpv6CidrBlock() *plugin.TValue[string] {
+	return &c.Ipv6CidrBlock
+}
+
 // mqlAwsVpcEndpoint for the aws.vpc.endpoint resource
 type mqlAwsVpcEndpoint struct {
 	MqlRuntime *plugin.Runtime
 	__id       string
-	// optional: if you define mqlAwsVpcEndpointInternal it will be used here
+	mqlAwsVpcEndpointInternal
 	Id                plugin.TValue[string]
 	Type              plugin.TValue[string]
 	Vpc               plugin.TValue[string]
@@ -32337,6 +33480,10 @@ type mqlAwsVpcEndpoint struct {
 	PrivateDnsEnabled plugin.TValue[bool]
 	State             plugin.TValue[string]
 	CreatedAt         plugin.TValue[*time.Time]
+	SecurityGroups    plugin.TValue[[]any]
+	RouteTables       plugin.TValue[[]any]
+	NetworkInterfaces plugin.TValue[[]any]
+	DnsEntries        plugin.TValue[[]any]
 }
 
 // createAwsVpcEndpoint creates a new instance of this resource
@@ -32416,11 +33563,63 @@ func (c *mqlAwsVpcEndpoint) GetCreatedAt() *plugin.TValue[*time.Time] {
 	return &c.CreatedAt
 }
 
+func (c *mqlAwsVpcEndpoint) GetSecurityGroups() *plugin.TValue[[]any] {
+	return plugin.GetOrCompute[[]any](&c.SecurityGroups, func() ([]any, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("aws.vpc.endpoint", c.__id, "securityGroups")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.([]any), nil
+			}
+		}
+
+		return c.securityGroups()
+	})
+}
+
+func (c *mqlAwsVpcEndpoint) GetRouteTables() *plugin.TValue[[]any] {
+	return plugin.GetOrCompute[[]any](&c.RouteTables, func() ([]any, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("aws.vpc.endpoint", c.__id, "routeTables")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.([]any), nil
+			}
+		}
+
+		return c.routeTables()
+	})
+}
+
+func (c *mqlAwsVpcEndpoint) GetNetworkInterfaces() *plugin.TValue[[]any] {
+	return plugin.GetOrCompute[[]any](&c.NetworkInterfaces, func() ([]any, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("aws.vpc.endpoint", c.__id, "networkInterfaces")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.([]any), nil
+			}
+		}
+
+		return c.networkInterfaces()
+	})
+}
+
+func (c *mqlAwsVpcEndpoint) GetDnsEntries() *plugin.TValue[[]any] {
+	return &c.DnsEntries
+}
+
 // mqlAwsVpcFlowlog for the aws.vpc.flowlog resource
 type mqlAwsVpcFlowlog struct {
 	MqlRuntime *plugin.Runtime
 	__id       string
-	// optional: if you define mqlAwsVpcFlowlogInternal it will be used here
+	mqlAwsVpcFlowlogInternal
 	Id                     plugin.TValue[string]
 	Vpc                    plugin.TValue[string]
 	Region                 plugin.TValue[string]
@@ -32433,6 +33632,9 @@ type mqlAwsVpcFlowlog struct {
 	LogFormat              plugin.TValue[string]
 	MaxAggregationInterval plugin.TValue[int64]
 	TrafficType            plugin.TValue[string]
+	IamRole                plugin.TValue[*mqlAwsIamRole]
+	LogGroup               plugin.TValue[*mqlAwsCloudwatchLoggroup]
+	S3Bucket               plugin.TValue[*mqlAwsS3Bucket]
 }
 
 // createAwsVpcFlowlog creates a new instance of this resource
@@ -32515,11 +33717,59 @@ func (c *mqlAwsVpcFlowlog) GetTrafficType() *plugin.TValue[string] {
 	return &c.TrafficType
 }
 
+func (c *mqlAwsVpcFlowlog) GetIamRole() *plugin.TValue[*mqlAwsIamRole] {
+	return plugin.GetOrCompute[*mqlAwsIamRole](&c.IamRole, func() (*mqlAwsIamRole, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("aws.vpc.flowlog", c.__id, "iamRole")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.(*mqlAwsIamRole), nil
+			}
+		}
+
+		return c.iamRole()
+	})
+}
+
+func (c *mqlAwsVpcFlowlog) GetLogGroup() *plugin.TValue[*mqlAwsCloudwatchLoggroup] {
+	return plugin.GetOrCompute[*mqlAwsCloudwatchLoggroup](&c.LogGroup, func() (*mqlAwsCloudwatchLoggroup, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("aws.vpc.flowlog", c.__id, "logGroup")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.(*mqlAwsCloudwatchLoggroup), nil
+			}
+		}
+
+		return c.logGroup()
+	})
+}
+
+func (c *mqlAwsVpcFlowlog) GetS3Bucket() *plugin.TValue[*mqlAwsS3Bucket] {
+	return plugin.GetOrCompute[*mqlAwsS3Bucket](&c.S3Bucket, func() (*mqlAwsS3Bucket, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("aws.vpc.flowlog", c.__id, "s3Bucket")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.(*mqlAwsS3Bucket), nil
+			}
+		}
+
+		return c.s3Bucket()
+	})
+}
+
 // mqlAwsVpcVpnGateway for the aws.vpc.vpnGateway resource
 type mqlAwsVpcVpnGateway struct {
 	MqlRuntime *plugin.Runtime
 	__id       string
-	// optional: if you define mqlAwsVpcVpnGatewayInternal it will be used here
+	mqlAwsVpcVpnGatewayInternal
 	Id               plugin.TValue[string]
 	Arn              plugin.TValue[string]
 	Region           plugin.TValue[string]
@@ -32529,6 +33779,7 @@ type mqlAwsVpcVpnGateway struct {
 	AvailabilityZone plugin.TValue[string]
 	Attachments      plugin.TValue[[]any]
 	Tags             plugin.TValue[map[string]any]
+	VpnConnections   plugin.TValue[[]any]
 }
 
 // createAwsVpcVpnGateway creates a new instance of this resource
@@ -32602,6 +33853,22 @@ func (c *mqlAwsVpcVpnGateway) GetAttachments() *plugin.TValue[[]any] {
 
 func (c *mqlAwsVpcVpnGateway) GetTags() *plugin.TValue[map[string]any] {
 	return &c.Tags
+}
+
+func (c *mqlAwsVpcVpnGateway) GetVpnConnections() *plugin.TValue[[]any] {
+	return plugin.GetOrCompute[[]any](&c.VpnConnections, func() ([]any, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("aws.vpc.vpnGateway", c.__id, "vpnConnections")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.([]any), nil
+			}
+		}
+
+		return c.vpnConnections()
+	})
 }
 
 // mqlAwsWaf for the aws.waf resource
@@ -57948,20 +59215,25 @@ type mqlAwsEc2 struct {
 	MqlRuntime *plugin.Runtime
 	__id       string
 	// optional: if you define mqlAwsEc2Internal it will be used here
-	SecurityGroups         plugin.TValue[[]any]
-	Instances              plugin.TValue[[]any]
-	EbsEncryptionByDefault plugin.TValue[map[string]any]
-	Volumes                plugin.TValue[[]any]
-	Snapshots              plugin.TValue[[]any]
-	InternetGateways       plugin.TValue[[]any]
-	VpnConnections         plugin.TValue[[]any]
-	NetworkAcls            plugin.TValue[[]any]
-	Keypairs               plugin.TValue[[]any]
-	Eips                   plugin.TValue[[]any]
-	Images                 plugin.TValue[[]any]
-	TransitGateways        plugin.TValue[[]any]
-	LaunchTemplates        plugin.TValue[[]any]
-	LaunchConfigurations   plugin.TValue[[]any]
+	SecurityGroups                   plugin.TValue[[]any]
+	Instances                        plugin.TValue[[]any]
+	EbsEncryptionByDefault           plugin.TValue[map[string]any]
+	Volumes                          plugin.TValue[[]any]
+	Snapshots                        plugin.TValue[[]any]
+	InternetGateways                 plugin.TValue[[]any]
+	VpnConnections                   plugin.TValue[[]any]
+	NetworkAcls                      plugin.TValue[[]any]
+	Keypairs                         plugin.TValue[[]any]
+	Eips                             plugin.TValue[[]any]
+	Images                           plugin.TValue[[]any]
+	TransitGateways                  plugin.TValue[[]any]
+	LaunchTemplates                  plugin.TValue[[]any]
+	LaunchConfigurations             plugin.TValue[[]any]
+	ManagedPrefixLists               plugin.TValue[[]any]
+	ClientVpnEndpoints               plugin.TValue[[]any]
+	CustomerGateways                 plugin.TValue[[]any]
+	EgressOnlyInternetGateways       plugin.TValue[[]any]
+	VpcEndpointServiceConfigurations plugin.TValue[[]any]
 }
 
 // createAwsEc2 creates a new instance of this resource
@@ -58215,6 +59487,86 @@ func (c *mqlAwsEc2) GetLaunchConfigurations() *plugin.TValue[[]any] {
 	})
 }
 
+func (c *mqlAwsEc2) GetManagedPrefixLists() *plugin.TValue[[]any] {
+	return plugin.GetOrCompute[[]any](&c.ManagedPrefixLists, func() ([]any, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("aws.ec2", c.__id, "managedPrefixLists")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.([]any), nil
+			}
+		}
+
+		return c.managedPrefixLists()
+	})
+}
+
+func (c *mqlAwsEc2) GetClientVpnEndpoints() *plugin.TValue[[]any] {
+	return plugin.GetOrCompute[[]any](&c.ClientVpnEndpoints, func() ([]any, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("aws.ec2", c.__id, "clientVpnEndpoints")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.([]any), nil
+			}
+		}
+
+		return c.clientVpnEndpoints()
+	})
+}
+
+func (c *mqlAwsEc2) GetCustomerGateways() *plugin.TValue[[]any] {
+	return plugin.GetOrCompute[[]any](&c.CustomerGateways, func() ([]any, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("aws.ec2", c.__id, "customerGateways")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.([]any), nil
+			}
+		}
+
+		return c.customerGateways()
+	})
+}
+
+func (c *mqlAwsEc2) GetEgressOnlyInternetGateways() *plugin.TValue[[]any] {
+	return plugin.GetOrCompute[[]any](&c.EgressOnlyInternetGateways, func() ([]any, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("aws.ec2", c.__id, "egressOnlyInternetGateways")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.([]any), nil
+			}
+		}
+
+		return c.egressOnlyInternetGateways()
+	})
+}
+
+func (c *mqlAwsEc2) GetVpcEndpointServiceConfigurations() *plugin.TValue[[]any] {
+	return plugin.GetOrCompute[[]any](&c.VpcEndpointServiceConfigurations, func() ([]any, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("aws.ec2", c.__id, "vpcEndpointServiceConfigurations")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.([]any), nil
+			}
+		}
+
+		return c.vpcEndpointServiceConfigurations()
+	})
+}
+
 // mqlAwsEc2Eip for the aws.ec2.eip resource
 type mqlAwsEc2Eip struct {
 	MqlRuntime *plugin.Runtime
@@ -58229,6 +59581,7 @@ type mqlAwsEc2Eip struct {
 	PublicIpv4Pool          plugin.TValue[string]
 	Tags                    plugin.TValue[map[string]any]
 	Region                  plugin.TValue[string]
+	NetworkInterface        plugin.TValue[*mqlAwsEc2Networkinterface]
 }
 
 // createAwsEc2Eip creates a new instance of this resource
@@ -58314,6 +59667,22 @@ func (c *mqlAwsEc2Eip) GetTags() *plugin.TValue[map[string]any] {
 
 func (c *mqlAwsEc2Eip) GetRegion() *plugin.TValue[string] {
 	return &c.Region
+}
+
+func (c *mqlAwsEc2Eip) GetNetworkInterface() *plugin.TValue[*mqlAwsEc2Networkinterface] {
+	return plugin.GetOrCompute[*mqlAwsEc2Networkinterface](&c.NetworkInterface, func() (*mqlAwsEc2Networkinterface, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("aws.ec2.eip", c.__id, "networkInterface")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.(*mqlAwsEc2Networkinterface), nil
+			}
+		}
+
+		return c.networkInterface()
+	})
 }
 
 // mqlAwsVpcNatgateway for the aws.vpc.natgateway resource
@@ -58628,12 +59997,15 @@ type mqlAwsVpcPeeringConnection struct {
 	MqlRuntime *plugin.Runtime
 	__id       string
 	mqlAwsVpcPeeringConnectionInternal
-	AcceptorVpc    plugin.TValue[*mqlAwsVpcPeeringConnectionPeeringVpc]
-	ExpirationTime plugin.TValue[*time.Time]
-	Id             plugin.TValue[string]
-	RequestorVpc   plugin.TValue[*mqlAwsVpcPeeringConnectionPeeringVpc]
-	Status         plugin.TValue[string]
-	Tags           plugin.TValue[map[string]any]
+	AcceptorVpc          plugin.TValue[*mqlAwsVpcPeeringConnectionPeeringVpc]
+	ExpirationTime       plugin.TValue[*time.Time]
+	Id                   plugin.TValue[string]
+	RequestorVpc         plugin.TValue[*mqlAwsVpcPeeringConnectionPeeringVpc]
+	Status               plugin.TValue[string]
+	Tags                 plugin.TValue[map[string]any]
+	RequesterAccountId   plugin.TValue[string]
+	AccepterAccountId    plugin.TValue[string]
+	DnsResolutionEnabled plugin.TValue[bool]
 }
 
 // createAwsVpcPeeringConnection creates a new instance of this resource
@@ -58719,6 +60091,18 @@ func (c *mqlAwsVpcPeeringConnection) GetStatus() *plugin.TValue[string] {
 
 func (c *mqlAwsVpcPeeringConnection) GetTags() *plugin.TValue[map[string]any] {
 	return &c.Tags
+}
+
+func (c *mqlAwsVpcPeeringConnection) GetRequesterAccountId() *plugin.TValue[string] {
+	return &c.RequesterAccountId
+}
+
+func (c *mqlAwsVpcPeeringConnection) GetAccepterAccountId() *plugin.TValue[string] {
+	return &c.AccepterAccountId
+}
+
+func (c *mqlAwsVpcPeeringConnection) GetDnsResolutionEnabled() *plugin.TValue[bool] {
+	return &c.DnsResolutionEnabled
 }
 
 // mqlAwsVpcPeeringConnectionPeeringVpc for the aws.vpc.peeringConnection.peeringVpc resource
@@ -58907,10 +60291,11 @@ func (c *mqlAwsEc2Networkacl) GetAssociations() *plugin.TValue[[]any] {
 type mqlAwsEc2NetworkaclAssociation struct {
 	MqlRuntime *plugin.Runtime
 	__id       string
-	// optional: if you define mqlAwsEc2NetworkaclAssociationInternal it will be used here
+	mqlAwsEc2NetworkaclAssociationInternal
 	AssociationId plugin.TValue[string]
 	NetworkAclId  plugin.TValue[string]
 	SubnetId      plugin.TValue[string]
+	Subnet        plugin.TValue[*mqlAwsVpcSubnet]
 }
 
 // createAwsEc2NetworkaclAssociation creates a new instance of this resource
@@ -58955,6 +60340,22 @@ func (c *mqlAwsEc2NetworkaclAssociation) GetNetworkAclId() *plugin.TValue[string
 
 func (c *mqlAwsEc2NetworkaclAssociation) GetSubnetId() *plugin.TValue[string] {
 	return &c.SubnetId
+}
+
+func (c *mqlAwsEc2NetworkaclAssociation) GetSubnet() *plugin.TValue[*mqlAwsVpcSubnet] {
+	return plugin.GetOrCompute[*mqlAwsVpcSubnet](&c.Subnet, func() (*mqlAwsVpcSubnet, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("aws.ec2.networkacl.association", c.__id, "subnet")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.(*mqlAwsVpcSubnet), nil
+			}
+		}
+
+		return c.subnet()
+	})
 }
 
 // mqlAwsEc2NetworkaclEntry for the aws.ec2.networkacl.entry resource
@@ -59116,9 +60517,26 @@ func (c *mqlAwsEc2NetworkaclEntryPortrange) GetId() *plugin.TValue[string] {
 type mqlAwsEc2Vpnconnection struct {
 	MqlRuntime *plugin.Runtime
 	__id       string
-	// optional: if you define mqlAwsEc2VpnconnectionInternal it will be used here
-	Arn          plugin.TValue[string]
-	VgwTelemetry plugin.TValue[[]any]
+	mqlAwsEc2VpnconnectionInternal
+	Arn                   plugin.TValue[string]
+	Id                    plugin.TValue[string]
+	Region                plugin.TValue[string]
+	State                 plugin.TValue[string]
+	Type                  plugin.TValue[string]
+	Category              plugin.TValue[string]
+	VpnGateway            plugin.TValue[*mqlAwsVpcVpnGateway]
+	TransitGateway        plugin.TValue[*mqlAwsEc2Transitgateway]
+	CustomerGateway       plugin.TValue[*mqlAwsEc2CustomerGateway]
+	StaticRoutesOnly      plugin.TValue[bool]
+	EnableAcceleration    plugin.TValue[bool]
+	LocalIpv4NetworkCidr  plugin.TValue[string]
+	RemoteIpv4NetworkCidr plugin.TValue[string]
+	LocalIpv6NetworkCidr  plugin.TValue[string]
+	RemoteIpv6NetworkCidr plugin.TValue[string]
+	OutsideIpAddressType  plugin.TValue[string]
+	TunnelInsideIpVersion plugin.TValue[string]
+	Tags                  plugin.TValue[map[string]any]
+	VgwTelemetry          plugin.TValue[[]any]
 }
 
 // createAwsEc2Vpnconnection creates a new instance of this resource
@@ -59160,6 +60578,110 @@ func (c *mqlAwsEc2Vpnconnection) MqlID() string {
 
 func (c *mqlAwsEc2Vpnconnection) GetArn() *plugin.TValue[string] {
 	return &c.Arn
+}
+
+func (c *mqlAwsEc2Vpnconnection) GetId() *plugin.TValue[string] {
+	return &c.Id
+}
+
+func (c *mqlAwsEc2Vpnconnection) GetRegion() *plugin.TValue[string] {
+	return &c.Region
+}
+
+func (c *mqlAwsEc2Vpnconnection) GetState() *plugin.TValue[string] {
+	return &c.State
+}
+
+func (c *mqlAwsEc2Vpnconnection) GetType() *plugin.TValue[string] {
+	return &c.Type
+}
+
+func (c *mqlAwsEc2Vpnconnection) GetCategory() *plugin.TValue[string] {
+	return &c.Category
+}
+
+func (c *mqlAwsEc2Vpnconnection) GetVpnGateway() *plugin.TValue[*mqlAwsVpcVpnGateway] {
+	return plugin.GetOrCompute[*mqlAwsVpcVpnGateway](&c.VpnGateway, func() (*mqlAwsVpcVpnGateway, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("aws.ec2.vpnconnection", c.__id, "vpnGateway")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.(*mqlAwsVpcVpnGateway), nil
+			}
+		}
+
+		return c.vpnGateway()
+	})
+}
+
+func (c *mqlAwsEc2Vpnconnection) GetTransitGateway() *plugin.TValue[*mqlAwsEc2Transitgateway] {
+	return plugin.GetOrCompute[*mqlAwsEc2Transitgateway](&c.TransitGateway, func() (*mqlAwsEc2Transitgateway, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("aws.ec2.vpnconnection", c.__id, "transitGateway")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.(*mqlAwsEc2Transitgateway), nil
+			}
+		}
+
+		return c.transitGateway()
+	})
+}
+
+func (c *mqlAwsEc2Vpnconnection) GetCustomerGateway() *plugin.TValue[*mqlAwsEc2CustomerGateway] {
+	return plugin.GetOrCompute[*mqlAwsEc2CustomerGateway](&c.CustomerGateway, func() (*mqlAwsEc2CustomerGateway, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("aws.ec2.vpnconnection", c.__id, "customerGateway")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.(*mqlAwsEc2CustomerGateway), nil
+			}
+		}
+
+		return c.customerGateway()
+	})
+}
+
+func (c *mqlAwsEc2Vpnconnection) GetStaticRoutesOnly() *plugin.TValue[bool] {
+	return &c.StaticRoutesOnly
+}
+
+func (c *mqlAwsEc2Vpnconnection) GetEnableAcceleration() *plugin.TValue[bool] {
+	return &c.EnableAcceleration
+}
+
+func (c *mqlAwsEc2Vpnconnection) GetLocalIpv4NetworkCidr() *plugin.TValue[string] {
+	return &c.LocalIpv4NetworkCidr
+}
+
+func (c *mqlAwsEc2Vpnconnection) GetRemoteIpv4NetworkCidr() *plugin.TValue[string] {
+	return &c.RemoteIpv4NetworkCidr
+}
+
+func (c *mqlAwsEc2Vpnconnection) GetLocalIpv6NetworkCidr() *plugin.TValue[string] {
+	return &c.LocalIpv6NetworkCidr
+}
+
+func (c *mqlAwsEc2Vpnconnection) GetRemoteIpv6NetworkCidr() *plugin.TValue[string] {
+	return &c.RemoteIpv6NetworkCidr
+}
+
+func (c *mqlAwsEc2Vpnconnection) GetOutsideIpAddressType() *plugin.TValue[string] {
+	return &c.OutsideIpAddressType
+}
+
+func (c *mqlAwsEc2Vpnconnection) GetTunnelInsideIpVersion() *plugin.TValue[string] {
+	return &c.TunnelInsideIpVersion
+}
+
+func (c *mqlAwsEc2Vpnconnection) GetTags() *plugin.TValue[map[string]any] {
+	return &c.Tags
 }
 
 func (c *mqlAwsEc2Vpnconnection) GetVgwTelemetry() *plugin.TValue[[]any] {
@@ -59298,7 +60820,7 @@ func (c *mqlAwsEc2Internetgateway) GetTags() *plugin.TValue[map[string]any] {
 type mqlAwsEc2Transitgateway struct {
 	MqlRuntime *plugin.Runtime
 	__id       string
-	// optional: if you define mqlAwsEc2TransitgatewayInternal it will be used here
+	mqlAwsEc2TransitgatewayInternal
 	Arn                            plugin.TValue[string]
 	Id                             plugin.TValue[string]
 	OwnerId                        plugin.TValue[string]
@@ -59317,6 +60839,9 @@ type mqlAwsEc2Transitgateway struct {
 	TransitGatewayCidrBlocks       plugin.TValue[[]any]
 	AssociationDefaultRouteTableId plugin.TValue[string]
 	PropagationDefaultRouteTableId plugin.TValue[string]
+	Attachments                    plugin.TValue[[]any]
+	RouteTables                    plugin.TValue[[]any]
+	PeeringAttachments             plugin.TValue[[]any]
 }
 
 // createAwsEc2Transitgateway creates a new instance of this resource
@@ -59426,6 +60951,995 @@ func (c *mqlAwsEc2Transitgateway) GetAssociationDefaultRouteTableId() *plugin.TV
 
 func (c *mqlAwsEc2Transitgateway) GetPropagationDefaultRouteTableId() *plugin.TValue[string] {
 	return &c.PropagationDefaultRouteTableId
+}
+
+func (c *mqlAwsEc2Transitgateway) GetAttachments() *plugin.TValue[[]any] {
+	return plugin.GetOrCompute[[]any](&c.Attachments, func() ([]any, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("aws.ec2.transitgateway", c.__id, "attachments")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.([]any), nil
+			}
+		}
+
+		return c.attachments()
+	})
+}
+
+func (c *mqlAwsEc2Transitgateway) GetRouteTables() *plugin.TValue[[]any] {
+	return plugin.GetOrCompute[[]any](&c.RouteTables, func() ([]any, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("aws.ec2.transitgateway", c.__id, "routeTables")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.([]any), nil
+			}
+		}
+
+		return c.routeTables()
+	})
+}
+
+func (c *mqlAwsEc2Transitgateway) GetPeeringAttachments() *plugin.TValue[[]any] {
+	return plugin.GetOrCompute[[]any](&c.PeeringAttachments, func() ([]any, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("aws.ec2.transitgateway", c.__id, "peeringAttachments")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.([]any), nil
+			}
+		}
+
+		return c.peeringAttachments()
+	})
+}
+
+// mqlAwsEc2TransitgatewayAttachment for the aws.ec2.transitgateway.attachment resource
+type mqlAwsEc2TransitgatewayAttachment struct {
+	MqlRuntime *plugin.Runtime
+	__id       string
+	// optional: if you define mqlAwsEc2TransitgatewayAttachmentInternal it will be used here
+	Id               plugin.TValue[string]
+	TransitGatewayId plugin.TValue[string]
+	ResourceId       plugin.TValue[string]
+	ResourceType     plugin.TValue[string]
+	State            plugin.TValue[string]
+	Tags             plugin.TValue[map[string]any]
+	Region           plugin.TValue[string]
+}
+
+// createAwsEc2TransitgatewayAttachment creates a new instance of this resource
+func createAwsEc2TransitgatewayAttachment(runtime *plugin.Runtime, args map[string]*llx.RawData) (plugin.Resource, error) {
+	res := &mqlAwsEc2TransitgatewayAttachment{
+		MqlRuntime: runtime,
+	}
+
+	err := SetAllData(res, args)
+	if err != nil {
+		return res, err
+	}
+
+	if res.__id == "" {
+		res.__id, err = res.id()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if runtime.HasRecording {
+		args, err = runtime.ResourceFromRecording("aws.ec2.transitgateway.attachment", res.__id)
+		if err != nil || args == nil {
+			return res, err
+		}
+		return res, SetAllData(res, args)
+	}
+
+	return res, nil
+}
+
+func (c *mqlAwsEc2TransitgatewayAttachment) MqlName() string {
+	return "aws.ec2.transitgateway.attachment"
+}
+
+func (c *mqlAwsEc2TransitgatewayAttachment) MqlID() string {
+	return c.__id
+}
+
+func (c *mqlAwsEc2TransitgatewayAttachment) GetId() *plugin.TValue[string] {
+	return &c.Id
+}
+
+func (c *mqlAwsEc2TransitgatewayAttachment) GetTransitGatewayId() *plugin.TValue[string] {
+	return &c.TransitGatewayId
+}
+
+func (c *mqlAwsEc2TransitgatewayAttachment) GetResourceId() *plugin.TValue[string] {
+	return &c.ResourceId
+}
+
+func (c *mqlAwsEc2TransitgatewayAttachment) GetResourceType() *plugin.TValue[string] {
+	return &c.ResourceType
+}
+
+func (c *mqlAwsEc2TransitgatewayAttachment) GetState() *plugin.TValue[string] {
+	return &c.State
+}
+
+func (c *mqlAwsEc2TransitgatewayAttachment) GetTags() *plugin.TValue[map[string]any] {
+	return &c.Tags
+}
+
+func (c *mqlAwsEc2TransitgatewayAttachment) GetRegion() *plugin.TValue[string] {
+	return &c.Region
+}
+
+// mqlAwsEc2TransitgatewayRouteTable for the aws.ec2.transitgateway.routeTable resource
+type mqlAwsEc2TransitgatewayRouteTable struct {
+	MqlRuntime *plugin.Runtime
+	__id       string
+	// optional: if you define mqlAwsEc2TransitgatewayRouteTableInternal it will be used here
+	Id                           plugin.TValue[string]
+	TransitGatewayId             plugin.TValue[string]
+	State                        plugin.TValue[string]
+	DefaultAssociationRouteTable plugin.TValue[bool]
+	DefaultPropagationRouteTable plugin.TValue[bool]
+	Tags                         plugin.TValue[map[string]any]
+	Region                       plugin.TValue[string]
+}
+
+// createAwsEc2TransitgatewayRouteTable creates a new instance of this resource
+func createAwsEc2TransitgatewayRouteTable(runtime *plugin.Runtime, args map[string]*llx.RawData) (plugin.Resource, error) {
+	res := &mqlAwsEc2TransitgatewayRouteTable{
+		MqlRuntime: runtime,
+	}
+
+	err := SetAllData(res, args)
+	if err != nil {
+		return res, err
+	}
+
+	if res.__id == "" {
+		res.__id, err = res.id()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if runtime.HasRecording {
+		args, err = runtime.ResourceFromRecording("aws.ec2.transitgateway.routeTable", res.__id)
+		if err != nil || args == nil {
+			return res, err
+		}
+		return res, SetAllData(res, args)
+	}
+
+	return res, nil
+}
+
+func (c *mqlAwsEc2TransitgatewayRouteTable) MqlName() string {
+	return "aws.ec2.transitgateway.routeTable"
+}
+
+func (c *mqlAwsEc2TransitgatewayRouteTable) MqlID() string {
+	return c.__id
+}
+
+func (c *mqlAwsEc2TransitgatewayRouteTable) GetId() *plugin.TValue[string] {
+	return &c.Id
+}
+
+func (c *mqlAwsEc2TransitgatewayRouteTable) GetTransitGatewayId() *plugin.TValue[string] {
+	return &c.TransitGatewayId
+}
+
+func (c *mqlAwsEc2TransitgatewayRouteTable) GetState() *plugin.TValue[string] {
+	return &c.State
+}
+
+func (c *mqlAwsEc2TransitgatewayRouteTable) GetDefaultAssociationRouteTable() *plugin.TValue[bool] {
+	return &c.DefaultAssociationRouteTable
+}
+
+func (c *mqlAwsEc2TransitgatewayRouteTable) GetDefaultPropagationRouteTable() *plugin.TValue[bool] {
+	return &c.DefaultPropagationRouteTable
+}
+
+func (c *mqlAwsEc2TransitgatewayRouteTable) GetTags() *plugin.TValue[map[string]any] {
+	return &c.Tags
+}
+
+func (c *mqlAwsEc2TransitgatewayRouteTable) GetRegion() *plugin.TValue[string] {
+	return &c.Region
+}
+
+// mqlAwsEc2DhcpOptions for the aws.ec2.dhcpOptions resource
+type mqlAwsEc2DhcpOptions struct {
+	MqlRuntime *plugin.Runtime
+	__id       string
+	// optional: if you define mqlAwsEc2DhcpOptionsInternal it will be used here
+	Id             plugin.TValue[string]
+	Region         plugin.TValue[string]
+	Tags           plugin.TValue[map[string]any]
+	Configurations plugin.TValue[[]any]
+}
+
+// createAwsEc2DhcpOptions creates a new instance of this resource
+func createAwsEc2DhcpOptions(runtime *plugin.Runtime, args map[string]*llx.RawData) (plugin.Resource, error) {
+	res := &mqlAwsEc2DhcpOptions{
+		MqlRuntime: runtime,
+	}
+
+	err := SetAllData(res, args)
+	if err != nil {
+		return res, err
+	}
+
+	if res.__id == "" {
+		res.__id, err = res.id()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if runtime.HasRecording {
+		args, err = runtime.ResourceFromRecording("aws.ec2.dhcpOptions", res.__id)
+		if err != nil || args == nil {
+			return res, err
+		}
+		return res, SetAllData(res, args)
+	}
+
+	return res, nil
+}
+
+func (c *mqlAwsEc2DhcpOptions) MqlName() string {
+	return "aws.ec2.dhcpOptions"
+}
+
+func (c *mqlAwsEc2DhcpOptions) MqlID() string {
+	return c.__id
+}
+
+func (c *mqlAwsEc2DhcpOptions) GetId() *plugin.TValue[string] {
+	return &c.Id
+}
+
+func (c *mqlAwsEc2DhcpOptions) GetRegion() *plugin.TValue[string] {
+	return &c.Region
+}
+
+func (c *mqlAwsEc2DhcpOptions) GetTags() *plugin.TValue[map[string]any] {
+	return &c.Tags
+}
+
+func (c *mqlAwsEc2DhcpOptions) GetConfigurations() *plugin.TValue[[]any] {
+	return &c.Configurations
+}
+
+// mqlAwsEc2TransitgatewayPeeringAttachment for the aws.ec2.transitgateway.peeringAttachment resource
+type mqlAwsEc2TransitgatewayPeeringAttachment struct {
+	MqlRuntime *plugin.Runtime
+	__id       string
+	// optional: if you define mqlAwsEc2TransitgatewayPeeringAttachmentInternal it will be used here
+	Id               plugin.TValue[string]
+	State            plugin.TValue[string]
+	CreatedAt        plugin.TValue[*time.Time]
+	Tags             plugin.TValue[map[string]any]
+	Region           plugin.TValue[string]
+	RequesterTgwInfo plugin.TValue[any]
+	AccepterTgwInfo  plugin.TValue[any]
+	StatusCode       plugin.TValue[string]
+	StatusMessage    plugin.TValue[string]
+}
+
+// createAwsEc2TransitgatewayPeeringAttachment creates a new instance of this resource
+func createAwsEc2TransitgatewayPeeringAttachment(runtime *plugin.Runtime, args map[string]*llx.RawData) (plugin.Resource, error) {
+	res := &mqlAwsEc2TransitgatewayPeeringAttachment{
+		MqlRuntime: runtime,
+	}
+
+	err := SetAllData(res, args)
+	if err != nil {
+		return res, err
+	}
+
+	if res.__id == "" {
+		res.__id, err = res.id()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if runtime.HasRecording {
+		args, err = runtime.ResourceFromRecording("aws.ec2.transitgateway.peeringAttachment", res.__id)
+		if err != nil || args == nil {
+			return res, err
+		}
+		return res, SetAllData(res, args)
+	}
+
+	return res, nil
+}
+
+func (c *mqlAwsEc2TransitgatewayPeeringAttachment) MqlName() string {
+	return "aws.ec2.transitgateway.peeringAttachment"
+}
+
+func (c *mqlAwsEc2TransitgatewayPeeringAttachment) MqlID() string {
+	return c.__id
+}
+
+func (c *mqlAwsEc2TransitgatewayPeeringAttachment) GetId() *plugin.TValue[string] {
+	return &c.Id
+}
+
+func (c *mqlAwsEc2TransitgatewayPeeringAttachment) GetState() *plugin.TValue[string] {
+	return &c.State
+}
+
+func (c *mqlAwsEc2TransitgatewayPeeringAttachment) GetCreatedAt() *plugin.TValue[*time.Time] {
+	return &c.CreatedAt
+}
+
+func (c *mqlAwsEc2TransitgatewayPeeringAttachment) GetTags() *plugin.TValue[map[string]any] {
+	return &c.Tags
+}
+
+func (c *mqlAwsEc2TransitgatewayPeeringAttachment) GetRegion() *plugin.TValue[string] {
+	return &c.Region
+}
+
+func (c *mqlAwsEc2TransitgatewayPeeringAttachment) GetRequesterTgwInfo() *plugin.TValue[any] {
+	return &c.RequesterTgwInfo
+}
+
+func (c *mqlAwsEc2TransitgatewayPeeringAttachment) GetAccepterTgwInfo() *plugin.TValue[any] {
+	return &c.AccepterTgwInfo
+}
+
+func (c *mqlAwsEc2TransitgatewayPeeringAttachment) GetStatusCode() *plugin.TValue[string] {
+	return &c.StatusCode
+}
+
+func (c *mqlAwsEc2TransitgatewayPeeringAttachment) GetStatusMessage() *plugin.TValue[string] {
+	return &c.StatusMessage
+}
+
+// mqlAwsEc2ManagedPrefixList for the aws.ec2.managedPrefixList resource
+type mqlAwsEc2ManagedPrefixList struct {
+	MqlRuntime *plugin.Runtime
+	__id       string
+	mqlAwsEc2ManagedPrefixListInternal
+	Id            plugin.TValue[string]
+	Arn           plugin.TValue[string]
+	Name          plugin.TValue[string]
+	Region        plugin.TValue[string]
+	State         plugin.TValue[string]
+	AddressFamily plugin.TValue[string]
+	MaxEntries    plugin.TValue[int64]
+	Version       plugin.TValue[int64]
+	OwnerId       plugin.TValue[string]
+	Tags          plugin.TValue[map[string]any]
+	Entries       plugin.TValue[[]any]
+}
+
+// createAwsEc2ManagedPrefixList creates a new instance of this resource
+func createAwsEc2ManagedPrefixList(runtime *plugin.Runtime, args map[string]*llx.RawData) (plugin.Resource, error) {
+	res := &mqlAwsEc2ManagedPrefixList{
+		MqlRuntime: runtime,
+	}
+
+	err := SetAllData(res, args)
+	if err != nil {
+		return res, err
+	}
+
+	if res.__id == "" {
+		res.__id, err = res.id()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if runtime.HasRecording {
+		args, err = runtime.ResourceFromRecording("aws.ec2.managedPrefixList", res.__id)
+		if err != nil || args == nil {
+			return res, err
+		}
+		return res, SetAllData(res, args)
+	}
+
+	return res, nil
+}
+
+func (c *mqlAwsEc2ManagedPrefixList) MqlName() string {
+	return "aws.ec2.managedPrefixList"
+}
+
+func (c *mqlAwsEc2ManagedPrefixList) MqlID() string {
+	return c.__id
+}
+
+func (c *mqlAwsEc2ManagedPrefixList) GetId() *plugin.TValue[string] {
+	return &c.Id
+}
+
+func (c *mqlAwsEc2ManagedPrefixList) GetArn() *plugin.TValue[string] {
+	return &c.Arn
+}
+
+func (c *mqlAwsEc2ManagedPrefixList) GetName() *plugin.TValue[string] {
+	return &c.Name
+}
+
+func (c *mqlAwsEc2ManagedPrefixList) GetRegion() *plugin.TValue[string] {
+	return &c.Region
+}
+
+func (c *mqlAwsEc2ManagedPrefixList) GetState() *plugin.TValue[string] {
+	return &c.State
+}
+
+func (c *mqlAwsEc2ManagedPrefixList) GetAddressFamily() *plugin.TValue[string] {
+	return &c.AddressFamily
+}
+
+func (c *mqlAwsEc2ManagedPrefixList) GetMaxEntries() *plugin.TValue[int64] {
+	return &c.MaxEntries
+}
+
+func (c *mqlAwsEc2ManagedPrefixList) GetVersion() *plugin.TValue[int64] {
+	return &c.Version
+}
+
+func (c *mqlAwsEc2ManagedPrefixList) GetOwnerId() *plugin.TValue[string] {
+	return &c.OwnerId
+}
+
+func (c *mqlAwsEc2ManagedPrefixList) GetTags() *plugin.TValue[map[string]any] {
+	return &c.Tags
+}
+
+func (c *mqlAwsEc2ManagedPrefixList) GetEntries() *plugin.TValue[[]any] {
+	return plugin.GetOrCompute[[]any](&c.Entries, func() ([]any, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("aws.ec2.managedPrefixList", c.__id, "entries")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.([]any), nil
+			}
+		}
+
+		return c.entries()
+	})
+}
+
+// mqlAwsEc2ManagedPrefixListEntry for the aws.ec2.managedPrefixList.entry resource
+type mqlAwsEc2ManagedPrefixListEntry struct {
+	MqlRuntime *plugin.Runtime
+	__id       string
+	// optional: if you define mqlAwsEc2ManagedPrefixListEntryInternal it will be used here
+	Cidr        plugin.TValue[string]
+	Description plugin.TValue[string]
+}
+
+// createAwsEc2ManagedPrefixListEntry creates a new instance of this resource
+func createAwsEc2ManagedPrefixListEntry(runtime *plugin.Runtime, args map[string]*llx.RawData) (plugin.Resource, error) {
+	res := &mqlAwsEc2ManagedPrefixListEntry{
+		MqlRuntime: runtime,
+	}
+
+	err := SetAllData(res, args)
+	if err != nil {
+		return res, err
+	}
+
+	if res.__id == "" {
+		res.__id, err = res.id()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if runtime.HasRecording {
+		args, err = runtime.ResourceFromRecording("aws.ec2.managedPrefixList.entry", res.__id)
+		if err != nil || args == nil {
+			return res, err
+		}
+		return res, SetAllData(res, args)
+	}
+
+	return res, nil
+}
+
+func (c *mqlAwsEc2ManagedPrefixListEntry) MqlName() string {
+	return "aws.ec2.managedPrefixList.entry"
+}
+
+func (c *mqlAwsEc2ManagedPrefixListEntry) MqlID() string {
+	return c.__id
+}
+
+func (c *mqlAwsEc2ManagedPrefixListEntry) GetCidr() *plugin.TValue[string] {
+	return &c.Cidr
+}
+
+func (c *mqlAwsEc2ManagedPrefixListEntry) GetDescription() *plugin.TValue[string] {
+	return &c.Description
+}
+
+// mqlAwsEc2ClientVpnEndpoint for the aws.ec2.clientVpnEndpoint resource
+type mqlAwsEc2ClientVpnEndpoint struct {
+	MqlRuntime *plugin.Runtime
+	__id       string
+	mqlAwsEc2ClientVpnEndpointInternal
+	Id                       plugin.TValue[string]
+	Arn                      plugin.TValue[string]
+	Region                   plugin.TValue[string]
+	Description              plugin.TValue[string]
+	Status                   plugin.TValue[string]
+	CreatedAt                plugin.TValue[*time.Time]
+	Vpc                      plugin.TValue[*mqlAwsVpc]
+	ServerCertificateArn     plugin.TValue[string]
+	TransportProtocol        plugin.TValue[string]
+	VpnProtocol              plugin.TValue[string]
+	SplitTunnel              plugin.TValue[bool]
+	VpnPort                  plugin.TValue[int64]
+	SelfServicePortalUrl     plugin.TValue[string]
+	DnsServers               plugin.TValue[[]any]
+	SecurityGroups           plugin.TValue[[]any]
+	SessionTimeoutHours      plugin.TValue[int64]
+	ClientConnectOptions     plugin.TValue[any]
+	ClientLoginBannerOptions plugin.TValue[any]
+	ConnectionLogOptions     plugin.TValue[any]
+	AuthenticationOptions    plugin.TValue[[]any]
+	Tags                     plugin.TValue[map[string]any]
+}
+
+// createAwsEc2ClientVpnEndpoint creates a new instance of this resource
+func createAwsEc2ClientVpnEndpoint(runtime *plugin.Runtime, args map[string]*llx.RawData) (plugin.Resource, error) {
+	res := &mqlAwsEc2ClientVpnEndpoint{
+		MqlRuntime: runtime,
+	}
+
+	err := SetAllData(res, args)
+	if err != nil {
+		return res, err
+	}
+
+	if res.__id == "" {
+		res.__id, err = res.id()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if runtime.HasRecording {
+		args, err = runtime.ResourceFromRecording("aws.ec2.clientVpnEndpoint", res.__id)
+		if err != nil || args == nil {
+			return res, err
+		}
+		return res, SetAllData(res, args)
+	}
+
+	return res, nil
+}
+
+func (c *mqlAwsEc2ClientVpnEndpoint) MqlName() string {
+	return "aws.ec2.clientVpnEndpoint"
+}
+
+func (c *mqlAwsEc2ClientVpnEndpoint) MqlID() string {
+	return c.__id
+}
+
+func (c *mqlAwsEc2ClientVpnEndpoint) GetId() *plugin.TValue[string] {
+	return &c.Id
+}
+
+func (c *mqlAwsEc2ClientVpnEndpoint) GetArn() *plugin.TValue[string] {
+	return &c.Arn
+}
+
+func (c *mqlAwsEc2ClientVpnEndpoint) GetRegion() *plugin.TValue[string] {
+	return &c.Region
+}
+
+func (c *mqlAwsEc2ClientVpnEndpoint) GetDescription() *plugin.TValue[string] {
+	return &c.Description
+}
+
+func (c *mqlAwsEc2ClientVpnEndpoint) GetStatus() *plugin.TValue[string] {
+	return &c.Status
+}
+
+func (c *mqlAwsEc2ClientVpnEndpoint) GetCreatedAt() *plugin.TValue[*time.Time] {
+	return &c.CreatedAt
+}
+
+func (c *mqlAwsEc2ClientVpnEndpoint) GetVpc() *plugin.TValue[*mqlAwsVpc] {
+	return plugin.GetOrCompute[*mqlAwsVpc](&c.Vpc, func() (*mqlAwsVpc, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("aws.ec2.clientVpnEndpoint", c.__id, "vpc")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.(*mqlAwsVpc), nil
+			}
+		}
+
+		return c.vpc()
+	})
+}
+
+func (c *mqlAwsEc2ClientVpnEndpoint) GetServerCertificateArn() *plugin.TValue[string] {
+	return &c.ServerCertificateArn
+}
+
+func (c *mqlAwsEc2ClientVpnEndpoint) GetTransportProtocol() *plugin.TValue[string] {
+	return &c.TransportProtocol
+}
+
+func (c *mqlAwsEc2ClientVpnEndpoint) GetVpnProtocol() *plugin.TValue[string] {
+	return &c.VpnProtocol
+}
+
+func (c *mqlAwsEc2ClientVpnEndpoint) GetSplitTunnel() *plugin.TValue[bool] {
+	return &c.SplitTunnel
+}
+
+func (c *mqlAwsEc2ClientVpnEndpoint) GetVpnPort() *plugin.TValue[int64] {
+	return &c.VpnPort
+}
+
+func (c *mqlAwsEc2ClientVpnEndpoint) GetSelfServicePortalUrl() *plugin.TValue[string] {
+	return &c.SelfServicePortalUrl
+}
+
+func (c *mqlAwsEc2ClientVpnEndpoint) GetDnsServers() *plugin.TValue[[]any] {
+	return &c.DnsServers
+}
+
+func (c *mqlAwsEc2ClientVpnEndpoint) GetSecurityGroups() *plugin.TValue[[]any] {
+	return plugin.GetOrCompute[[]any](&c.SecurityGroups, func() ([]any, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("aws.ec2.clientVpnEndpoint", c.__id, "securityGroups")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.([]any), nil
+			}
+		}
+
+		return c.securityGroups()
+	})
+}
+
+func (c *mqlAwsEc2ClientVpnEndpoint) GetSessionTimeoutHours() *plugin.TValue[int64] {
+	return &c.SessionTimeoutHours
+}
+
+func (c *mqlAwsEc2ClientVpnEndpoint) GetClientConnectOptions() *plugin.TValue[any] {
+	return &c.ClientConnectOptions
+}
+
+func (c *mqlAwsEc2ClientVpnEndpoint) GetClientLoginBannerOptions() *plugin.TValue[any] {
+	return &c.ClientLoginBannerOptions
+}
+
+func (c *mqlAwsEc2ClientVpnEndpoint) GetConnectionLogOptions() *plugin.TValue[any] {
+	return &c.ConnectionLogOptions
+}
+
+func (c *mqlAwsEc2ClientVpnEndpoint) GetAuthenticationOptions() *plugin.TValue[[]any] {
+	return &c.AuthenticationOptions
+}
+
+func (c *mqlAwsEc2ClientVpnEndpoint) GetTags() *plugin.TValue[map[string]any] {
+	return &c.Tags
+}
+
+// mqlAwsEc2CustomerGateway for the aws.ec2.customerGateway resource
+type mqlAwsEc2CustomerGateway struct {
+	MqlRuntime *plugin.Runtime
+	__id       string
+	// optional: if you define mqlAwsEc2CustomerGatewayInternal it will be used here
+	Id             plugin.TValue[string]
+	Arn            plugin.TValue[string]
+	Region         plugin.TValue[string]
+	State          plugin.TValue[string]
+	Type           plugin.TValue[string]
+	BgpAsn         plugin.TValue[string]
+	BgpAsnExtended plugin.TValue[string]
+	IpAddress      plugin.TValue[string]
+	CertificateArn plugin.TValue[string]
+	DeviceName     plugin.TValue[string]
+	Tags           plugin.TValue[map[string]any]
+}
+
+// createAwsEc2CustomerGateway creates a new instance of this resource
+func createAwsEc2CustomerGateway(runtime *plugin.Runtime, args map[string]*llx.RawData) (plugin.Resource, error) {
+	res := &mqlAwsEc2CustomerGateway{
+		MqlRuntime: runtime,
+	}
+
+	err := SetAllData(res, args)
+	if err != nil {
+		return res, err
+	}
+
+	if res.__id == "" {
+		res.__id, err = res.id()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if runtime.HasRecording {
+		args, err = runtime.ResourceFromRecording("aws.ec2.customerGateway", res.__id)
+		if err != nil || args == nil {
+			return res, err
+		}
+		return res, SetAllData(res, args)
+	}
+
+	return res, nil
+}
+
+func (c *mqlAwsEc2CustomerGateway) MqlName() string {
+	return "aws.ec2.customerGateway"
+}
+
+func (c *mqlAwsEc2CustomerGateway) MqlID() string {
+	return c.__id
+}
+
+func (c *mqlAwsEc2CustomerGateway) GetId() *plugin.TValue[string] {
+	return &c.Id
+}
+
+func (c *mqlAwsEc2CustomerGateway) GetArn() *plugin.TValue[string] {
+	return &c.Arn
+}
+
+func (c *mqlAwsEc2CustomerGateway) GetRegion() *plugin.TValue[string] {
+	return &c.Region
+}
+
+func (c *mqlAwsEc2CustomerGateway) GetState() *plugin.TValue[string] {
+	return &c.State
+}
+
+func (c *mqlAwsEc2CustomerGateway) GetType() *plugin.TValue[string] {
+	return &c.Type
+}
+
+func (c *mqlAwsEc2CustomerGateway) GetBgpAsn() *plugin.TValue[string] {
+	return &c.BgpAsn
+}
+
+func (c *mqlAwsEc2CustomerGateway) GetBgpAsnExtended() *plugin.TValue[string] {
+	return &c.BgpAsnExtended
+}
+
+func (c *mqlAwsEc2CustomerGateway) GetIpAddress() *plugin.TValue[string] {
+	return &c.IpAddress
+}
+
+func (c *mqlAwsEc2CustomerGateway) GetCertificateArn() *plugin.TValue[string] {
+	return &c.CertificateArn
+}
+
+func (c *mqlAwsEc2CustomerGateway) GetDeviceName() *plugin.TValue[string] {
+	return &c.DeviceName
+}
+
+func (c *mqlAwsEc2CustomerGateway) GetTags() *plugin.TValue[map[string]any] {
+	return &c.Tags
+}
+
+// mqlAwsEc2EgressOnlyInternetGateway for the aws.ec2.egressOnlyInternetGateway resource
+type mqlAwsEc2EgressOnlyInternetGateway struct {
+	MqlRuntime *plugin.Runtime
+	__id       string
+	// optional: if you define mqlAwsEc2EgressOnlyInternetGatewayInternal it will be used here
+	Id          plugin.TValue[string]
+	Arn         plugin.TValue[string]
+	Region      plugin.TValue[string]
+	Attachments plugin.TValue[[]any]
+	Tags        plugin.TValue[map[string]any]
+}
+
+// createAwsEc2EgressOnlyInternetGateway creates a new instance of this resource
+func createAwsEc2EgressOnlyInternetGateway(runtime *plugin.Runtime, args map[string]*llx.RawData) (plugin.Resource, error) {
+	res := &mqlAwsEc2EgressOnlyInternetGateway{
+		MqlRuntime: runtime,
+	}
+
+	err := SetAllData(res, args)
+	if err != nil {
+		return res, err
+	}
+
+	if res.__id == "" {
+		res.__id, err = res.id()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if runtime.HasRecording {
+		args, err = runtime.ResourceFromRecording("aws.ec2.egressOnlyInternetGateway", res.__id)
+		if err != nil || args == nil {
+			return res, err
+		}
+		return res, SetAllData(res, args)
+	}
+
+	return res, nil
+}
+
+func (c *mqlAwsEc2EgressOnlyInternetGateway) MqlName() string {
+	return "aws.ec2.egressOnlyInternetGateway"
+}
+
+func (c *mqlAwsEc2EgressOnlyInternetGateway) MqlID() string {
+	return c.__id
+}
+
+func (c *mqlAwsEc2EgressOnlyInternetGateway) GetId() *plugin.TValue[string] {
+	return &c.Id
+}
+
+func (c *mqlAwsEc2EgressOnlyInternetGateway) GetArn() *plugin.TValue[string] {
+	return &c.Arn
+}
+
+func (c *mqlAwsEc2EgressOnlyInternetGateway) GetRegion() *plugin.TValue[string] {
+	return &c.Region
+}
+
+func (c *mqlAwsEc2EgressOnlyInternetGateway) GetAttachments() *plugin.TValue[[]any] {
+	return &c.Attachments
+}
+
+func (c *mqlAwsEc2EgressOnlyInternetGateway) GetTags() *plugin.TValue[map[string]any] {
+	return &c.Tags
+}
+
+// mqlAwsEc2VpcEndpointServiceConfiguration for the aws.ec2.vpcEndpointServiceConfiguration resource
+type mqlAwsEc2VpcEndpointServiceConfiguration struct {
+	MqlRuntime *plugin.Runtime
+	__id       string
+	// optional: if you define mqlAwsEc2VpcEndpointServiceConfigurationInternal it will be used here
+	Id                              plugin.TValue[string]
+	Arn                             plugin.TValue[string]
+	Region                          plugin.TValue[string]
+	Name                            plugin.TValue[string]
+	State                           plugin.TValue[string]
+	ServiceType                     plugin.TValue[string]
+	AcceptanceRequired              plugin.TValue[bool]
+	PrivateDnsName                  plugin.TValue[string]
+	PrivateDnsNameVerificationState plugin.TValue[string]
+	AvailabilityZones               plugin.TValue[[]any]
+	GatewayLoadBalancerArns         plugin.TValue[[]any]
+	NetworkLoadBalancerArns         plugin.TValue[[]any]
+	ManagesVpcEndpoints             plugin.TValue[bool]
+	PayerResponsibility             plugin.TValue[string]
+	SupportedIpAddressTypes         plugin.TValue[[]any]
+	Tags                            plugin.TValue[map[string]any]
+}
+
+// createAwsEc2VpcEndpointServiceConfiguration creates a new instance of this resource
+func createAwsEc2VpcEndpointServiceConfiguration(runtime *plugin.Runtime, args map[string]*llx.RawData) (plugin.Resource, error) {
+	res := &mqlAwsEc2VpcEndpointServiceConfiguration{
+		MqlRuntime: runtime,
+	}
+
+	err := SetAllData(res, args)
+	if err != nil {
+		return res, err
+	}
+
+	if res.__id == "" {
+		res.__id, err = res.id()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if runtime.HasRecording {
+		args, err = runtime.ResourceFromRecording("aws.ec2.vpcEndpointServiceConfiguration", res.__id)
+		if err != nil || args == nil {
+			return res, err
+		}
+		return res, SetAllData(res, args)
+	}
+
+	return res, nil
+}
+
+func (c *mqlAwsEc2VpcEndpointServiceConfiguration) MqlName() string {
+	return "aws.ec2.vpcEndpointServiceConfiguration"
+}
+
+func (c *mqlAwsEc2VpcEndpointServiceConfiguration) MqlID() string {
+	return c.__id
+}
+
+func (c *mqlAwsEc2VpcEndpointServiceConfiguration) GetId() *plugin.TValue[string] {
+	return &c.Id
+}
+
+func (c *mqlAwsEc2VpcEndpointServiceConfiguration) GetArn() *plugin.TValue[string] {
+	return &c.Arn
+}
+
+func (c *mqlAwsEc2VpcEndpointServiceConfiguration) GetRegion() *plugin.TValue[string] {
+	return &c.Region
+}
+
+func (c *mqlAwsEc2VpcEndpointServiceConfiguration) GetName() *plugin.TValue[string] {
+	return &c.Name
+}
+
+func (c *mqlAwsEc2VpcEndpointServiceConfiguration) GetState() *plugin.TValue[string] {
+	return &c.State
+}
+
+func (c *mqlAwsEc2VpcEndpointServiceConfiguration) GetServiceType() *plugin.TValue[string] {
+	return &c.ServiceType
+}
+
+func (c *mqlAwsEc2VpcEndpointServiceConfiguration) GetAcceptanceRequired() *plugin.TValue[bool] {
+	return &c.AcceptanceRequired
+}
+
+func (c *mqlAwsEc2VpcEndpointServiceConfiguration) GetPrivateDnsName() *plugin.TValue[string] {
+	return &c.PrivateDnsName
+}
+
+func (c *mqlAwsEc2VpcEndpointServiceConfiguration) GetPrivateDnsNameVerificationState() *plugin.TValue[string] {
+	return &c.PrivateDnsNameVerificationState
+}
+
+func (c *mqlAwsEc2VpcEndpointServiceConfiguration) GetAvailabilityZones() *plugin.TValue[[]any] {
+	return &c.AvailabilityZones
+}
+
+func (c *mqlAwsEc2VpcEndpointServiceConfiguration) GetGatewayLoadBalancerArns() *plugin.TValue[[]any] {
+	return &c.GatewayLoadBalancerArns
+}
+
+func (c *mqlAwsEc2VpcEndpointServiceConfiguration) GetNetworkLoadBalancerArns() *plugin.TValue[[]any] {
+	return &c.NetworkLoadBalancerArns
+}
+
+func (c *mqlAwsEc2VpcEndpointServiceConfiguration) GetManagesVpcEndpoints() *plugin.TValue[bool] {
+	return &c.ManagesVpcEndpoints
+}
+
+func (c *mqlAwsEc2VpcEndpointServiceConfiguration) GetPayerResponsibility() *plugin.TValue[string] {
+	return &c.PayerResponsibility
+}
+
+func (c *mqlAwsEc2VpcEndpointServiceConfiguration) GetSupportedIpAddressTypes() *plugin.TValue[[]any] {
+	return &c.SupportedIpAddressTypes
+}
+
+func (c *mqlAwsEc2VpcEndpointServiceConfiguration) GetTags() *plugin.TValue[map[string]any] {
+	return &c.Tags
 }
 
 // mqlAwsEc2Launchtemplate for the aws.ec2.launchtemplate resource

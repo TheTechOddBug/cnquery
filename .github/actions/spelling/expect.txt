@@ -198,6 +198,7 @@ ontap
 opcplc
 opensearch
 openssl
+openvpn
 openzfs
 orstatement
 ospf
@@ -273,6 +274,7 @@ tailscale
 targetgroup
 tde
 testutils
+tgw
 timestream
 toplevel
 toport
