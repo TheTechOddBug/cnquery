@@ -43,6 +43,7 @@ cloudflare
 Clusterwide
 cmdline
 cmek
+Cmk
 cmnd
 cname
 compressratio
@@ -117,6 +118,7 @@ hostedzone
 hostkeys
 hotlink
 hvm
+Iaa
 iana
 iap
 iccid
@@ -199,10 +201,10 @@ openssl
 openzfs
 orstatement
 ospf
+pagerduty
 panos
 parallelquery
 PAYG
-pagerduty
 persistentvolume
 persistentvolumeclaim
 Pids
@@ -241,10 +243,10 @@ Sas
 sbom
 scim
 scm
-secureboot
 SECRETID
 secretmanager
 SECRETVALUE
+secureboot
 selfservice
 serviceconnection
 serviceprincipals
