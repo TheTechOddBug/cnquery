@@ -195,11 +195,11 @@ func (a *mqlAwsEksCluster) populateFromDescribe(cluster *ekstypes.Cluster) error
 	}
 	a.AuthenticationMode = plugin.TValue[string]{Data: authMode, State: plugin.StateIsSet}
 
+	var deletionProtection bool
 	if cluster.DeletionProtection != nil {
-		a.DeletionProtection = plugin.TValue[bool]{Data: *cluster.DeletionProtection, State: plugin.StateIsSet}
-	} else {
-		a.DeletionProtection = plugin.TValue[bool]{State: plugin.StateIsSet | plugin.StateIsNull}
+		deletionProtection = *cluster.DeletionProtection
 	}
+	a.DeletionProtection = plugin.TValue[bool]{Data: deletionProtection, State: plugin.StateIsSet}
 
 	var endpointPublicAccess, endpointPrivateAccess bool
 	publicAccessCidrs := []any{}
@@ -363,6 +363,7 @@ func (a *mqlAwsEksCluster) nodeGroups() ([]any, error) {
 		for i := range page.Nodegroups {
 			nodegroup := page.Nodegroups[i]
 			args := map[string]*llx.RawData{
+				"__id":   llx.StringData(fmt.Sprintf("aws.eks.nodegroup/%s/%s/%s", regionVal, a.Name.Data, nodegroup)),
 				"name":   llx.StringData(nodegroup),
 				"region": llx.StringData(regionVal),
 			}
@@ -381,6 +382,7 @@ func (a *mqlAwsEksCluster) nodeGroups() ([]any, error) {
 
 type mqlAwsEksNodegroupInternal struct {
 	details     *ekstypes.Nodegroup
+	fetchErr    error
 	fetched     bool
 	region      string
 	lock        sync.Mutex
@@ -418,18 +420,20 @@ func (a *mqlAwsEksNodegroup) autoscalingGroups() ([]any, error) {
 
 func (a *mqlAwsEksNodegroup) fetchDetails() (*ekstypes.Nodegroup, error) {
 	if a.fetched {
-		return a.details, nil
+		return a.details, a.fetchErr
 	}
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	if a.fetched {
-		return a.details, nil
+		return a.details, a.fetchErr
 	}
 	conn := a.MqlRuntime.Connection.(*connection.AwsConnection)
 	ctx := context.Background()
 	svc := conn.Eks(a.region)
 	desc, err := svc.DescribeNodegroup(ctx, &eks.DescribeNodegroupInput{NodegroupName: aws.String(a.Name.Data), ClusterName: aws.String(a.clusterName)})
 	if err != nil {
+		a.fetchErr = err
+		a.fetched = true
 		return nil, err
 	}
 	a.details = desc.Nodegroup
@@ -442,7 +446,7 @@ func (a *mqlAwsEksNodegroup) arn() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return *ng.NodegroupArn, nil
+	return convert.ToValue(ng.NodegroupArn), nil
 }
 
 func (a *mqlAwsEksNodegroup) capacityType() (string, error) {
@@ -614,6 +618,7 @@ func (a *mqlAwsEksCluster) addons() ([]any, error) {
 
 type mqlAwsEksAddonInternal struct {
 	details     *ekstypes.Addon
+	fetchErr    error
 	fetched     bool
 	region      string
 	lock        sync.Mutex
@@ -622,18 +627,20 @@ type mqlAwsEksAddonInternal struct {
 
 func (a *mqlAwsEksAddon) fetchDetails() (*ekstypes.Addon, error) {
 	if a.fetched {
-		return a.details, nil
+		return a.details, a.fetchErr
 	}
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	if a.fetched {
-		return a.details, nil
+		return a.details, a.fetchErr
 	}
 	conn := a.MqlRuntime.Connection.(*connection.AwsConnection)
 	ctx := context.Background()
 	svc := conn.Eks(a.region)
 	desc, err := svc.DescribeAddon(ctx, &eks.DescribeAddonInput{AddonName: aws.String(a.Name.Data), ClusterName: aws.String(a.clusterName)})
 	if err != nil {
+		a.fetchErr = err
+		a.fetched = true
 		return nil, err
 	}
 	a.details = desc.Addon
@@ -730,4 +737,585 @@ func (a *mqlAwsEksAddon) configurationValues() (string, error) {
 		return "", nil
 	}
 	return *ao.ConfigurationValues, nil
+}
+
+// Access Entries
+
+func (a *mqlAwsEksCluster) accessEntries() ([]any, error) {
+	conn := a.MqlRuntime.Connection.(*connection.AwsConnection)
+	regionVal := a.Region.Data
+	svc := conn.Eks(regionVal)
+	ctx := context.Background()
+	res := []any{}
+
+	paginator := eks.NewListAccessEntriesPaginator(svc, &eks.ListAccessEntriesInput{ClusterName: aws.String(a.Name.Data)})
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			if Is400AccessDeniedError(err) {
+				return res, nil
+			}
+			return nil, err
+		}
+
+		for _, principalArn := range page.AccessEntries {
+			mqlEntry, err := CreateResource(a.MqlRuntime, "aws.eks.accessEntry",
+				map[string]*llx.RawData{
+					"__id":         llx.StringData(fmt.Sprintf("aws.eks.accessEntry/%s/%s/%s", regionVal, a.Name.Data, principalArn)),
+					"clusterName":  llx.StringData(a.Name.Data),
+					"principalArn": llx.StringData(principalArn),
+					"region":       llx.StringData(regionVal),
+				})
+			if err != nil {
+				return nil, err
+			}
+			mqlEntry.(*mqlAwsEksAccessEntry).clusterName = a.Name.Data
+			mqlEntry.(*mqlAwsEksAccessEntry).region = regionVal
+			res = append(res, mqlEntry)
+		}
+	}
+	return res, nil
+}
+
+type mqlAwsEksAccessEntryInternal struct {
+	details     *ekstypes.AccessEntry
+	fetchErr    error
+	fetched     bool
+	region      string
+	lock        sync.Mutex
+	clusterName string
+}
+
+func (a *mqlAwsEksAccessEntry) id() (string, error) {
+	return fmt.Sprintf("aws.eks.accessEntry/%s/%s", a.ClusterName.Data, a.PrincipalArn.Data), nil
+}
+
+func (a *mqlAwsEksAccessEntry) arn() (string, error) {
+	entry, err := a.fetchDetails()
+	if err != nil {
+		return "", err
+	}
+	return convert.ToValue(entry.AccessEntryArn), nil
+}
+
+func (a *mqlAwsEksAccessEntry) compute_type() (string, error) {
+	entry, err := a.fetchDetails()
+	if err != nil {
+		return "", err
+	}
+	return convert.ToValue(entry.Type), nil
+}
+
+func (a *mqlAwsEksAccessEntry) fetchDetails() (*ekstypes.AccessEntry, error) {
+	if a.fetched {
+		return a.details, a.fetchErr
+	}
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	if a.fetched {
+		return a.details, a.fetchErr
+	}
+	conn := a.MqlRuntime.Connection.(*connection.AwsConnection)
+	ctx := context.Background()
+	svc := conn.Eks(a.region)
+	principalArn := a.PrincipalArn.Data
+	desc, err := svc.DescribeAccessEntry(ctx, &eks.DescribeAccessEntryInput{
+		ClusterName:  aws.String(a.clusterName),
+		PrincipalArn: &principalArn,
+	})
+	if err != nil {
+		a.fetchErr = err
+		a.fetched = true
+		return nil, err
+	}
+	a.details = desc.AccessEntry
+	a.fetched = true
+	return desc.AccessEntry, nil
+}
+
+func (a *mqlAwsEksAccessEntry) kubernetesGroups() ([]any, error) {
+	entry, err := a.fetchDetails()
+	if err != nil {
+		return nil, err
+	}
+	res := make([]any, 0, len(entry.KubernetesGroups))
+	for _, g := range entry.KubernetesGroups {
+		res = append(res, g)
+	}
+	return res, nil
+}
+
+func (a *mqlAwsEksAccessEntry) tags() (map[string]any, error) {
+	entry, err := a.fetchDetails()
+	if err != nil {
+		return nil, err
+	}
+	tags := make(map[string]any)
+	for k, v := range entry.Tags {
+		tags[k] = v
+	}
+	return tags, nil
+}
+
+func (a *mqlAwsEksAccessEntry) createdAt() (*time.Time, error) {
+	entry, err := a.fetchDetails()
+	if err != nil {
+		return nil, err
+	}
+	return entry.CreatedAt, nil
+}
+
+// Fargate Profiles
+
+func (a *mqlAwsEksCluster) fargateProfiles() ([]any, error) {
+	conn := a.MqlRuntime.Connection.(*connection.AwsConnection)
+	regionVal := a.Region.Data
+	svc := conn.Eks(regionVal)
+	ctx := context.Background()
+	res := []any{}
+
+	paginator := eks.NewListFargateProfilesPaginator(svc, &eks.ListFargateProfilesInput{ClusterName: aws.String(a.Name.Data)})
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			if Is400AccessDeniedError(err) {
+				return res, nil
+			}
+			return nil, err
+		}
+
+		for _, profileName := range page.FargateProfileNames {
+			mqlProfile, err := CreateResource(a.MqlRuntime, "aws.eks.fargateProfile",
+				map[string]*llx.RawData{
+					"__id":        llx.StringData(fmt.Sprintf("aws.eks.fargateProfile/%s/%s/%s", regionVal, a.Name.Data, profileName)),
+					"name":        llx.StringData(profileName),
+					"clusterName": llx.StringData(a.Name.Data),
+					"region":      llx.StringData(regionVal),
+				})
+			if err != nil {
+				return nil, err
+			}
+			mqlProfile.(*mqlAwsEksFargateProfile).clusterName = a.Name.Data
+			mqlProfile.(*mqlAwsEksFargateProfile).region = regionVal
+			res = append(res, mqlProfile)
+		}
+	}
+	return res, nil
+}
+
+type mqlAwsEksFargateProfileInternal struct {
+	details     *ekstypes.FargateProfile
+	fetchErr    error
+	fetched     bool
+	region      string
+	lock        sync.Mutex
+	clusterName string
+}
+
+func (a *mqlAwsEksFargateProfile) id() (string, error) {
+	return fmt.Sprintf("aws.eks.fargateProfile/%s/%s/%s", a.region, a.ClusterName.Data, a.Name.Data), nil
+}
+
+func (a *mqlAwsEksFargateProfile) arn() (string, error) {
+	fp, err := a.fetchDetails()
+	if err != nil {
+		return "", err
+	}
+	return convert.ToValue(fp.FargateProfileArn), nil
+}
+
+func (a *mqlAwsEksFargateProfile) fetchDetails() (*ekstypes.FargateProfile, error) {
+	if a.fetched {
+		return a.details, a.fetchErr
+	}
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	if a.fetched {
+		return a.details, a.fetchErr
+	}
+	conn := a.MqlRuntime.Connection.(*connection.AwsConnection)
+	ctx := context.Background()
+	svc := conn.Eks(a.region)
+	name := a.Name.Data
+	desc, err := svc.DescribeFargateProfile(ctx, &eks.DescribeFargateProfileInput{
+		ClusterName:        aws.String(a.clusterName),
+		FargateProfileName: &name,
+	})
+	if err != nil {
+		a.fetchErr = err
+		a.fetched = true
+		return nil, err
+	}
+	a.details = desc.FargateProfile
+	a.fetched = true
+	return desc.FargateProfile, nil
+}
+
+func (a *mqlAwsEksFargateProfile) podExecutionRoleArn() (string, error) {
+	fp, err := a.fetchDetails()
+	if err != nil {
+		return "", err
+	}
+	return convert.ToValue(fp.PodExecutionRoleArn), nil
+}
+
+func (a *mqlAwsEksFargateProfile) selectors() ([]any, error) {
+	fp, err := a.fetchDetails()
+	if err != nil {
+		return nil, err
+	}
+	res := []any{}
+	for _, s := range fp.Selectors {
+		d, err := convert.JsonToDict(s)
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, d)
+	}
+	return res, nil
+}
+
+func (a *mqlAwsEksFargateProfile) subnets() ([]any, error) {
+	fp, err := a.fetchDetails()
+	if err != nil {
+		return nil, err
+	}
+	res := make([]any, 0, len(fp.Subnets))
+	for _, s := range fp.Subnets {
+		res = append(res, s)
+	}
+	return res, nil
+}
+
+func (a *mqlAwsEksFargateProfile) status() (string, error) {
+	fp, err := a.fetchDetails()
+	if err != nil {
+		return "", err
+	}
+	return string(fp.Status), nil
+}
+
+func (a *mqlAwsEksFargateProfile) tags() (map[string]any, error) {
+	fp, err := a.fetchDetails()
+	if err != nil {
+		return nil, err
+	}
+	tags := make(map[string]any)
+	for k, v := range fp.Tags {
+		tags[k] = v
+	}
+	return tags, nil
+}
+
+func (a *mqlAwsEksFargateProfile) createdAt() (*time.Time, error) {
+	fp, err := a.fetchDetails()
+	if err != nil {
+		return nil, err
+	}
+	return fp.CreatedAt, nil
+}
+
+// Pod Identity Associations
+
+func (a *mqlAwsEksCluster) podIdentityAssociations() ([]any, error) {
+	conn := a.MqlRuntime.Connection.(*connection.AwsConnection)
+	regionVal := a.Region.Data
+	svc := conn.Eks(regionVal)
+	ctx := context.Background()
+	res := []any{}
+
+	paginator := eks.NewListPodIdentityAssociationsPaginator(svc, &eks.ListPodIdentityAssociationsInput{ClusterName: aws.String(a.Name.Data)})
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			if Is400AccessDeniedError(err) {
+				return res, nil
+			}
+			return nil, err
+		}
+
+		for _, assoc := range page.Associations {
+			mqlAssoc, err := CreateResource(a.MqlRuntime, "aws.eks.podIdentityAssociation",
+				map[string]*llx.RawData{
+					"__id":           llx.StringDataPtr(assoc.AssociationArn),
+					"associationArn": llx.StringDataPtr(assoc.AssociationArn),
+					"associationId":  llx.StringDataPtr(assoc.AssociationId),
+					"clusterName":    llx.StringDataPtr(assoc.ClusterName),
+					"region":         llx.StringData(regionVal),
+				})
+			if err != nil {
+				return nil, err
+			}
+			mqlAssoc.(*mqlAwsEksPodIdentityAssociation).clusterName = a.Name.Data
+			mqlAssoc.(*mqlAwsEksPodIdentityAssociation).region = regionVal
+			res = append(res, mqlAssoc)
+		}
+	}
+	return res, nil
+}
+
+type mqlAwsEksPodIdentityAssociationInternal struct {
+	details     *ekstypes.PodIdentityAssociation
+	fetchErr    error
+	fetched     bool
+	region      string
+	lock        sync.Mutex
+	clusterName string
+}
+
+func (a *mqlAwsEksPodIdentityAssociation) id() (string, error) {
+	return a.AssociationArn.Data, nil
+}
+
+func (a *mqlAwsEksPodIdentityAssociation) fetchDetails() (*ekstypes.PodIdentityAssociation, error) {
+	if a.fetched {
+		return a.details, a.fetchErr
+	}
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	if a.fetched {
+		return a.details, a.fetchErr
+	}
+	conn := a.MqlRuntime.Connection.(*connection.AwsConnection)
+	ctx := context.Background()
+	svc := conn.Eks(a.region)
+	assocId := a.AssociationId.Data
+	desc, err := svc.DescribePodIdentityAssociation(ctx, &eks.DescribePodIdentityAssociationInput{
+		ClusterName:   aws.String(a.clusterName),
+		AssociationId: &assocId,
+	})
+	if err != nil {
+		a.fetchErr = err
+		a.fetched = true
+		return nil, err
+	}
+	a.details = desc.Association
+	a.fetched = true
+	return desc.Association, nil
+}
+
+func (a *mqlAwsEksPodIdentityAssociation) namespace() (string, error) {
+	assoc, err := a.fetchDetails()
+	if err != nil {
+		return "", err
+	}
+	return convert.ToValue(assoc.Namespace), nil
+}
+
+func (a *mqlAwsEksPodIdentityAssociation) serviceAccount() (string, error) {
+	assoc, err := a.fetchDetails()
+	if err != nil {
+		return "", err
+	}
+	return convert.ToValue(assoc.ServiceAccount), nil
+}
+
+func (a *mqlAwsEksPodIdentityAssociation) roleArn() (string, error) {
+	assoc, err := a.fetchDetails()
+	if err != nil {
+		return "", err
+	}
+	return convert.ToValue(assoc.RoleArn), nil
+}
+
+func (a *mqlAwsEksPodIdentityAssociation) createdAt() (*time.Time, error) {
+	assoc, err := a.fetchDetails()
+	if err != nil {
+		return nil, err
+	}
+	return assoc.CreatedAt, nil
+}
+
+// OIDC Identity Provider Configs
+
+func (a *mqlAwsEksCluster) identityProviderConfigs() ([]any, error) {
+	conn := a.MqlRuntime.Connection.(*connection.AwsConnection)
+	regionVal := a.Region.Data
+	svc := conn.Eks(regionVal)
+	ctx := context.Background()
+	res := []any{}
+
+	paginator := eks.NewListIdentityProviderConfigsPaginator(svc, &eks.ListIdentityProviderConfigsInput{ClusterName: aws.String(a.Name.Data)})
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			if Is400AccessDeniedError(err) {
+				return res, nil
+			}
+			return nil, err
+		}
+
+		for _, config := range page.IdentityProviderConfigs {
+			mqlConfig, err := CreateResource(a.MqlRuntime, "aws.eks.identityProviderConfig",
+				map[string]*llx.RawData{
+					"__id":        llx.StringData(fmt.Sprintf("aws.eks.identityProviderConfig/%s/%s/%s/%s", regionVal, a.Name.Data, convert.ToValue(config.Type), convert.ToValue(config.Name))),
+					"name":        llx.StringDataPtr(config.Name),
+					"type":        llx.StringDataPtr(config.Type),
+					"clusterName": llx.StringData(a.Name.Data),
+					"region":      llx.StringData(regionVal),
+				})
+			if err != nil {
+				return nil, err
+			}
+			mqlConfig.(*mqlAwsEksIdentityProviderConfig).clusterName = a.Name.Data
+			mqlConfig.(*mqlAwsEksIdentityProviderConfig).region = regionVal
+			res = append(res, mqlConfig)
+		}
+	}
+	return res, nil
+}
+
+type mqlAwsEksIdentityProviderConfigInternal struct {
+	details     *ekstypes.OidcIdentityProviderConfig
+	fetchErr    error
+	fetched     bool
+	region      string
+	lock        sync.Mutex
+	clusterName string
+}
+
+func (a *mqlAwsEksIdentityProviderConfig) id() (string, error) {
+	return fmt.Sprintf("aws.eks.identityProviderConfig/%s/%s/%s/%s", a.region, a.ClusterName.Data, a.Type.Data, a.Name.Data), nil
+}
+
+func (a *mqlAwsEksIdentityProviderConfig) fetchDetails() (*ekstypes.OidcIdentityProviderConfig, error) {
+	if a.fetched {
+		return a.details, a.fetchErr
+	}
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	if a.fetched {
+		return a.details, a.fetchErr
+	}
+	conn := a.MqlRuntime.Connection.(*connection.AwsConnection)
+	ctx := context.Background()
+	svc := conn.Eks(a.region)
+	name := a.Name.Data
+	configType := a.Type.Data
+	desc, err := svc.DescribeIdentityProviderConfig(ctx, &eks.DescribeIdentityProviderConfigInput{
+		ClusterName: aws.String(a.clusterName),
+		IdentityProviderConfig: &ekstypes.IdentityProviderConfig{
+			Name: &name,
+			Type: &configType,
+		},
+	})
+	if err != nil {
+		a.fetchErr = err
+		a.fetched = true
+		return nil, err
+	}
+	if desc.IdentityProviderConfig == nil {
+		a.fetched = true
+		return nil, nil
+	}
+	a.details = desc.IdentityProviderConfig.Oidc
+	a.fetched = true
+	return a.details, nil
+}
+
+func (a *mqlAwsEksIdentityProviderConfig) status() (string, error) {
+	cfg, err := a.fetchDetails()
+	if err != nil {
+		return "", err
+	}
+	if cfg == nil {
+		return "", nil
+	}
+	return string(cfg.Status), nil
+}
+
+func (a *mqlAwsEksIdentityProviderConfig) issuerUrl() (string, error) {
+	cfg, err := a.fetchDetails()
+	if err != nil {
+		return "", err
+	}
+	if cfg == nil {
+		return "", nil
+	}
+	return convert.ToValue(cfg.IssuerUrl), nil
+}
+
+func (a *mqlAwsEksIdentityProviderConfig) clientId() (string, error) {
+	cfg, err := a.fetchDetails()
+	if err != nil {
+		return "", err
+	}
+	if cfg == nil {
+		return "", nil
+	}
+	return convert.ToValue(cfg.ClientId), nil
+}
+
+func (a *mqlAwsEksIdentityProviderConfig) usernamePrefix() (string, error) {
+	cfg, err := a.fetchDetails()
+	if err != nil {
+		return "", err
+	}
+	if cfg == nil {
+		return "", nil
+	}
+	return convert.ToValue(cfg.UsernamePrefix), nil
+}
+
+func (a *mqlAwsEksIdentityProviderConfig) usernameClaim() (string, error) {
+	cfg, err := a.fetchDetails()
+	if err != nil {
+		return "", err
+	}
+	if cfg == nil {
+		return "", nil
+	}
+	return convert.ToValue(cfg.UsernameClaim), nil
+}
+
+func (a *mqlAwsEksIdentityProviderConfig) groupsPrefix() (string, error) {
+	cfg, err := a.fetchDetails()
+	if err != nil {
+		return "", err
+	}
+	if cfg == nil {
+		return "", nil
+	}
+	return convert.ToValue(cfg.GroupsPrefix), nil
+}
+
+func (a *mqlAwsEksIdentityProviderConfig) groupsClaim() (string, error) {
+	cfg, err := a.fetchDetails()
+	if err != nil {
+		return "", err
+	}
+	if cfg == nil {
+		return "", nil
+	}
+	return convert.ToValue(cfg.GroupsClaim), nil
+}
+
+func (a *mqlAwsEksIdentityProviderConfig) requiredClaims() (map[string]any, error) {
+	cfg, err := a.fetchDetails()
+	if err != nil {
+		return nil, err
+	}
+	if cfg == nil {
+		return map[string]any{}, nil
+	}
+	result := make(map[string]any)
+	for k, v := range cfg.RequiredClaims {
+		result[k] = v
+	}
+	return result, nil
+}
+
+func (a *mqlAwsEksIdentityProviderConfig) tags() (map[string]any, error) {
+	cfg, err := a.fetchDetails()
+	if err != nil {
+		return nil, err
+	}
+	if cfg == nil {
+		return map[string]any{}, nil
+	}
+	result := make(map[string]any)
+	for k, v := range cfg.Tags {
+		result[k] = v
+	}
+	return result, nil
 }
