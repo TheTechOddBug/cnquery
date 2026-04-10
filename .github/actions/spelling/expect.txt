@@ -41,6 +41,7 @@ ciscocatalyst
 clcerts
 chokepoint
 cloudflare
+claude
 Clusterwide
 cmdline
 cmek
@@ -50,6 +51,7 @@ cname
 compressratio
 cooldown
 cpe
+crowdstrike
 cryptokey
 ctx
 customresources
@@ -136,6 +138,7 @@ ipsetforwardedipconfig
 ipsetreferencestatement
 istio
 jira
+jamf
 jsonbody
 junos
 kerberoastable
@@ -224,6 +227,7 @@ posix
 postgre
 POWERUSER
 priorityclass
+privateca
 processingjob
 psc
 PTn
@@ -289,6 +293,7 @@ targetgroup
 tde
 testutils
 tgw
+throughputs
 timestream
 toplevel
 toport
@@ -306,6 +311,7 @@ Utc
 valkey
 VAULTNAME
 Vcpus
+verifiedaccess
 vdcs
 vdev
 vertexai
