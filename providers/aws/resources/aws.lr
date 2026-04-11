@@ -3801,6 +3801,8 @@ private aws.ecs.taskDefinition.ephemeralStorage {
 aws.emr {
   // List of EMR clusters
   clusters() []aws.emr.cluster
+  // Block public access configuration (account-level)
+  blockPublicAccessConfiguration() dict
 }
 
 // Amazon EMR cluster
@@ -3833,6 +3835,12 @@ private aws.emr.cluster @defaults("arn") {
   masterPublicDnsName() string
   // KMS key used for log encryption
   logEncryptionKmsKey() aws.kms.key
+  // Steps associated with the cluster
+  steps() []aws.emr.cluster.step
+  // Instance groups in the cluster
+  instanceGroups() []aws.emr.cluster.instanceGroup
+  // Bootstrap actions for the cluster
+  bootstrapActions() []aws.emr.cluster.bootstrapAction
 }
 
 // EMR cluster encryption configuration from the security configuration
@@ -3845,6 +3853,62 @@ private aws.emr.cluster.encryptionConfiguration @defaults("atRestEnabled inTrans
   atRestConfiguration dict
   // In-transit encryption configuration details (certificate provider settings)
   inTransitConfiguration dict
+}
+
+// Amazon EMR cluster step
+private aws.emr.cluster.step @defaults("name status") {
+  // Step identifier
+  id string
+  // Step name
+  name string
+  // Action to take on failure: TERMINATE_CLUSTER, CANCEL_AND_WAIT, CONTINUE
+  actionOnFailure string
+  // Step execution state: PENDING, CANCEL_PENDING, RUNNING, COMPLETED, CANCELLED, FAILED, INTERRUPTED
+  status string
+  // Path to the JAR file for the step
+  jar string
+  // Arguments passed to the step
+  args []string
+  // When the step was created
+  createdAt time
+  // When the step started running
+  startedAt time
+  // When the step finished
+  endedAt time
+}
+
+// Amazon EMR cluster instance group
+private aws.emr.cluster.instanceGroup @defaults("name instanceGroupType instanceType") {
+  // Instance group identifier
+  id string
+  // Instance group name
+  name string
+  // Group type: MASTER, CORE, TASK
+  instanceGroupType string
+  // EC2 instance type (e.g., m5.xlarge)
+  instanceType string
+  // Market type: ON_DEMAND, SPOT
+  market string
+  // Target number of instances
+  requestedInstanceCount int
+  // Currently running instances
+  runningInstanceCount int
+  // Instance group state
+  status string
+  // Spot bid price (if market is SPOT)
+  bidPrice string
+  // Whether EBS optimization is enabled
+  ebsOptimized bool
+}
+
+// Amazon EMR cluster bootstrap action
+private aws.emr.cluster.bootstrapAction @defaults("name scriptPath") {
+  // Bootstrap action name
+  name string
+  // Path to the bootstrap script (S3 or local)
+  scriptPath string
+  // Arguments passed to the bootstrap script
+  args []string
 }
 
 // Amazon EventBridge
@@ -5556,6 +5620,16 @@ aws.elasticache @defaults("cacheClusters") {
   cacheClusters() []aws.elasticache.cluster
   // List of serverless caches
   serverlessCaches() []aws.elasticache.serverlessCache
+  // List of cache parameter groups
+  parameterGroups() []aws.elasticache.parameterGroup
+  // List of cache subnet groups
+  subnetGroups() []aws.elasticache.subnetGroup
+  // List of RBAC users
+  users() []aws.elasticache.user
+  // List of available service updates
+  serviceUpdates() []aws.elasticache.serviceUpdate
+  // List of cache snapshots
+  snapshots() []aws.elasticache.snapshot
 }
 
 // Amazon ElastiCache cluster
@@ -5659,10 +5733,140 @@ private aws.elasticache.serverlessCache @defaults("name description status engin
   subnets() []aws.vpc.subnet
 }
 
+// Amazon ElastiCache parameter group
+private aws.elasticache.parameterGroup @defaults("name family") {
+  // ARN of the parameter group
+  arn string
+  // Parameter group name
+  name string
+  // Region where the parameter group exists
+  region string
+  // Engine family (e.g., redis7, memcached1.6)
+  family string
+  // Description of the parameter group
+  description string
+  // Whether the parameter group is associated with a Global datastore
+  isGlobal bool
+}
+
+// Amazon ElastiCache subnet group
+private aws.elasticache.subnetGroup @defaults("name") {
+  // ARN of the subnet group
+  arn string
+  // Subnet group name
+  name string
+  // Region where the subnet group exists
+  region string
+  // Description of the subnet group
+  description string
+  // Subnets in this group
+  subnets []dict
+  // Supported network types (ipv4, ipv6, dual_stack)
+  supportedNetworkTypes []string
+  // VPC associated with this subnet group
+  vpc() aws.vpc
+}
+
+// Amazon ElastiCache RBAC user
+private aws.elasticache.user @defaults("userName status engine") {
+  // ARN of the user
+  arn string
+  // User ID
+  userId string
+  // Username
+  userName string
+  // Region where the user exists
+  region string
+  // Access permissions string
+  accessString string
+  // Engine type (valkey or redis)
+  engine string
+  // Minimum engine version required
+  minimumEngineVersion string
+  // User status: active, modifying, deleting
+  status string
+  // User group IDs the user belongs to
+  userGroupIds []string
+  // Authentication details
+  authentication dict
+}
+
+// Amazon ElastiCache service update
+private aws.elasticache.serviceUpdate @defaults("name severity status") {
+  // Service update name
+  name string
+  // Region where the update was discovered
+  region string
+  // Description of the service update
+  description string
+  // Engine the update applies to (Valkey, Redis, Memcached)
+  engine string
+  // Engine version the update applies to
+  engineVersion string
+  // Severity: critical, important, medium, low
+  severity string
+  // Status: available, cancelled, expired
+  status string
+  // Update type
+  updateType string
+  // Date the update was released
+  releaseDate time
+  // Recommended apply-by date
+  recommendedApplyByDate time
+  // Date after which the update is no longer available
+  endDate time
+  // Estimated time to apply the update
+  estimatedUpdateTime string
+  // Whether update auto-applies after recommended date
+  autoUpdateAfterRecommendedApplyByDate bool
+}
+
+// Amazon ElastiCache snapshot
+private aws.elasticache.snapshot @defaults("name status engine") {
+  // ARN of the snapshot
+  arn string
+  // Snapshot name
+  name string
+  // Region where the snapshot exists
+  region string
+  // Source cluster ID
+  cacheClusterId string
+  // Source replication group ID
+  replicationGroupId string
+  // Snapshot status: creating, available, restoring, copying, deleting
+  status string
+  // Snapshot source: automated or manual
+  snapshotSource string
+  // Cache engine name
+  engine string
+  // Cache engine version
+  engineVersion string
+  // Cache node type
+  cacheNodeType string
+  // Number of cache nodes
+  numCacheNodes int
+  // Snapshot retention limit in days
+  snapshotRetentionLimit int
+  // KMS key used to encrypt the snapshot
+  kmsKey() aws.kms.key
+  // VPC of the cache subnet group
+  vpc() aws.vpc
+  // When the source cluster was created
+  cacheClusterCreatedAt time
+}
+
 // Amazon Redshift
 aws.redshift @defaults("clusters") {
   // List of clusters
   clusters() []aws.redshift.cluster
+  // List of cluster subnet groups
+  subnetGroups() []aws.redshift.subnetGroup
+  // List of event notification subscriptions
+  eventSubscriptions() []aws.redshift.eventSubscription
+  // List of scheduled actions (resize, pause, resume)
+  scheduledActions() []aws.redshift.scheduledAction
+  // List of snapshot schedules
+  snapshotSchedules() []aws.redshift.snapshotSchedule
 }
 
 // Amazon Redshift cluster
@@ -5792,6 +5996,90 @@ private aws.redshift.snapshot @defaults("arn clusterIdentifier status createdAt"
   tags map[string]string
   // KMS key used for the encrypted snapshot
   kmsKey() aws.kms.key
+}
+
+// Amazon Redshift cluster subnet group
+private aws.redshift.subnetGroup @defaults("name status") {
+  // Subnet group name
+  name string
+  // Description of the subnet group
+  description string
+  // Region where the subnet group exists
+  region string
+  // Status of the subnet group (e.g., Complete)
+  status string
+  // Subnets in this group
+  subnets []dict
+  // Supported cluster IP address types
+  supportedClusterIpAddressTypes []string
+  // VPC associated with this subnet group
+  vpc() aws.vpc
+  // Tags for the subnet group
+  tags map[string]string
+}
+
+// Amazon Redshift event notification subscription
+private aws.redshift.eventSubscription @defaults("name status") {
+  // Subscription name
+  name string
+  // Region where the subscription exists
+  region string
+  // Whether the subscription is enabled
+  enabled bool
+  // List of event categories for the subscription
+  eventCategories []string
+  // Event severity filter (ERROR or INFO)
+  severity string
+  // ARN of the SNS topic for notifications
+  snsTopicArn string
+  // List of source IDs the subscription applies to
+  sourceIds []string
+  // Type of source (cluster, cluster-snapshot, cluster-parameter-group, cluster-security-group, scheduled-action)
+  sourceType string
+  // Subscription status (active, no-permission, topic-not-exist)
+  status string
+  // When the subscription was created
+  createdAt time
+  // Tags for the subscription
+  tags map[string]string
+}
+
+// Amazon Redshift scheduled action (resize, pause, resume)
+private aws.redshift.scheduledAction @defaults("name state") {
+  // Scheduled action name
+  name string
+  // Region where the action exists
+  region string
+  // Description of the scheduled action
+  description string
+  // Cron-like schedule expression
+  schedule string
+  // State of the action: ACTIVE, DISABLED
+  state string
+  // IAM role ARN used to run the action
+  iamRole string
+  // Start time of the action schedule
+  startTime time
+  // End time of the action schedule
+  endTime time
+  // Target action details (resize, pause, or resume parameters)
+  targetAction dict
+}
+
+// Amazon Redshift snapshot schedule
+private aws.redshift.snapshotSchedule @defaults("id description") {
+  // Schedule identifier
+  id string
+  // Region where the schedule exists
+  region string
+  // Description of the schedule
+  description string
+  // List of cron-like schedule definitions
+  scheduleDefinitions []string
+  // Number of clusters associated with this schedule
+  associatedClusterCount int
+  // Tags for the schedule
+  tags map[string]string
 }
 
 // Amazon Route 53 DNS service
