@@ -297,6 +297,7 @@ func (a *mqlAwsSecurityhubHub) findings() ([]any, error) {
 			if err != nil {
 				return nil, err
 			}
+			mqlFinding.cacheRegion = region
 			res = append(res, mqlFinding)
 		}
 	}
@@ -540,4 +541,135 @@ func standardNameFromArn(arn string) string {
 		return name
 	}
 	return arn
+}
+
+// Security Hub members
+func (a *mqlAwsSecurityhubHub) members() ([]any, error) {
+	conn := a.MqlRuntime.Connection.(*connection.AwsConnection)
+	region := a.Region.Data
+	svc := conn.Securityhub(region)
+	ctx := context.Background()
+
+	res := []any{}
+	paginator := securityhub.NewListMembersPaginator(svc, &securityhub.ListMembersInput{})
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			if Is400AccessDeniedError(err) {
+				return res, nil
+			}
+			return nil, err
+		}
+		for _, member := range page.Members {
+			mqlMember, err := CreateResource(a.MqlRuntime, "aws.securityhub.member",
+				map[string]*llx.RawData{
+					"__id":            llx.StringData(fmt.Sprintf("securityhub/member/%s/%s", region, convert.ToValue(member.AccountId))),
+					"accountId":       llx.StringDataPtr(member.AccountId),
+					"email":           llx.StringDataPtr(member.Email),
+					"memberStatus":    llx.StringDataPtr(member.MemberStatus),
+					"invitedAt":       llx.TimeDataPtr(member.InvitedAt),
+					"updatedAt":       llx.TimeDataPtr(member.UpdatedAt),
+					"administratorId": llx.StringDataPtr(member.AdministratorId),
+					"region":          llx.StringData(region),
+				})
+			if err != nil {
+				return nil, err
+			}
+			res = append(res, mqlMember)
+		}
+	}
+	return res, nil
+}
+
+func (a *mqlAwsSecurityhubMember) id() (string, error) {
+	return a.__id, nil
+}
+
+// Security Hub enabled products
+func (a *mqlAwsSecurityhubHub) enabledProducts() ([]any, error) {
+	conn := a.MqlRuntime.Connection.(*connection.AwsConnection)
+	region := a.Region.Data
+	svc := conn.Securityhub(region)
+	ctx := context.Background()
+
+	res := []any{}
+	paginator := securityhub.NewListEnabledProductsForImportPaginator(svc, &securityhub.ListEnabledProductsForImportInput{})
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			if Is400AccessDeniedError(err) {
+				return res, nil
+			}
+			return nil, err
+		}
+		for _, productSubArn := range page.ProductSubscriptions {
+			// Extract product ARN from the subscription ARN
+			// Subscription ARN: arn:aws:securityhub:region:account:product-subscription/product-arn
+			productArn := productSubArn
+			if idx := strings.Index(productSubArn, ":product-subscription/"); idx != -1 {
+				// Reconstruct the product ARN
+				productArn = productSubArn[:idx] + ":product/" + productSubArn[idx+len(":product-subscription/"):]
+			}
+
+			mqlProduct, err := CreateResource(a.MqlRuntime, "aws.securityhub.enabledProduct",
+				map[string]*llx.RawData{
+					"__id":                   llx.StringData(fmt.Sprintf("securityhub/product/%s/%s", region, productSubArn)),
+					"productSubscriptionArn": llx.StringData(productSubArn),
+					"productArn":             llx.StringData(productArn),
+					"region":                 llx.StringData(region),
+				})
+			if err != nil {
+				return nil, err
+			}
+			res = append(res, mqlProduct)
+		}
+	}
+	return res, nil
+}
+
+func (a *mqlAwsSecurityhubEnabledProduct) id() (string, error) {
+	return a.__id, nil
+}
+
+// Finding history
+type mqlAwsSecurityhubFindingInternal struct {
+	cacheRegion string
+}
+
+func (a *mqlAwsSecurityhubFinding) history() ([]any, error) {
+	conn := a.MqlRuntime.Connection.(*connection.AwsConnection)
+	region := a.cacheRegion
+	if region == "" {
+		region = a.Region.Data
+	}
+	svc := conn.Securityhub(region)
+	ctx := context.Background()
+
+	findingId := a.Id.Data
+	productArn := a.ProductArn.Data
+
+	res := []any{}
+	paginator := securityhub.NewGetFindingHistoryPaginator(svc, &securityhub.GetFindingHistoryInput{
+		FindingIdentifier: &types.AwsSecurityFindingIdentifier{
+			Id:         &findingId,
+			ProductArn: &productArn,
+		},
+	})
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			if Is400AccessDeniedError(err) {
+				return res, nil
+			}
+			return nil, err
+		}
+		for _, record := range page.Records {
+			d, err := convert.JsonToDict(record)
+			if err != nil {
+				return nil, err
+			}
+			res = append(res, d)
+		}
+	}
+	return res, nil
 }
