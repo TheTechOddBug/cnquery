@@ -18,6 +18,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"go.mondoo.com/mql/v13/llx"
 	"go.mondoo.com/mql/v13/providers-sdk/v1/plugin"
+	"go.mondoo.com/mql/v13/providers-sdk/v1/util/convert"
 	"go.mondoo.com/mql/v13/providers-sdk/v1/util/jobpool"
 	"go.mondoo.com/mql/v13/providers/aws/connection"
 )
@@ -333,4 +334,50 @@ func (a *mqlAwsSqsQueue) policy() (any, error) {
 		return nil, err
 	}
 	return policy, nil
+}
+
+func (a *mqlAwsSqsQueue) tags() (map[string]any, error) {
+	conn := a.MqlRuntime.Connection.(*connection.AwsConnection)
+	ctx := context.Background()
+	svc := conn.Sqs(a.Region.Data)
+
+	resp, err := svc.ListQueueTags(ctx, &sqs.ListQueueTagsInput{QueueUrl: aws.String(a.Url.Data)})
+	if err != nil {
+		if Is400AccessDeniedError(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	tags := make(map[string]any)
+	for k, v := range resp.Tags {
+		tags[k] = v
+	}
+	return tags, nil
+}
+
+func (a *mqlAwsSqsQueue) contentBasedDeduplication() (bool, error) {
+	atts, err := a.fetchAttributes()
+	if err != nil {
+		return false, err
+	}
+	if atts["ContentBasedDeduplication"] == "" {
+		return false, nil
+	}
+	return strconv.ParseBool(atts["ContentBasedDeduplication"])
+}
+
+func (a *mqlAwsSqsQueue) redriveAllowPolicy() (any, error) {
+	atts, err := a.fetchAttributes()
+	if err != nil {
+		return nil, err
+	}
+	policyStr := atts["RedriveAllowPolicy"]
+	if policyStr == "" {
+		return nil, nil
+	}
+	var policy map[string]any
+	if err := json.Unmarshal([]byte(policyStr), &policy); err != nil {
+		return nil, err
+	}
+	return convert.JsonToDict(policy)
 }

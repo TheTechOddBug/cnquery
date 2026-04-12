@@ -1009,6 +1009,58 @@ private aws.efs.filesystem @defaults("name id region") {
   accessPoints() []aws.efs.accessPoint
   // Resource-based policy document (JSON)
   fileSystemPolicy() string
+  // Performance mode: generalPurpose or maxIO
+  performanceMode string
+  // Throughput mode: bursting, provisioned, or elastic
+  throughputMode string
+  // Current metered size of the file system in bytes
+  sizeInBytes int
+  // Lifecycle state: creating, available, updating, deleting, deleted, error
+  lifecycleState string
+  // Lifecycle configuration for the file system
+  lifecycleConfiguration() aws.efs.filesystem.lifecycleConfiguration
+  // Replication configuration for the file system (null if not replicated)
+  replicationConfiguration() aws.efs.filesystem.replicationConfiguration
+  // File system protection configuration
+  fileSystemProtection() dict
+}
+
+// AWS EFS lifecycle configuration
+private aws.efs.filesystem.lifecycleConfiguration @defaults("transitionToIA") {
+  // Transition to Infrequent Access storage class (e.g., AFTER_7_DAYS, AFTER_14_DAYS, AFTER_30_DAYS, AFTER_60_DAYS, AFTER_90_DAYS, AFTER_180_DAYS, AFTER_270_DAYS, AFTER_365_DAYS)
+  transitionToIA string
+  // Transition to Archive storage class (e.g., AFTER_1_DAY, AFTER_7_DAYS, AFTER_14_DAYS, AFTER_30_DAYS, AFTER_60_DAYS, AFTER_90_DAYS, AFTER_180_DAYS, AFTER_270_DAYS, AFTER_365_DAYS)
+  transitionToArchive string
+  // Transition back to primary storage on access (AFTER_1_ACCESS)
+  transitionToPrimaryStorageClass string
+}
+
+// AWS EFS file system replication configuration
+private aws.efs.filesystem.replicationConfiguration @defaults("sourceFileSystemId") {
+  // Source file system ID
+  sourceFileSystemId string
+  // Source file system region
+  sourceFileSystemRegion string
+  // Source file system ARN
+  sourceFileSystemArn string
+  // Original source file system ARN
+  originalSourceFileSystemArn string
+  // When replication was created
+  creationTime time
+  // Replication destinations
+  destinations []aws.efs.filesystem.replicationDestination
+}
+
+// AWS EFS replication destination
+private aws.efs.filesystem.replicationDestination @defaults("fileSystemId region status") {
+  // Destination file system ID
+  fileSystemId string
+  // Destination region
+  region string
+  // Replication status: ENABLED, ENABLING, DELETING, ERROR, PAUSED, PAUSING
+  status string
+  // Last successful replication timestamp
+  lastReplicatedTimestamp time
 }
 
 // AWS EFS mount target
@@ -1263,13 +1315,31 @@ private aws.kms.key @defaults("id region aliases metadata.Description") {
   multiRegionConfiguration() dict
   // Origin of the key material: AWS_KMS, EXTERNAL, AWS_CLOUDHSM, EXTERNAL_KEY_STORE
   origin() string
+  // Number of days between each automatic rotation (default 365)
+  rotationPeriodInDays() int
+  // Next date that KMS will automatically rotate the key material
+  nextRotationAt() time
+  // Date and time an in-progress on-demand rotation was initiated
+  onDemandRotationStartedAt() time
+  // Encryption algorithms the key supports (e.g., SYMMETRIC_DEFAULT, RSAES_OAEP_SHA_1, RSAES_OAEP_SHA_256)
+  encryptionAlgorithms() []string
+  // Signing algorithms the key supports (e.g., RSASSA_PSS_SHA_256, ECDSA_SHA_256)
+  signingAlgorithms() []string
+  // Key agreement algorithms the key supports (e.g., ECDH)
+  keyAgreementAlgorithms() []string
+  // Whether imported key material expires: KEY_MATERIAL_EXPIRES or KEY_MATERIAL_DOES_NOT_EXPIRE
+  expirationModel() string
+  // Expiration date for imported key material (null if key material does not expire)
+  validTo() time
 }
 
 // AWS KMS key grant
 private aws.kms.grant @defaults("grantId granteePrincipal") {
   // Unique identifier for the grant
   grantId string
-  // ARN of the KMS key
+  // KMS key the grant applies to
+  key() aws.kms.key
+  // Deprecated: Use key() instead
   keyArn string
   // Principal that receives the grant's permissions
   granteePrincipal string
@@ -2254,6 +2324,18 @@ private aws.sns.topic @defaults("arn") {
   kmsMasterKey() aws.kms.key
   // Access policy for the topic (parsed JSON)
   policy() dict
+  // Whether the topic is a FIFO topic
+  fifoTopic() bool
+  // Whether content-based deduplication is enabled (FIFO topics only)
+  contentBasedDeduplication() bool
+  // Data protection policy for the topic (parsed JSON)
+  dataProtectionPolicy() dict
+  // AWS X-Ray tracing configuration for the topic
+  tracingConfig() string
+  // Delivery policy for HTTP/S subscriptions at the topic level (parsed JSON)
+  deliveryPolicy() dict
+  // Display name used for SMS or email subscriptions
+  displayName() string
 }
 
 // AWS Simple Notification Service (SNS) subscription
@@ -2680,7 +2762,10 @@ private aws.elb.loadbalancer @defaults("name region elbType scheme dnsName") {
 private aws.elb.listener @defaults("arn port protocol") {
   // ARN for the listener
   arn string
+  // Load balancer this listener belongs to
+  loadBalancer() aws.elb.loadbalancer
   // ARN of the load balancer this listener belongs to
+  // Deprecated: Use loadBalancer() instead
   loadBalancerArn string
   // Port on which the listener listens
   port int
@@ -3553,7 +3638,10 @@ private aws.ecs.container @defaults("containerName runtimeId clusterName region"
   image string
   // Cluster associated with the ECS container
   clusterName string
+  // Task definition associated with the ECS container
+  taskDefinition() aws.ecs.taskDefinition
   // ARN for the task definition associated with the ECS container
+  // Deprecated: Use taskDefinition() instead
   taskDefinitionArn string
   // logDriver setting for the ECS container
   logDriver string
@@ -3567,7 +3655,10 @@ private aws.ecs.container @defaults("containerName runtimeId clusterName region"
   region string
   // Command used to start the container
   command []string
+  // Task used to create the container
+  task() aws.ecs.task
   // ARN for the task used to create the container
+  // Deprecated: Use task() instead
   taskArn string
   // Runtime ID for the container
   runtimeId string
@@ -3632,7 +3723,10 @@ private aws.ecs.service @defaults("arn name clusterArn status") {
   arn string
   // Name of the ECS service
   name string
+  // Cluster the service belongs to
+  cluster() aws.ecs.cluster
   // ARN of the cluster the service belongs to
+  // Deprecated: Use cluster() instead
   clusterArn string
   // Status of the service
   status string
@@ -3676,9 +3770,15 @@ private aws.ecs.taskSet @defaults("arn status taskDefinition launchType") {
   arn string
   // ID of the task set
   id string
+  // Cluster the task set belongs to
+  cluster() aws.ecs.cluster
   // ARN of the cluster the task set belongs to
+  // Deprecated: Use cluster() instead
   clusterArn string
+  // Service the task set belongs to
+  service() aws.ecs.service
   // ARN of the service the task set belongs to
+  // Deprecated: Use service() instead
   serviceArn string
   // Status of the task set (PRIMARY, ACTIVE, DRAINING)
   status string
@@ -4301,7 +4401,10 @@ private aws.cloudwatch.loggroup.subscriptionfilter @defaults("filterName destina
   filterPattern string
   // ARN of the destination (Kinesis, Lambda, or Firehose)
   destinationArn string
+  // IAM role used to write to the destination
+  iamRole() aws.iam.role
   // ARN of the IAM role used to write to the destination
+  // Deprecated: Use iamRole() instead
   roleArn string
   // Method used to distribute log data to the destination (Random, ByLogStream)
   distribution string
@@ -4497,15 +4600,19 @@ private aws.cloudtrail.trail @defaults("name region") {
   includeGlobalServiceEvents bool
   // S3 bucket where trail files are delivered
   s3bucket() aws.s3.bucket
-  // ARN of the SNS topic that the trail uses to send notifications
+  // SNS topic the trail uses to send notifications
+  snsTopic() aws.sns.topic
+  // Deprecated: Use snsTopic() instead
   snsTopicARN string
   // Deprecated: Use individual status fields (isLogging, latestDeliveryTime, etc.) instead
   status() dict
   // Log group where trail files are delivered
   logGroup() aws.cloudwatch.loggroup
-  // Role for logs endpoint to assume when writing to log group
+  // IAM role for the logs endpoint to assume when writing to log group
+  cloudWatchLogsRole() aws.iam.role
+  // Deprecated: Use cloudWatchLogsRole() instead
   cloudWatchLogsRoleArn string
-  // Group for logs endpoint to assume when writing to log group
+  // Deprecated: Use logGroup() instead
   cloudWatchLogsLogGroupArn string
   // Deprecated: Use `eventSelectorEntries` instead
   eventSelectors() []dict
@@ -4528,15 +4635,31 @@ private aws.cloudtrail.trail @defaults("name region") {
   // Tags associated with the trail
   tags() map[string]string
   // Time of the most recent delivery of log files to the trail's S3 bucket
+  latestDeliveredAt() time
+  // Deprecated: Use latestDeliveredAt() instead
   latestDeliveryTime() time
   // Time of the most recent notification sent to the trail's SNS topic
+  latestNotifiedAt() time
+  // Deprecated: Use latestNotifiedAt() instead
   latestNotificationTime() time
   // Time of the most recent log delivery to CloudWatch Logs
+  latestCloudWatchLogsDeliveredAt() time
+  // Deprecated: Use latestCloudWatchLogsDeliveredAt() instead
   latestCloudWatchLogsDeliveryTime() time
   // Most recent error message from delivering log files to S3
   latestDeliveryError() string
   // Time of the most recent digest file delivery to the trail's S3 bucket
+  latestDigestDeliveredAt() time
+  // Deprecated: Use latestDigestDeliveredAt() instead
   latestDigestDeliveryTime() time
+  // Time of the most recent delivery attempt to S3 (string-formatted timestamp from AWS legacy API)
+  latestDeliveryAttemptedAt() string
+  // Whether the most recent delivery attempt to S3 succeeded (string-formatted timestamp or empty)
+  latestDeliveryAttemptSucceededAt() string
+  // Time of the most recent notification attempt to SNS (string-formatted timestamp from AWS legacy API)
+  latestNotificationAttemptedAt() string
+  // Whether the most recent notification attempt to SNS succeeded (string-formatted timestamp or empty)
+  latestNotificationAttemptSucceededAt() string
 }
 
 // AWS CloudTrail trail event selector
@@ -4621,6 +4744,10 @@ private aws.cloudtrail.eventDataStore @defaults("name status") {
   billingMode() string
   // Tags for the event data store
   tags() map[string]string
+  // Lake query federation status: ENABLED or DISABLED
+  federationStatus() string
+  // IAM role used to access resources for the federated event data store
+  federationRole() aws.iam.role
 }
 
 // AWS CloudTrail channel for external event ingestion
@@ -5023,6 +5150,9 @@ private aws.drs.replicationConfiguration @defaults("sourceServerID") {
   // EBS encryption mode (DEFAULT, CUSTOM)
   ebsEncryption string
   // Custom KMS key for EBS encryption
+  ebsEncryptionKey() aws.kms.key
+  // ARN of the custom KMS key for EBS encryption
+  // Deprecated: Use ebsEncryptionKey() instead
   ebsEncryptionKeyArn string
   // Disk replication configuration
   replicatedDisks []dict
@@ -5086,7 +5216,10 @@ private aws.backup.vault @defaults("name region") {
   locked bool
   // Date when the backup was locked
   lockedAt time
+  // Encryption key for the vault
+  encryptionKey() aws.kms.key
   // ARN of the encryption key
+  // Deprecated: Use encryptionKey() instead
   encryptionKeyArn string
   // The maximum retention period that the vault retains its recovery points
   maxRetentionDays int
@@ -5102,7 +5235,10 @@ private aws.backup.vaultRecoveryPoint @defaults("resourceType completionDate sta
   resourceType string
   // Information about who created the recovery point
   createdBy dict
+  // IAM role used to create the recovery point
+  iamRole() aws.iam.role
   // ARN of the IAM role used to create the recovery point
+  // Deprecated: Use iamRole() instead
   iamRoleArn string
   // Status of the recovery point
   status string
@@ -5110,7 +5246,10 @@ private aws.backup.vaultRecoveryPoint @defaults("resourceType completionDate sta
   createdAt time
   // Date the recovery point completed
   completionDate time
+  // Encryption key for the recovery point
+  encryptionKey() aws.kms.key
   // ARN of the key used to encrypt the recovery point
+  // Deprecated: Use encryptionKey() instead
   encryptionKeyArn string
   // Whether the recovery point is encrypted
   isEncrypted bool
@@ -5194,7 +5333,10 @@ private aws.backup.plan.rule @defaults("ruleName targetBackupVaultName") {
 private aws.backup.plan.rule.copyAction @defaults("destinationBackupVaultArn") {
   // Unique identifier
   id string
+  // Destination backup vault
+  destinationVault() aws.backup.vault
   // ARN of the destination backup vault
+  // Deprecated: Use destinationVault() instead
   destinationBackupVaultArn string
   // Number of days after creation that a recovery point is deleted
   deleteAfterDays int
@@ -5400,6 +5542,12 @@ private aws.sqs.queue {
   fifoThroughputLimit() string
   // Access policy for the queue (parsed JSON)
   policy() dict
+  // Resource tags for the queue
+  tags() map[string]string
+  // Whether content-based deduplication is enabled (FIFO queues only)
+  contentBasedDeduplication() bool
+  // Redrive allow policy controlling which source queues can use this queue as a dead-letter queue (parsed JSON)
+  redriveAllowPolicy() dict
 }
 
 // Amazon Relational Database Service (RDS)
@@ -5536,6 +5684,8 @@ aws.rds.dbcluster @defaults("id region engine engineVersion") {
   kmsKey() aws.kms.key
   // Whether Performance Insights is enabled for the DB cluster
   performanceInsightsEnabled bool
+  // Number of days to retain Performance Insights data
+  performanceInsightsRetentionPeriod int
   // DB engine mode (provisioned, serverless, parallelquery, global)
   engineMode string
   // Earliest point-in-time restore timestamp
@@ -5682,6 +5832,8 @@ aws.rds.dbinstance @defaults("id region engine engineVersion") {
   copyTagsToSnapshot bool
   // KMS key used to encrypt Performance Insights data
   performanceInsightsKmsKey() aws.kms.key
+  // Number of days to retain Performance Insights data (7, 31, 62, 93, 124, 155, 186, 217, 248, 279, 310, 341, 372, 403, 434, 465, 496, 527, 558, 589, 620, 651, 682, 713, or 731)
+  performanceInsightsRetentionPeriod int
   // License model for the DB instance
   licenseModel string
   // Upper limit to which Amazon RDS can automatically scale the storage of the DB instance
@@ -5859,6 +6011,8 @@ private aws.elasticache.cluster @defaults("cacheClusterId region nodeType engine
   preferredMaintenanceWindow string
   // Whether log delivery is enabled for the replication group
   replicationGroupLogDeliveryEnabled bool
+  // Resource tags for the cluster
+  tags() map[string]string
 }
 
 // Amazon ElastiCache serverless cache
@@ -6394,7 +6548,10 @@ private aws.route53.queryLoggingConfig @defaults("id hostedZoneId") {
   id string
   // Hosted zone ID being logged
   hostedZoneId string
+  // CloudWatch Logs log group where queries are logged
+  logGroup() aws.cloudwatch.loggroup
   // CloudWatch Logs log group ARN where queries are logged
+  // Deprecated: Use logGroup() instead
   cloudWatchLogsLogGroupArn string
   // Associated hosted zone
   hostedZone() aws.route53.hostedZone
@@ -6405,6 +6562,7 @@ private aws.route53.keySigningKey @defaults("name status") {
   // Name of the key signing key
   name string
   // ARN of the KMS key used for signing
+  // Deprecated: Use kmsKey() instead
   kmsArn string
   // Hosted zone ID
   hostedZoneId string
@@ -6484,6 +6642,8 @@ aws.ecr {
   images() []aws.ecr.image
   // Registry replication configuration
   replicationConfiguration() dict
+  // Registry-level scanning configuration
+  scanningConfiguration() aws.ecr.scanningConfiguration
 }
 
 // AWS Elastic Container Registry repository
@@ -6526,6 +6686,8 @@ private aws.ecr.repository @defaults("uri region") {
   operatingSystems() []string
   // Architectures from catalog data (public repositories only)
   architectures() []string
+  // AWS resource tags for the repository (private repositories only)
+  tags() map[string]string
 }
 
 // AWS ECR repository lifecycle policy
@@ -6586,6 +6748,42 @@ private aws.ecr.image @defaults("uri region") {
   sizeInBytes int
   // Time of the most recent image pull (Amazon only refreshes this data once every 24 hours.)
   lastRecordedPullTime time
+  // Status of the most recent image scan: COMPLETE, FAILED, IN_PROGRESS, UNSUPPORTED_IMAGE, ACTIVE, SCAN_ELIGIBILITY_EXPIRED, FINDINGS_UNAVAILABLE, or NOT_SCANNED
+  scanStatus() string
+  // Findings from the most recent image scan (basic scan findings; private repositories only)
+  scanFindings() []aws.ecr.image.scanFinding
+  // Severity counts from the most recent image scan
+  scanFindingSeverityCounts() dict
+}
+
+// AWS ECR image scan finding
+private aws.ecr.image.scanFinding @defaults("severity name") {
+  // Name of the vulnerability (e.g., CVE ID)
+  name string
+  // Description of the vulnerability
+  description string
+  // URI with more information about the vulnerability
+  uri string
+  // Severity: INFORMATIONAL, LOW, MEDIUM, HIGH, CRITICAL, or UNDEFINED
+  severity string
+  // Attributes associated with the finding (e.g., CVSS score)
+  attributes dict
+}
+
+// AWS ECR registry scanning configuration
+private aws.ecr.scanningConfiguration @defaults("scanType") {
+  // Scan type for the registry: BASIC or ENHANCED
+  scanType string
+  // Scanning rules applied to repositories
+  rules []aws.ecr.scanningConfiguration.rule
+}
+
+// AWS ECR registry scanning configuration rule
+private aws.ecr.scanningConfiguration.rule @defaults("scanFrequency") {
+  // Scan frequency: SCAN_ON_PUSH, CONTINUOUS_SCAN, or MANUAL
+  scanFrequency string
+  // Repository filters applied by this rule
+  repositoryFilters []dict
 }
 
 // AWS Database Migration Service (DMS)
@@ -6656,7 +6854,10 @@ private aws.apigateway.stage @defaults("arn") {
   cacheClusterStatus string
   // Client certificate ID for mutual TLS with backend
   clientCertificateId string
+  // WAF web ACL associated with the stage
+  webAcl() aws.waf.acl
   // ARN of the WAF web ACL associated with the stage
+  // Deprecated: Use webAcl() instead
   webAclArn string
   // Time when the stage was created
   createdAt time
@@ -6774,6 +6975,32 @@ private aws.lambda.function @defaults("arn") {
   eventInvokeConfig() dict
   // Runtime management configuration (update mode and ARN)
   runtimeManagementConfig() dict
+  // Published versions of this function
+  versions() []aws.lambda.function.version
+}
+
+// AWS Lambda function version
+private aws.lambda.function.version @defaults("arn version") {
+  // ARN of this function version
+  arn string
+  // Version number (e.g., "1", "2", "$LATEST")
+  version string
+  // Runtime environment
+  runtime string
+  // Function handler
+  handler string
+  // SHA-256 hash of the deployment package
+  codeSha256 string
+  // Description
+  description string
+  // Memory size in MB
+  memorySize int
+  // Timeout in seconds
+  timeout int
+  // When this version was last modified
+  lastModifiedAt time
+  // State: Active, Inactive, Pending, Failed
+  state string
 }
 
 // AWS Lambda function URL configuration
@@ -6844,6 +7071,26 @@ private aws.lambda.layer @defaults("arn name") {
   createdDate time
   // License information for the latest version
   licenseInfo string
+  // All published versions of this layer
+  versions() []aws.lambda.layer.version
+}
+
+// AWS Lambda layer version
+private aws.lambda.layer.version @defaults("layerVersionArn version") {
+  // ARN for this specific layer version
+  layerVersionArn string
+  // Version number
+  version int
+  // Description
+  description string
+  // When this version was created
+  createdDate time
+  // Compatible runtimes
+  compatibleRuntimes []string
+  // Compatible architectures
+  compatibleArchitectures []string
+  // License information
+  licenseInfo string
 }
 
 // AWS Lambda event source mapping
@@ -6852,7 +7099,10 @@ private aws.lambda.eventSourceMapping @defaults("uuid eventSourceArn") {
   uuid string
   // ARN of the event source
   eventSourceArn string
+  // Lambda function for the event source mapping
+  function() aws.lambda.function
   // ARN of the Lambda function
+  // Deprecated: Use function() instead
   functionArn string
   // Region where the event source mapping exists
   region string
@@ -8528,7 +8778,10 @@ private aws.config.deliverychannel @defaults("name region") {
   s3BucketName string
   // Prefix for the S3 bucket where configuration snapshots are delivered
   s3KeyPrefix string
+  // SNS topic that AWS Config delivers notifications to
+  snsTopic() aws.sns.topic
   // ARN of the SNS topic that AWS Config delivers notifications to
+  // Deprecated: Use snsTopic() instead
   snsTopicARN string
   // Region for the delivery channel
   region string
@@ -9089,7 +9342,10 @@ private aws.neptune.instance @defaults("arn name status"){
   masterUsername string
   // Interval, in seconds, between points when Enhanced Monitoring metrics are collected
   monitoringInterval int
+  // IAM role that permits Neptune to send Enhanced Monitoring metrics to Amazon CloudWatch Logs
+  monitoringRole() aws.iam.role
   // ARN for the IAM role that permits Neptune to send Enhanced Monitoring metrics to Amazon CloudWatch Logs
+  // Deprecated: Use monitoringRole() instead
   monitoringRoleArn string
   // Whether the cluster has instances in multiple availability zones
   multiAZ bool
@@ -9392,6 +9648,8 @@ private aws.timestream.liveanalytics.database @defaults("name region") {
   updatedAt time
   // Total number of tables in database
   tableCount int
+  // Resource tags
+  tags() map[string]string
 }
 
 // Amazon Timestream for LiveAnalytics table
@@ -9456,7 +9714,10 @@ private aws.codedeploy.deploymentGroup @defaults("deploymentGroupName computePla
   deploymentGroupName string
   // Compute platform of the deployment group (Server, Lambda, or ECS)
   computePlatform string
+  // Service role for the deployment group
+  serviceRole() aws.iam.role
   // Service role ARN for the deployment group
+  // Deprecated: Use serviceRole() instead
   serviceRoleArn string
   // Target revision for the deployment group (includes type, location, etc.)
   targetRevision() dict
@@ -9610,7 +9871,10 @@ private aws.appstream.fleet @defaults("name state fleetType region") {
   maxSessionsPerInstance int
   // VPC configuration (SubnetIds, SecurityGroupIds)
   vpcConfig dict
+  // IAM role applied to the fleet
+  iamRole() aws.iam.role
   // ARN of the IAM role applied to the fleet
+  // Deprecated: Use iamRole() instead
   iamRoleArn string
   // Name of the image used to create the fleet
   imageName string
@@ -9716,7 +9980,10 @@ private aws.appstream.imageBuilder @defaults("name state platform region") {
   domainJoinInfo dict
   // VPC configuration (SubnetIds, SecurityGroupIds)
   vpcConfig dict
+  // IAM role applied to the image builder
+  iamRole() aws.iam.role
   // ARN of the IAM role applied to the image builder
+  // Deprecated: Use iamRole() instead
   iamRoleArn string
   // Network access configuration
   networkAccessConfiguration dict
@@ -10142,7 +10409,10 @@ private aws.workspaces.ipGroup @defaults("groupId groupName region") {
 private aws.workspacesweb.userAccessLoggingSetting @defaults("userAccessLoggingSettingsArn kinesisStreamArn region") {
   // Settings ARN
   userAccessLoggingSettingsArn string
+  // Kinesis data stream for logging
+  kinesisStream() aws.kinesis.stream
   // Kinesis data stream ARN for logging
+  // Deprecated: Use kinesisStream() instead
   kinesisStreamArn string
   // AWS region
   region string
@@ -11198,16 +11468,66 @@ private aws.batch.jobDefinition @defaults("arn name type status") {
   type string
   // Status: ACTIVE or INACTIVE
   status string
-  // Container properties
+  // Typed container properties with IAM role references
+  container() aws.batch.jobDefinition.containerProperties
+  // Deprecated: Use container() instead
   containerProperties() dict
   // Node properties for multi-node jobs
   nodeProperties() dict
-  // Retry strategy
+  // Typed retry strategy
+  retry() aws.batch.jobDefinition.retryStrategy
+  // Deprecated: Use retry() instead
   retryStrategy() dict
-  // Timeout configuration
+  // Typed timeout configuration
+  jobTimeout() aws.batch.jobDefinition.timeout
+  // Deprecated: Use jobTimeout() instead
   timeout() dict
   // Tags for the job definition
   tags map[string]string
+}
+
+// AWS Batch job definition container properties
+private aws.batch.jobDefinition.containerProperties @defaults("image") {
+  // Docker image used for the job
+  image string
+  // Number of vCPUs reserved
+  vcpus int
+  // Memory in MiB reserved
+  memory int
+  // Command to run in the container
+  command []string
+  // IAM role for the container to access AWS resources
+  jobRole() aws.iam.role
+  // IAM role for ECS agent and Docker daemon
+  executionRole() aws.iam.role
+  // Environment variables
+  environment []dict
+  // Whether the container has elevated privileges
+  privileged bool
+  // Whether the container is read-only
+  readonlyRootFilesystem bool
+  // Resource requirements (GPU, etc.)
+  resourceRequirements []dict
+  // Log configuration
+  logConfiguration dict
+  // Linux parameters
+  linuxParameters dict
+  // Fargate platform configuration
+  fargateConfig dict
+}
+
+// AWS Batch job definition retry strategy
+private aws.batch.jobDefinition.retryStrategy @defaults("attempts") {
+  // Number of retry attempts
+  attempts int
+  // Conditions for retry evaluation
+  evaluateOnExit []dict
+}
+
+// AWS Batch job definition timeout
+private aws.batch.jobDefinition.timeout @defaults("attemptDurationSeconds") {
+  // Time limit in seconds for each job attempt
+  attemptDurationSeconds int
 }
 
 // Amazon Lightsail
@@ -11873,6 +12193,8 @@ private aws.appmesh.mesh @defaults("arn name") {
   virtualServices() []aws.appmesh.virtualService
   // Virtual nodes in the mesh
   virtualNodes() []aws.appmesh.virtualNode
+  // Virtual routers in this mesh
+  virtualRouters() []aws.appmesh.virtualRouter
 }
 
 // AWS App Mesh virtual service
@@ -11905,10 +12227,52 @@ private aws.appmesh.virtualNode @defaults("arn name") {
   region string
   // Status of the virtual node: ACTIVE, INACTIVE, DELETED
   status() string
-  // Number of backends configured
+  // Deprecated: Use backendServices() instead
   backends() int
+  // Backend services this node communicates with
+  backendServices() []dict
   // Service discovery configuration
   serviceDiscovery() dict
+}
+
+// AWS App Mesh virtual router
+private aws.appmesh.virtualRouter @defaults("arn name") {
+  // ARN of the virtual router
+  arn string
+  // Name of the virtual router
+  name string
+  // Mesh name this router belongs to
+  meshName string
+  // Region
+  region string
+  // Status: ACTIVE, INACTIVE, DELETED
+  status() string
+  // Listener port and protocol
+  listeners() []dict
+  // Routes for this virtual router
+  routes() []aws.appmesh.route
+  // Tags
+  tags() map[string]string
+}
+
+// AWS App Mesh route
+private aws.appmesh.route @defaults("name") {
+  // ARN of the route
+  arn string
+  // Name of the route
+  name string
+  // Mesh name
+  meshName string
+  // Virtual router name
+  virtualRouterName string
+  // Region
+  region string
+  // Status: ACTIVE, INACTIVE, DELETED
+  status() string
+  // Route specification (match, action, retry policy, timeout)
+  spec() dict
+  // Tags
+  tags() map[string]string
 }
 
 // AWS IAM Identity Center (SSO)
@@ -12331,7 +12695,10 @@ private aws.bedrock.customModel @defaults("modelArn modelName") {
   modelName string
   // Region where the custom model exists
   region string
+  // Base model used for customization
+  baseModel() aws.bedrock.foundationModel
   // ARN of the base model used for customization
+  // Deprecated: Use baseModel() instead
   baseModelArn string
   // Customization type: FINE_TUNING or CONTINUED_PRE_TRAINING
   customizationType string
@@ -12397,7 +12764,10 @@ private aws.bedrock.provisionedModelThroughput @defaults("provisionedModelName m
   region string
   // ARN of the model
   modelArn string
+  // Foundation model for the provisioned throughput
+  foundationModel() aws.bedrock.foundationModel
   // ARN of the foundation model
+  // Deprecated: Use foundationModel() instead
   foundationModelArn string
   // Number of model units provisioned
   modelUnits int
@@ -12405,4 +12775,46 @@ private aws.bedrock.provisionedModelThroughput @defaults("provisionedModelName m
   status string
   // Commitment duration: ONE_MONTH, SIX_MONTHS, or NO_COMMITMENT
   commitmentDuration string
+}
+
+// AWS Step Functions
+aws.stepfunctions @defaults("stateMachines") {
+  // List of state machines across all regions
+  stateMachines() []aws.stepfunctions.stateMachine
+}
+
+// AWS Step Functions state machine
+private aws.stepfunctions.stateMachine @defaults("arn name") {
+  // ARN of the state machine
+  arn string
+  // Name of the state machine
+  name string
+  // Region where the state machine exists
+  region string
+  // Type: STANDARD or EXPRESS
+  type string
+  // Status: ACTIVE or DELETING
+  status() string
+  // State machine definition in Amazon States Language (JSON)
+  definition() string
+  // IAM role used by the state machine
+  iamRole() aws.iam.role
+  // When the state machine was created
+  createdAt() time
+  // Logging configuration
+  loggingConfiguration() aws.stepfunctions.stateMachine.loggingConfiguration
+  // Whether X-Ray tracing is enabled
+  tracingEnabled() bool
+  // Tags for the state machine
+  tags() map[string]string
+}
+
+// AWS Step Functions state machine logging configuration
+private aws.stepfunctions.stateMachine.loggingConfiguration @defaults("level") {
+  // Log level: ALL, ERROR, FATAL, or OFF
+  level string
+  // Whether execution data is included in log events
+  includeExecutionData bool
+  // CloudWatch Logs log group destinations
+  destinations []dict
 }

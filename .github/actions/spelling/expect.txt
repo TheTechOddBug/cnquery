@@ -255,6 +255,8 @@ richrule
 RODC
 rpo
 RRULE
+RSAES
+RSASSA
 rtsp
 rulegroup
 rulegroupreferencestatement
@@ -289,6 +291,7 @@ sqli
 sqlimatchstatement
 sqlserver
 Sspr
+stepfunctions
 stringx
 subscriptionfilter
 superusers
@@ -314,8 +317,8 @@ Uocm
 usb
 Utc
 valkey
+vcpus
 VAULTNAME
-Vcpus
 verifiedaccess
 vdcs
 vdev
