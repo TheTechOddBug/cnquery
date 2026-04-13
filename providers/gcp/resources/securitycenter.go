@@ -13,6 +13,8 @@ import (
 	"go.mondoo.com/mql/v13/providers/gcp/connection"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -138,6 +140,7 @@ func listSCCFindings(runtime *plugin.Runtime, conn *connection.GcpConnection, pa
 			"resourceName":     llx.StringData(f.ResourceName),
 			"chokepoint":       llx.DictData(chokepointToDict(f.Chokepoint)),
 			"externalExposure": llx.DictData(externalExposureToDict(f.ExternalExposure)),
+			"toxicCombination": llx.DictData(toxicCombinationToDict(f.ToxicCombination)),
 		})
 		if err != nil {
 			return nil, err
@@ -188,6 +191,17 @@ func externalExposureToDict(ee *sccpb.ExternalExposure) map[string]any {
 		"backendService":             ee.BackendService,
 		"instanceGroup":              ee.InstanceGroup,
 		"networkEndpointGroup":       ee.NetworkEndpointGroup,
+	}
+}
+
+// toxicCombinationToDict converts a ToxicCombination protobuf to a dict.
+func toxicCombinationToDict(tc *sccpb.ToxicCombination) map[string]any {
+	if tc == nil {
+		return nil
+	}
+	return map[string]any{
+		"attackExposureScore": tc.AttackExposureScore,
+		"relatedFindings":     tc.RelatedFindings,
 	}
 }
 
@@ -366,6 +380,49 @@ func (g *mqlGcpOrganization) sccBigQueryExports() ([]any, error) {
 		return nil, err
 	}
 	return listSCCBigQueryExports(g.MqlRuntime, conn, parent)
+}
+
+func (g *mqlGcpSccOrganizationSettings) id() (string, error) {
+	return g.Name.Data, g.Name.Error
+}
+
+func (g *mqlGcpOrganization) sccOrganizationSettings() (*mqlGcpSccOrganizationSettings, error) {
+	parent, conn, err := g.sccParent()
+	if err != nil {
+		return nil, err
+	}
+
+	client, err := newSCCClient(conn)
+	if err != nil {
+		return nil, err
+	}
+	defer client.Close()
+
+	settings, err := client.GetOrganizationSettings(context.Background(), &sccpb.GetOrganizationSettingsRequest{
+		Name: parent + "/organizationSettings",
+	})
+	if err != nil {
+		if s, ok := status.FromError(err); ok && (s.Code() == codes.PermissionDenied || s.Code() == codes.NotFound) {
+			g.SccOrganizationSettings.State = plugin.StateIsNull | plugin.StateIsSet
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	assetDiscoveryConfig, err := protoToDict(settings.AssetDiscoveryConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := CreateResource(g.MqlRuntime, "gcp.scc.organizationSettings", map[string]*llx.RawData{
+		"name":                 llx.StringData(settings.Name),
+		"enableAssetDiscovery": llx.BoolData(settings.EnableAssetDiscovery),
+		"assetDiscoveryConfig": llx.DictData(assetDiscoveryConfig),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return res.(*mqlGcpSccOrganizationSettings), nil
 }
 
 // Project-level method

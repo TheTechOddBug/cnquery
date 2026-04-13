@@ -18,6 +18,7 @@ import (
 	monitoringpb "cloud.google.com/go/monitoring/apiv3/v2/monitoringpb"
 	"go.mondoo.com/mql/v13/llx"
 	"google.golang.org/api/iterator"
+	monitoringv3 "google.golang.org/api/monitoring/v3"
 	"google.golang.org/api/option"
 )
 
@@ -195,6 +196,212 @@ func (g *mqlGcpProjectMonitoringService) alertPolicies() ([]any, error) {
 			return nil, err
 		}
 		res = append(res, mqlPolicy)
+	}
+	return res, nil
+}
+
+// ---------------------------------------------------------------
+// Uptime Check Configs
+// ---------------------------------------------------------------
+
+func (g *mqlGcpProjectMonitoringServiceUptimeCheckConfig) id() (string, error) {
+	return g.Name.Data, g.Name.Error
+}
+
+func (g *mqlGcpProjectMonitoringService) uptimeCheckConfigs() ([]any, error) {
+	if g.ProjectId.Error != nil {
+		return nil, g.ProjectId.Error
+	}
+	projectId := g.ProjectId.Data
+
+	conn := g.MqlRuntime.Connection.(*connection.GcpConnection)
+
+	// Use REST API (not gRPC) because the gRPC proto doesn't expose the
+	// Disabled field, which is only available via the REST API.
+	client, err := conn.Client(monitoringv3.MonitoringReadScope)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx := context.Background()
+	monitoringSvc, err := monitoringv3.NewService(ctx, option.WithHTTPClient(client))
+	if err != nil {
+		return nil, err
+	}
+
+	var res []any
+	req := monitoringSvc.Projects.UptimeCheckConfigs.List(fmt.Sprintf("projects/%s", projectId))
+	if err := req.Pages(ctx, func(page *monitoringv3.ListUptimeCheckConfigsResponse) error {
+		for _, cfg := range page.UptimeCheckConfigs {
+			httpCheck, err := convert.JsonToDict(cfg.HttpCheck)
+			if err != nil {
+				return err
+			}
+			tcpCheck, err := convert.JsonToDict(cfg.TcpCheck)
+			if err != nil {
+				return err
+			}
+			monitoredResource, err := convert.JsonToDict(cfg.MonitoredResource)
+			if err != nil {
+				return err
+			}
+			resourceGroup, err := convert.JsonToDict(cfg.ResourceGroup)
+			if err != nil {
+				return err
+			}
+
+			contentMatchers := make([]any, 0, len(cfg.ContentMatchers))
+			for _, cm := range cfg.ContentMatchers {
+				d, err := convert.JsonToDict(cm)
+				if err != nil {
+					return err
+				}
+				contentMatchers = append(contentMatchers, d)
+			}
+
+			selectedRegions := convert.SliceAnyToInterface(cfg.SelectedRegions)
+
+			var userLabels map[string]any
+			if cfg.UserLabels != nil {
+				userLabels = convert.MapToInterfaceMap(cfg.UserLabels)
+			}
+
+			mqlCfg, err := CreateResource(g.MqlRuntime, "gcp.project.monitoringService.uptimeCheckConfig", map[string]*llx.RawData{
+				"name":              llx.StringData(cfg.Name),
+				"displayName":       llx.StringData(cfg.DisplayName),
+				"disabled":          llx.BoolData(cfg.Disabled),
+				"checkerType":       llx.StringData(cfg.CheckerType),
+				"period":            llx.StringData(cfg.Period),
+				"timeout":           llx.StringData(cfg.Timeout),
+				"selectedRegions":   llx.ArrayData(selectedRegions, types.String),
+				"httpCheck":         llx.DictData(httpCheck),
+				"tcpCheck":          llx.DictData(tcpCheck),
+				"contentMatchers":   llx.ArrayData(contentMatchers, types.Dict),
+				"monitoredResource": llx.DictData(monitoredResource),
+				"resourceGroup":     llx.DictData(resourceGroup),
+				"userLabels":        llx.MapData(userLabels, types.String),
+			})
+			if err != nil {
+				return err
+			}
+			res = append(res, mqlCfg)
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+// ---------------------------------------------------------------
+// Notification Channels
+// ---------------------------------------------------------------
+
+func (g *mqlGcpProjectMonitoringServiceNotificationChannel) id() (string, error) {
+	return g.Name.Data, g.Name.Error
+}
+
+func (g *mqlGcpProjectMonitoringService) notificationChannels() ([]any, error) {
+	if g.ProjectId.Error != nil {
+		return nil, g.ProjectId.Error
+	}
+	projectId := g.ProjectId.Data
+
+	conn := g.MqlRuntime.Connection.(*connection.GcpConnection)
+	creds, err := conn.Credentials(monitoring.DefaultAuthScopes()...)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx := context.Background()
+	c, err := monitoring.NewNotificationChannelClient(ctx, option.WithCredentials(creds))
+	if err != nil {
+		return nil, err
+	}
+	defer c.Close()
+
+	var res []any
+	it := c.ListNotificationChannels(ctx, &monitoringpb.ListNotificationChannelsRequest{
+		Name: fmt.Sprintf("projects/%s", projectId),
+	})
+	for {
+		ch, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		mqlCh, err := CreateResource(g.MqlRuntime, "gcp.project.monitoringService.notificationChannel", map[string]*llx.RawData{
+			"name":               llx.StringData(ch.Name),
+			"displayName":        llx.StringData(ch.DisplayName),
+			"description":        llx.StringData(ch.Description),
+			"type":               llx.StringData(ch.Type),
+			"enabled":            llx.BoolData(ch.Enabled.GetValue()),
+			"labels":             llx.MapData(convert.MapToInterfaceMap(ch.Labels), types.String),
+			"userLabels":         llx.MapData(convert.MapToInterfaceMap(ch.UserLabels), types.String),
+			"verificationStatus": llx.StringData(ch.VerificationStatus.String()),
+		})
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, mqlCh)
+	}
+	return res, nil
+}
+
+// ---------------------------------------------------------------
+// Groups
+// ---------------------------------------------------------------
+
+func (g *mqlGcpProjectMonitoringServiceGroup) id() (string, error) {
+	return g.Name.Data, g.Name.Error
+}
+
+func (g *mqlGcpProjectMonitoringService) groups() ([]any, error) {
+	if g.ProjectId.Error != nil {
+		return nil, g.ProjectId.Error
+	}
+	projectId := g.ProjectId.Data
+
+	conn := g.MqlRuntime.Connection.(*connection.GcpConnection)
+	creds, err := conn.Credentials(monitoring.DefaultAuthScopes()...)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx := context.Background()
+	c, err := monitoring.NewGroupClient(ctx, option.WithCredentials(creds))
+	if err != nil {
+		return nil, err
+	}
+	defer c.Close()
+
+	var res []any
+	it := c.ListGroups(ctx, &monitoringpb.ListGroupsRequest{
+		Name: fmt.Sprintf("projects/%s", projectId),
+	})
+	for {
+		grp, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		mqlGrp, err := CreateResource(g.MqlRuntime, "gcp.project.monitoringService.group", map[string]*llx.RawData{
+			"name":        llx.StringData(grp.Name),
+			"displayName": llx.StringData(grp.DisplayName),
+			"parentName":  llx.StringData(grp.ParentName),
+			"filter":      llx.StringData(grp.Filter),
+			"isCluster":   llx.BoolData(grp.IsCluster),
+		})
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, mqlGrp)
 	}
 	return res, nil
 }

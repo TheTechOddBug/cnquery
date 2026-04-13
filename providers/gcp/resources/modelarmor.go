@@ -18,6 +18,8 @@ import (
 	"go.mondoo.com/mql/v13/types"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type mqlGcpProjectModelArmorServiceInternal struct {
@@ -136,4 +138,72 @@ func (g *mqlGcpProjectModelArmorService) templates() ([]any, error) {
 
 func (g *mqlGcpProjectModelArmorServiceTemplate) id() (string, error) {
 	return g.Name.Data, g.Name.Error
+}
+
+func (g *mqlGcpProjectModelArmorServiceFloorSetting) id() (string, error) {
+	return g.Name.Data, g.Name.Error
+}
+
+func (g *mqlGcpProjectModelArmorService) floorSetting() (*mqlGcpProjectModelArmorServiceFloorSetting, error) {
+	if !g.serviceEnabled {
+		g.FloorSetting.State = plugin.StateIsNull | plugin.StateIsSet
+		return nil, nil
+	}
+
+	if g.ProjectId.Error != nil {
+		return nil, g.ProjectId.Error
+	}
+	projectId := g.ProjectId.Data
+
+	conn := g.MqlRuntime.Connection.(*connection.GcpConnection)
+	creds, err := conn.Credentials(modelarmor.DefaultAuthScopes()...)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx := context.Background()
+	client, err := modelarmor.NewClient(ctx, option.WithCredentials(creds))
+	if err != nil {
+		return nil, err
+	}
+	defer client.Close()
+
+	fs, err := client.GetFloorSetting(ctx, &modelarmorpb.GetFloorSettingRequest{
+		Name: fmt.Sprintf("projects/%s/locations/global/floorSetting", projectId),
+	})
+	if err != nil {
+		if s, ok := status.FromError(err); ok && (s.Code() == codes.NotFound || s.Code() == codes.PermissionDenied) {
+			g.FloorSetting.State = plugin.StateIsNull | plugin.StateIsSet
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	filterConfig, err := protoToDict(fs.FilterConfig)
+	if err != nil {
+		return nil, err
+	}
+	aiPlatformFloorSetting, err := protoToDict(fs.AiPlatformFloorSetting)
+	if err != nil {
+		return nil, err
+	}
+
+	integratedServices := make([]any, 0, len(fs.IntegratedServices))
+	for _, is := range fs.IntegratedServices {
+		integratedServices = append(integratedServices, is.String())
+	}
+
+	res, err := CreateResource(g.MqlRuntime, "gcp.project.modelArmorService.floorSetting", map[string]*llx.RawData{
+		"name":                          llx.StringData(fs.Name),
+		"filterConfig":                  llx.DictData(filterConfig),
+		"enableFloorSettingEnforcement": llx.BoolData(fs.GetEnableFloorSettingEnforcement()),
+		"integratedServices":            llx.ArrayData(integratedServices, types.String),
+		"aiPlatformFloorSetting":        llx.DictData(aiPlatformFloorSetting),
+		"created":                       llx.TimeDataPtr(timestampAsTimePtr(fs.CreateTime)),
+		"updated":                       llx.TimeDataPtr(timestampAsTimePtr(fs.UpdateTime)),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return res.(*mqlGcpProjectModelArmorServiceFloorSetting), nil
 }
