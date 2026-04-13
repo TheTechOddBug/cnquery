@@ -438,7 +438,6 @@ func installVersion(ctx context.Context, name string, version string) (*Provider
 	}
 	defer res.Close()
 
-	// we have to create new Reader to get rid of the timeouts imposed by the http client
 	var tar []byte
 	if tar, err = io.ReadAll(res); err != nil {
 		logCtx.Debug().Msg("failed to read body of provider download")

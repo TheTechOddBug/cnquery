@@ -26,6 +26,7 @@ import (
 	"go.mondoo.com/mql/v13/cli/config"
 	"go.mondoo.com/mql/v13/logger/zerologadapter"
 	"go.mondoo.com/mql/v13/providers/core/resources/versions/semver"
+	"go.mondoo.com/mql/v13/utils/httpx"
 )
 
 const (
@@ -422,8 +423,9 @@ func downloadAndInstall(ctx context.Context, release *Release, destPath string, 
 
 	log.Debug().Str("url", downloadURL).Msg("self-update: downloading")
 
-	// Download the file
-	client, err := httpClientWithRetry()
+	// Download the file using a client without total-request timeout,
+	// so large downloads on slow connections are not killed prematurely.
+	client, err := httpx.ClientForDownload()
 	if err != nil {
 		return "", err
 	}
@@ -437,11 +439,17 @@ func downloadAndInstall(ctx context.Context, release *Release, destPath string, 
 	if err != nil {
 		return "", errors.Wrap(err, "failed to download release")
 	}
-	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		resp.Body.Close()
 		return "", errors.Newf("download failed with status: %d", resp.StatusCode)
 	}
+
+	// Wrap body with idle timeout so stalled downloads are detected,
+	// while slow-but-active transfers are allowed to complete.
+	// The idle reader owns resp.Body from this point.
+	idleReader := httpx.NewIdleTimeoutReader(resp.Body, httpx.DownloadTimeout())
+	defer idleReader.Close()
 
 	// Create a temporary file to store the download
 	tmpFile, err := os.CreateTemp("", binaryName+"-update-*")
@@ -455,7 +463,7 @@ func downloadAndInstall(ctx context.Context, release *Release, destPath string, 
 	hash := sha256.New()
 	writer := io.MultiWriter(tmpFile, hash)
 
-	if _, err := io.Copy(writer, resp.Body); err != nil {
+	if _, err := io.Copy(writer, idleReader); err != nil {
 		tmpFile.Close()
 		return "", errors.Wrap(err, "failed to download file")
 	}

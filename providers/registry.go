@@ -13,6 +13,7 @@ import (
 
 	"github.com/cockroachdb/errors"
 	"github.com/rs/zerolog/log"
+	"go.mondoo.com/mql/v13/utils/httpx"
 )
 
 var DefaultUpdatesURL = "https://releases.mondoo.com"
@@ -127,7 +128,7 @@ func (r *MondooProviderRegistry) DownloadProvider(ctx context.Context, name, ver
 
 	log.Debug().Str("url", downloadURL).Msg("downloading provider from URL")
 
-	client, err := httpClientWithRetry()
+	client, err := httpx.ClientForDownload()
 	if err != nil {
 		return nil, err
 	}
@@ -145,5 +146,7 @@ func (r *MondooProviderRegistry) DownloadProvider(ctx context.Context, name, ver
 		return nil, errors.New("failed to download " + name + "-" + version + ", received status code: " + res.Status)
 	}
 
-	return res.Body, nil
+	// Wrap with idle timeout so slow-but-active downloads succeed while
+	// truly stalled transfers are detected. Callers just read and close.
+	return httpx.NewIdleTimeoutReader(res.Body, httpx.DownloadTimeout()), nil
 }
