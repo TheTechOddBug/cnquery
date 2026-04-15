@@ -5,6 +5,7 @@ package resources
 
 import (
 	"errors"
+	"strings"
 	"sync"
 
 	"github.com/rs/zerolog/log"
@@ -47,6 +48,9 @@ func initSystemdTimer(runtime *plugin.Runtime, args map[string]*llx.RawData) (ma
 	mgr := services.ResolveSystemdTimerManager(conn)
 	timer, err := mgr.Get(name)
 	if err != nil {
+		if errors.Is(err, services.ErrServiceNotFound) {
+			return nil, missingSystemdTimerResource(runtime, name), nil
+		}
 		return nil, nil, err
 	}
 
@@ -68,6 +72,27 @@ func createSystemdTimerResource(runtime *plugin.Runtime, timer *services.Systemd
 		"running":     llx.BoolData(timer.Running),
 		"static":      llx.BoolData(timer.Static),
 	})
+}
+
+func normalizeSystemdUnitLookupName(name string, suffix string) string {
+	return strings.TrimSuffix(name, suffix)
+}
+
+func missingSystemdTimerResource(runtime *plugin.Runtime, name string) plugin.Resource {
+	res := &mqlSystemdTimer{}
+	res.MqlRuntime = runtime
+	res.Name = plugin.TValue[string]{Data: normalizeSystemdUnitLookupName(name, ".timer"), State: plugin.StateIsSet}
+	res.Description.State = plugin.StateIsSet | plugin.StateIsNull
+	res.Installed = plugin.TValue[bool]{Data: false, State: plugin.StateIsSet}
+	res.Running = plugin.TValue[bool]{Data: false, State: plugin.StateIsSet}
+	res.Enabled = plugin.TValue[bool]{Data: false, State: plugin.StateIsSet}
+	res.Masked = plugin.TValue[bool]{Data: false, State: plugin.StateIsSet}
+	res.Static = plugin.TValue[bool]{Data: false, State: plugin.StateIsSet}
+	res.Activates.State = plugin.StateIsSet | plugin.StateIsNull
+	res.OnCalendar.State = plugin.StateIsSet | plugin.StateIsNull
+	res.Persistent = plugin.TValue[bool]{Data: false, State: plugin.StateIsSet}
+	res.__id, _ = res.id()
+	return res
 }
 
 func (t *mqlSystemdTimer) fetchProperties() (map[string]string, error) {
@@ -178,6 +203,9 @@ func initSystemdSocket(runtime *plugin.Runtime, args map[string]*llx.RawData) (m
 	mgr := services.ResolveSystemdSocketManager(conn)
 	socket, err := mgr.Get(name)
 	if err != nil {
+		if errors.Is(err, services.ErrServiceNotFound) {
+			return nil, missingSystemdSocketResource(runtime, name), nil
+		}
 		return nil, nil, err
 	}
 
@@ -199,6 +227,23 @@ func createSystemdSocketResource(runtime *plugin.Runtime, socket *services.Syste
 		"running":     llx.BoolData(socket.Running),
 		"static":      llx.BoolData(socket.Static),
 	})
+}
+
+func missingSystemdSocketResource(runtime *plugin.Runtime, name string) plugin.Resource {
+	res := &mqlSystemdSocket{}
+	res.MqlRuntime = runtime
+	res.Name = plugin.TValue[string]{Data: normalizeSystemdUnitLookupName(name, ".socket"), State: plugin.StateIsSet}
+	res.Description.State = plugin.StateIsSet | plugin.StateIsNull
+	res.Installed = plugin.TValue[bool]{Data: false, State: plugin.StateIsSet}
+	res.Running = plugin.TValue[bool]{Data: false, State: plugin.StateIsSet}
+	res.Enabled = plugin.TValue[bool]{Data: false, State: plugin.StateIsSet}
+	res.Masked = plugin.TValue[bool]{Data: false, State: plugin.StateIsSet}
+	res.Static = plugin.TValue[bool]{Data: false, State: plugin.StateIsSet}
+	res.Activates.State = plugin.StateIsSet | plugin.StateIsNull
+	res.ListenAddresses.State = plugin.StateIsSet | plugin.StateIsNull
+	res.Accept = plugin.TValue[bool]{Data: false, State: plugin.StateIsSet}
+	res.__id, _ = res.id()
+	return res
 }
 
 func (s *mqlSystemdSocket) fetchProperties() (map[string]string, error) {
