@@ -363,7 +363,12 @@ func (g *mqlGcpProjectPubsubServiceTopic) config() (*mqlGcpProjectPubsubServiceT
 	if err != nil {
 		return nil, err
 	}
-	res, err := CreateResource(g.MqlRuntime, "gcp.project.pubsubService.topic.config", map[string]*llx.RawData{
+	schemaSettings, err := buildTopicSchemaSettings(g.MqlRuntime, pubsubConfigId(projectId, t.ID()), cfg.SchemaSettings)
+	if err != nil {
+		return nil, err
+	}
+
+	args := map[string]*llx.RawData{
 		"projectId":            llx.StringData(projectId),
 		"topicName":            llx.StringData(t.ID()),
 		"labels":               llx.MapData(convert.MapToInterfaceMap(cfg.Labels), types.String),
@@ -371,11 +376,19 @@ func (g *mqlGcpProjectPubsubServiceTopic) config() (*mqlGcpProjectPubsubServiceT
 		"messageStoragePolicy": llx.ResourceData(messageStoragePolicy, "gcp.project.pubsubService.topic.config.messagestoragepolicy"),
 		"state":                llx.StringData(topicStateToString(cfg.State)),
 		"retentionDuration":    llx.TimeData(optionalDurationToTime(cfg.RetentionDuration)),
-	})
+	}
+	if schemaSettings != nil {
+		args["schemaSettings"] = llx.ResourceData(schemaSettings, "gcp.project.pubsubService.topic.config.schemaSettings")
+	}
+	res, err := CreateResource(g.MqlRuntime, "gcp.project.pubsubService.topic.config", args)
 	if err != nil {
 		return nil, err
 	}
-	return res.(*mqlGcpProjectPubsubServiceTopicConfig), nil
+	tc := res.(*mqlGcpProjectPubsubServiceTopicConfig)
+	if schemaSettings == nil {
+		tc.SchemaSettings.State = plugin.StateIsNull | plugin.StateIsSet
+	}
+	return tc, nil
 }
 
 func (g *mqlGcpProjectPubsubService) subscriptions() ([]any, error) {
@@ -479,6 +492,30 @@ func (g *mqlGcpProjectPubsubServiceSubscription) config() (*mqlGcpProjectPubsubS
 	if exp, ok := cfg.ExpirationPolicy.(time.Duration); ok {
 		expPolicy = llx.DurationToTime(int64(exp.Seconds()))
 	}
+
+	var deadLetterDict map[string]any
+	if cfg.DeadLetterPolicy != nil {
+		deadLetterDict = map[string]any{
+			"deadLetterTopic":     cfg.DeadLetterPolicy.DeadLetterTopic,
+			"maxDeliveryAttempts": int64(cfg.DeadLetterPolicy.MaxDeliveryAttempts),
+		}
+	}
+
+	var retryDict map[string]any
+	if cfg.RetryPolicy != nil {
+		var minBackoff, maxBackoff string
+		if d, ok := cfg.RetryPolicy.MinimumBackoff.(time.Duration); ok {
+			minBackoff = d.String()
+		}
+		if d, ok := cfg.RetryPolicy.MaximumBackoff.(time.Duration); ok {
+			maxBackoff = d.String()
+		}
+		retryDict = map[string]any{
+			"minimumBackoff": minBackoff,
+			"maximumBackoff": maxBackoff,
+		}
+	}
+
 	res, err := CreateResource(g.MqlRuntime, "gcp.project.pubsubService.subscription.config", map[string]*llx.RawData{
 		"projectId":                     llx.StringData(projectId),
 		"subscriptionName":              llx.StringData(s.ID()),
@@ -495,6 +532,8 @@ func (g *mqlGcpProjectPubsubServiceSubscription) config() (*mqlGcpProjectPubsubS
 		"detached":                      llx.BoolData(cfg.Detached),
 		"state":                         llx.StringData(subscriptionStateToString(cfg.State)),
 		"topicMessageRetentionDuration": llx.TimeData(llx.DurationToTime(int64(cfg.TopicMessageRetentionDuration.Seconds()))),
+		"deadLetterPolicy":              llx.DictData(deadLetterDict),
+		"retryPolicy":                   llx.DictData(retryDict),
 	})
 	if err != nil {
 		return nil, err
@@ -702,4 +741,134 @@ func optionalDurationToTime(d any) time.Time {
 
 func pubsubConfigId(projectId, parentName string) string {
 	return fmt.Sprintf("%s/%s/config", projectId, parentName)
+}
+
+func (g *mqlGcpProjectPubsubService) schemas() ([]any, error) {
+	if g.ProjectId.Error != nil {
+		return nil, g.ProjectId.Error
+	}
+	projectId := g.ProjectId.Data
+
+	conn := g.MqlRuntime.Connection.(*connection.GcpConnection)
+	creds, err := conn.Credentials(pubsub.ScopePubSub)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx := context.Background()
+	schemaClient, err := pubsub.NewSchemaClient(ctx, projectId, option.WithCredentials(creds))
+	if err != nil {
+		return nil, err
+	}
+	defer schemaClient.Close()
+
+	it := schemaClient.Schemas(ctx, pubsub.SchemaViewFull)
+
+	var res []any
+	for {
+		schema, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			if s, ok := status.FromError(err); ok && s.Code() == codes.NotFound {
+				break
+			}
+			return nil, err
+		}
+
+		var revisionCreateTime *time.Time
+		if !schema.RevisionCreateTime.IsZero() {
+			revisionCreateTime = &schema.RevisionCreateTime
+		}
+
+		mqlSchema, err := CreateResource(g.MqlRuntime, "gcp.project.pubsubService.schema", map[string]*llx.RawData{
+			"projectId":          llx.StringData(projectId),
+			"name":               llx.StringData(schema.Name),
+			"type":               llx.StringData(pubsubSchemaTypeString(schema.Type)),
+			"definition":         llx.StringData(schema.Definition),
+			"revisionId":         llx.StringData(schema.RevisionID),
+			"revisionCreateTime": llx.TimeDataPtr(revisionCreateTime),
+		})
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, mqlSchema)
+	}
+
+	return res, nil
+}
+
+func pubsubSchemaTypeString(t pubsub.SchemaType) string {
+	switch t {
+	case pubsub.SchemaProtocolBuffer:
+		return "PROTOCOL_BUFFER"
+	case pubsub.SchemaAvro:
+		return "AVRO"
+	default:
+		return "TYPE_UNSPECIFIED"
+	}
+}
+
+func (g *mqlGcpProjectPubsubServiceSchema) id() (string, error) {
+	if g.ProjectId.Error != nil {
+		return "", g.ProjectId.Error
+	}
+	if g.Name.Error != nil {
+		return "", g.Name.Error
+	}
+	return fmt.Sprintf("gcp.project/%s/pubsubService.schema/%s", g.ProjectId.Data, g.Name.Data), nil
+}
+
+func pubsubSchemaEncodingString(e pubsub.SchemaEncoding) string {
+	switch e {
+	case pubsub.EncodingJSON:
+		return "JSON"
+	case pubsub.EncodingBinary:
+		return "BINARY"
+	default:
+		return "ENCODING_UNSPECIFIED"
+	}
+}
+
+func buildTopicSchemaSettings(runtime *plugin.Runtime, parentId string, ss *pubsub.SchemaSettings) (*mqlGcpProjectPubsubServiceTopicConfigSchemaSettings, error) {
+	if ss == nil {
+		return nil, nil
+	}
+	res, err := CreateResource(runtime, "gcp.project.pubsubService.topic.config.schemaSettings", map[string]*llx.RawData{
+		"id":              llx.StringData(parentId + "/schemaSettings"),
+		"schema":          llx.StringData(ss.Schema),
+		"encoding":        llx.StringData(pubsubSchemaEncodingString(ss.Encoding)),
+		"firstRevisionId": llx.StringData(ss.FirstRevisionID),
+		"lastRevisionId":  llx.StringData(ss.LastRevisionID),
+	})
+	if err != nil {
+		return nil, err
+	}
+	pc := res.(*mqlGcpProjectPubsubServiceTopicConfigSchemaSettings)
+	pc.cacheSchema = ss.Schema
+	return pc, nil
+}
+
+func (g *mqlGcpProjectPubsubServiceTopicConfigSchemaSettings) id() (string, error) {
+	return g.Id.Data, g.Id.Error
+}
+
+type mqlGcpProjectPubsubServiceTopicConfigSchemaSettingsInternal struct {
+	cacheSchema string
+}
+
+func (g *mqlGcpProjectPubsubServiceTopicConfigSchemaSettings) schemaResource() (*mqlGcpProjectPubsubServiceSchema, error) {
+	schema := g.cacheSchema
+	if schema == "" {
+		g.SchemaResource.State = plugin.StateIsNull | plugin.StateIsSet
+		return nil, nil
+	}
+	res, err := NewResource(g.MqlRuntime, "gcp.project.pubsubService.schema", map[string]*llx.RawData{
+		"name": llx.StringData(schema),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return res.(*mqlGcpProjectPubsubServiceSchema), nil
 }

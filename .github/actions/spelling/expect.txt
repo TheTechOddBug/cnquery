@@ -16,7 +16,9 @@ asdk
 atlassian
 auditlog
 Auths
+AVRO
 autoaccept
+autoclass
 autoclose
 autoexpand
 autoprovision
@@ -35,6 +37,7 @@ backupsetting
 backupshorttermretentionpolicy
 bigquery
 bigtable
+breakglass
 BINPACK
 blackhole
 bytematchstatement
@@ -107,6 +110,8 @@ fips
 firefox
 firestore
 firstname
+flink
+fqdns
 FLEXGROUP
 FLEXVOL
 fortios
@@ -127,7 +132,7 @@ gpu
 grafana
 groupname
 gvnic
-HADOOP
+hadoop
 headerorder
 hec
 Hns
@@ -265,12 +270,13 @@ proxmox
 psc
 PTn
 pushconfig
+pyspark
 pve
 PVEAPI
 pzi
 pzs
 qcow
-qemu
+
 QGA
 querypack
 quorate
@@ -317,6 +323,7 @@ signin
 singlequeryargument
 sizeconstraintstatement
 skaffold
+slo
 smbv
 snaptime
 Snat
@@ -387,7 +394,7 @@ workdir
 WORKSPACESUSER
 workspacesweb
 writeback
-writethrough
+
 Xff
 xlarge
 xssmatchstatement
