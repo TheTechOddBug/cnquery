@@ -280,7 +280,7 @@ func (o *mqlOciIdentityUser) authTokens() ([]any, error) {
 		}
 		var expires *time.Time
 		if authToken.TimeExpires != nil {
-			created = &authToken.TimeExpires.Time
+			expires = &authToken.TimeExpires.Time
 		}
 
 		mqlInstance, err := CreateResource(o.MqlRuntime, "oci.identity.authToken", map[string]*llx.RawData{
@@ -315,20 +315,27 @@ func (o *mqlOciIdentityUser) groups() ([]any, error) {
 	}
 
 	ctx := context.Background()
-	memberships, err := client.ListUserGroupMemberships(ctx, identity.ListUserGroupMembershipsRequest{
-		CompartmentId: common.String(compartmentID),
-		UserId:        common.String(userId),
-	})
-	if err != nil {
-		return nil, err
-	}
-
 	grpMember := map[string]bool{}
-	for i := range memberships.Items {
-		m := memberships.Items[i]
-		if m.GroupId != nil {
-			grpMember[*m.GroupId] = true
+	var page *string
+	for {
+		memberships, err := client.ListUserGroupMemberships(ctx, identity.ListUserGroupMembershipsRequest{
+			CompartmentId: common.String(compartmentID),
+			UserId:        common.String(userId),
+			Page:          page,
+		})
+		if err != nil {
+			return nil, err
 		}
+		for i := range memberships.Items {
+			m := memberships.Items[i]
+			if m.GroupId != nil {
+				grpMember[*m.GroupId] = true
+			}
+		}
+		if memberships.OpcNextPage == nil {
+			break
+		}
+		page = memberships.OpcNextPage
 	}
 
 	// fetch all groups and filter the groups
@@ -584,4 +591,119 @@ func (o *mqlOciIdentity) getPolicies(conn *connection.OciConnection) []*jobpool.
 
 func (o *mqlOciIdentityPolicy) id() (string, error) {
 	return "oci.identity.policy/" + o.Id.Data, nil
+}
+
+func (o *mqlOciIdentityUser) mfaDevices() ([]any, error) {
+	conn := o.MqlRuntime.Connection.(*connection.OciConnection)
+
+	client, err := conn.IdentityClient()
+	if err != nil {
+		return nil, err
+	}
+
+	ctx := context.Background()
+	var page *string
+	var devices []identity.MfaTotpDeviceSummary
+	for {
+		response, err := client.ListMfaTotpDevices(ctx, identity.ListMfaTotpDevicesRequest{
+			UserId: common.String(o.Id.Data),
+			Page:   page,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		devices = append(devices, response.Items...)
+
+		if response.OpcNextPage == nil {
+			break
+		}
+		page = response.OpcNextPage
+	}
+
+	res := make([]any, 0, len(devices))
+	for i := range devices {
+		d := devices[i]
+
+		var created *time.Time
+		if d.TimeCreated != nil {
+			created = &d.TimeCreated.Time
+		}
+		var expires *time.Time
+		if d.TimeExpires != nil {
+			expires = &d.TimeExpires.Time
+		}
+
+		mqlInstance, err := CreateResource(o.MqlRuntime, "oci.identity.mfaDevice", map[string]*llx.RawData{
+			"id":          llx.StringDataPtr(d.Id),
+			"userId":      llx.StringDataPtr(d.UserId),
+			"isActivated": llx.BoolDataPtr(d.IsActivated),
+			"state":       llx.StringData(string(d.LifecycleState)),
+			"created":     llx.TimeDataPtr(created),
+			"expires":     llx.TimeDataPtr(expires),
+		})
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, mqlInstance)
+	}
+
+	return res, nil
+}
+
+func (o *mqlOciIdentityMfaDevice) id() (string, error) {
+	return "oci.identity.mfaDevice/" + o.Id.Data, nil
+}
+
+func (o *mqlOciIdentityGroup) members() ([]any, error) {
+	conn := o.MqlRuntime.Connection.(*connection.OciConnection)
+
+	client, err := conn.IdentityClient()
+	if err != nil {
+		return nil, err
+	}
+
+	ctx := context.Background()
+	userMember := map[string]bool{}
+	var page *string
+	for {
+		memberships, err := client.ListUserGroupMemberships(ctx, identity.ListUserGroupMembershipsRequest{
+			CompartmentId: common.String(o.CompartmentID.Data),
+			GroupId:       common.String(o.Id.Data),
+			Page:          page,
+		})
+		if err != nil {
+			return nil, err
+		}
+		for i := range memberships.Items {
+			m := memberships.Items[i]
+			if m.UserId != nil {
+				userMember[*m.UserId] = true
+			}
+		}
+		if memberships.OpcNextPage == nil {
+			break
+		}
+		page = memberships.OpcNextPage
+	}
+
+	obj, err := NewResource(o.MqlRuntime, "oci.identity", nil)
+	if err != nil {
+		return nil, err
+	}
+	ociIdentity := obj.(*mqlOciIdentity)
+	list := ociIdentity.GetUsers()
+	if list.Error != nil {
+		return nil, list.Error
+	}
+
+	res := []any{}
+	for i := range list.Data {
+		user := list.Data[i].(*mqlOciIdentityUser)
+		if userMember[user.Id.Data] {
+			res = append(res, user)
+		}
+	}
+
+	return res, nil
 }
