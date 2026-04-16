@@ -246,6 +246,7 @@ func accountAsset(conn *connection.AwsConnection, awsAccount *mqlAwsAccount) *in
 		PlatformIds: []string{id, accountArn},
 		Name:        name,
 		Platform:    connection.GetPlatformForObject("", accountId),
+		Labels:      map[string]string{},
 		Connections: []*inventory.Config{clonedConfig},
 		Options:     conn.ConnectionOptions(),
 	}
@@ -271,6 +272,62 @@ func getPlatformFamily(pf string) []string {
 		return []string{"windows"}
 	}
 	return []string{}
+}
+
+// mergeAccountTagsIntoLabels merges account-level tags into an asset's labels.
+// The asset's existing labels always win on key collisions — account tags only
+// fill gaps. A nil labels map is initialized. An empty or nil accountTags map
+// is a no-op.
+func mergeAccountTagsIntoLabels(labels, accountTags map[string]string) map[string]string {
+	if len(accountTags) == 0 {
+		return labels
+	}
+	if labels == nil {
+		labels = map[string]string{}
+	}
+	for k, v := range accountTags {
+		if _, exists := labels[k]; !exists {
+			labels[k] = v
+		}
+	}
+	return labels
+}
+
+// isSiblingOrgAccountAsset returns true when the asset represents an AWS
+// account other than the primary account (i.e. a sibling discovered via the
+// organization target). These assets must not inherit the primary account's
+// tags. Primary and sibling account assets both have Platform.Name == "aws"
+// (set by GetPlatformForObject with an empty name), so the discriminator is
+// whether the asset's platform id references the primary account id.
+func isSiblingOrgAccountAsset(a *inventory.Asset, primaryAccountId string) bool {
+	if a == nil || a.Platform == nil || a.Platform.Name != "aws" {
+		return false
+	}
+	suffix := "/accounts/" + primaryAccountId
+	for _, pid := range a.PlatformIds {
+		if strings.HasSuffix(pid, suffix) {
+			return false
+		}
+	}
+	return true
+}
+
+// applyAccountTagsToAssets merges the primary account's tags into every asset
+// in the list, except sibling org account assets which are skipped. The merge
+// follows mergeAccountTagsIntoLabels semantics: asset labels win on collision.
+func applyAccountTagsToAssets(assets []*inventory.Asset, accountTags map[string]string, primaryAccountId string) {
+	if len(accountTags) == 0 {
+		return
+	}
+	for _, a := range assets {
+		if a == nil {
+			continue
+		}
+		if isSiblingOrgAccountAsset(a, primaryAccountId) {
+			continue
+		}
+		a.Labels = mergeAccountTagsIntoLabels(a.Labels, accountTags)
+	}
 }
 
 type instanceInfo struct {

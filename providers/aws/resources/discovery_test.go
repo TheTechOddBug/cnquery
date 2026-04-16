@@ -588,3 +588,131 @@ func TestDiscoveryDefaultBehavior(t *testing.T) {
 			"child should have no targets regardless of parent's explicit targets")
 	})
 }
+
+func TestMergeAccountTagsIntoLabels(t *testing.T) {
+	t.Run("asset label wins on collision", func(t *testing.T) {
+		labels := map[string]string{"Environment": "prod"}
+		accountTags := map[string]string{"Environment": "staging", "Owner": "team-a"}
+
+		got := mergeAccountTagsIntoLabels(labels, accountTags)
+
+		require.Equal(t, "prod", got["Environment"])
+		require.Equal(t, "team-a", got["Owner"])
+	})
+
+	t.Run("nil labels initialized", func(t *testing.T) {
+		accountTags := map[string]string{"Owner": "team-a"}
+
+		got := mergeAccountTagsIntoLabels(nil, accountTags)
+
+		require.Equal(t, map[string]string{"Owner": "team-a"}, got)
+	})
+
+	t.Run("empty account tags is a no-op", func(t *testing.T) {
+		labels := map[string]string{"Environment": "prod"}
+
+		got := mergeAccountTagsIntoLabels(labels, map[string]string{})
+
+		require.Equal(t, map[string]string{"Environment": "prod"}, got)
+	})
+
+	t.Run("nil account tags is a no-op", func(t *testing.T) {
+		labels := map[string]string{"Environment": "prod"}
+
+		got := mergeAccountTagsIntoLabels(labels, nil)
+
+		require.Equal(t, map[string]string{"Environment": "prod"}, got)
+	})
+
+	t.Run("fills gaps without touching existing keys", func(t *testing.T) {
+		labels := map[string]string{"Name": "web-01"}
+		accountTags := map[string]string{"Owner": "team-a", "CostCenter": "cc-42"}
+
+		got := mergeAccountTagsIntoLabels(labels, accountTags)
+
+		require.Equal(t, "web-01", got["Name"])
+		require.Equal(t, "team-a", got["Owner"])
+		require.Equal(t, "cc-42", got["CostCenter"])
+	})
+}
+
+func TestIsSiblingOrgAccountAsset(t *testing.T) {
+	primaryAccountId := "111111111111"
+
+	t.Run("primary account asset returns false", func(t *testing.T) {
+		a := &inventory.Asset{
+			Platform:    &inventory.Platform{Name: "aws"},
+			PlatformIds: []string{"//platformid.api.mondoo.app/runtime/aws/accounts/111111111111"},
+		}
+		require.False(t, isSiblingOrgAccountAsset(a, primaryAccountId))
+	})
+
+	t.Run("sibling account asset returns true", func(t *testing.T) {
+		a := &inventory.Asset{
+			Platform:    &inventory.Platform{Name: "aws"},
+			PlatformIds: []string{"//platformid.api.mondoo.app/runtime/aws/accounts/222222222222"},
+		}
+		require.True(t, isSiblingOrgAccountAsset(a, primaryAccountId))
+	})
+
+	t.Run("non-account asset returns false", func(t *testing.T) {
+		a := &inventory.Asset{
+			Platform:    &inventory.Platform{Name: "aws-ec2-instance"},
+			PlatformIds: []string{"//platformid.api.mondoo.app/runtime/aws/accounts/222222222222/regions/us-east-1/instances/i-abc"},
+		}
+		require.False(t, isSiblingOrgAccountAsset(a, primaryAccountId))
+	})
+
+	t.Run("nil asset returns false", func(t *testing.T) {
+		require.False(t, isSiblingOrgAccountAsset(nil, primaryAccountId))
+	})
+
+	t.Run("asset with nil platform returns false", func(t *testing.T) {
+		a := &inventory.Asset{
+			PlatformIds: []string{"//platformid.api.mondoo.app/runtime/aws/accounts/222222222222"},
+		}
+		require.False(t, isSiblingOrgAccountAsset(a, primaryAccountId))
+	})
+}
+
+func TestApplyAccountTagsToAssets(t *testing.T) {
+	primaryAccountId := "111111111111"
+	accountTags := map[string]string{
+		"Owner":       "team-a",
+		"CostCenter":  "cc-42",
+		"Environment": "staging",
+	}
+
+	primaryAccount := &inventory.Asset{
+		Name:        "primary",
+		Platform:    &inventory.Platform{Name: "aws"},
+		PlatformIds: []string{"//platformid.api.mondoo.app/runtime/aws/accounts/111111111111"},
+		Labels:      map[string]string{},
+	}
+	siblingAccount := &inventory.Asset{
+		Name:        "sibling",
+		Platform:    &inventory.Platform{Name: "aws"},
+		PlatformIds: []string{"//platformid.api.mondoo.app/runtime/aws/accounts/222222222222"},
+		Labels:      map[string]string{"OtherAccountTag": "x"},
+	}
+	ec2Asset := &inventory.Asset{
+		Name:        "web-01",
+		Platform:    &inventory.Platform{Name: "aws-ec2-instance"},
+		PlatformIds: []string{"//platformid.api.mondoo.app/runtime/aws/accounts/111111111111/regions/us-east-1/instances/i-abc"},
+		Labels:      map[string]string{"Environment": "prod", "Name": "web-01"},
+	}
+	assets := []*inventory.Asset{primaryAccount, siblingAccount, ec2Asset}
+
+	applyAccountTagsToAssets(assets, accountTags, primaryAccountId)
+
+	require.Equal(t, "team-a", primaryAccount.Labels["Owner"])
+	require.Equal(t, "cc-42", primaryAccount.Labels["CostCenter"])
+	require.Equal(t, "staging", primaryAccount.Labels["Environment"])
+
+	require.Equal(t, map[string]string{"OtherAccountTag": "x"}, siblingAccount.Labels)
+
+	require.Equal(t, "prod", ec2Asset.Labels["Environment"])
+	require.Equal(t, "web-01", ec2Asset.Labels["Name"])
+	require.Equal(t, "team-a", ec2Asset.Labels["Owner"])
+	require.Equal(t, "cc-42", ec2Asset.Labels["CostCenter"])
+}
