@@ -31,6 +31,7 @@ Autoscalers
 autotrim
 awsapps
 AWSCURRENT
+awsfirelens
 awslogs
 AWSPENDING
 AWSPREVIOUS
@@ -135,6 +136,7 @@ firefox
 firestore
 firstname
 flink
+fluentd
 fqdns
 FLEXGROUP
 FLEXVOL
@@ -146,6 +148,7 @@ fumadocs
 functionapp
 gcfs
 gcs
+gelf
 GENEVE
 geomatchstatement
 gistfile
@@ -431,6 +434,7 @@ unifi
 Uocm
 URkuh
 usb
+userdata
 Utc
 valkey
 VAULTNAME
