@@ -79,6 +79,7 @@ const (
 	ResourceAuditdRuleSyscall            string = "auditd.rule.syscall"
 	ResourceApache2                      string = "apache2"
 	ResourceApache2Conf                  string = "apache2.conf"
+	ResourceApache2ConfEnvvars           string = "apache2.conf.envvars"
 	ResourceApache2ConfModule            string = "apache2.conf.module"
 	ResourceApache2ConfVirtualHost       string = "apache2.conf.virtualHost"
 	ResourceApache2ConfDirectory         string = "apache2.conf.directory"
@@ -528,6 +529,10 @@ func init() {
 		"apache2.conf": {
 			Init:   initApache2Conf,
 			Create: createApache2Conf,
+		},
+		"apache2.conf.envvars": {
+			Init:   initApache2ConfEnvvars,
+			Create: createApache2ConfEnvvars,
 		},
 		"apache2.conf.module": {
 			// to override args, implement: initApache2ConfModule(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error)
@@ -2237,6 +2242,15 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	},
 	"apache2.conf.directories": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlApache2Conf).GetDirectories()).ToDataRes(types.Array(types.Resource("apache2.conf.directory")))
+	},
+	"apache2.conf.envvars": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlApache2Conf).GetEnvvars()).ToDataRes(types.Resource("apache2.conf.envvars"))
+	},
+	"apache2.conf.envvars.file": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlApache2ConfEnvvars).GetFile()).ToDataRes(types.Resource("file"))
+	},
+	"apache2.conf.envvars.params": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlApache2ConfEnvvars).GetParams()).ToDataRes(types.Map(types.String, types.String))
 	},
 	"apache2.conf.module.name": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlApache2ConfModule).GetName()).ToDataRes(types.String)
@@ -6966,6 +6980,22 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 	},
 	"apache2.conf.directories": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlApache2Conf).Directories, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
+	"apache2.conf.envvars": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlApache2Conf).Envvars, ok = plugin.RawToTValue[*mqlApache2ConfEnvvars](v.Value, v.Error)
+		return
+	},
+	"apache2.conf.envvars.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlApache2ConfEnvvars).__id, ok = v.Value.(string)
+		return
+	},
+	"apache2.conf.envvars.file": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlApache2ConfEnvvars).File, ok = plugin.RawToTValue[*mqlFile](v.Value, v.Error)
+		return
+	},
+	"apache2.conf.envvars.params": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlApache2ConfEnvvars).Params, ok = plugin.RawToTValue[map[string]any](v.Value, v.Error)
 		return
 	},
 	"apache2.conf.module.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
@@ -17285,6 +17315,7 @@ type mqlApache2Conf struct {
 	Modules         plugin.TValue[[]any]
 	VirtualHosts    plugin.TValue[[]any]
 	Directories     plugin.TValue[[]any]
+	Envvars         plugin.TValue[*mqlApache2ConfEnvvars]
 }
 
 // createApache2Conf creates a new instance of this resource
@@ -17443,6 +17474,95 @@ func (c *mqlApache2Conf) GetDirectories() *plugin.TValue[[]any] {
 		}
 
 		return c.directories(vargFile.Data)
+	})
+}
+
+func (c *mqlApache2Conf) GetEnvvars() *plugin.TValue[*mqlApache2ConfEnvvars] {
+	return plugin.GetOrCompute[*mqlApache2ConfEnvvars](&c.Envvars, func() (*mqlApache2ConfEnvvars, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("apache2.conf", c.__id, "envvars")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.(*mqlApache2ConfEnvvars), nil
+			}
+		}
+
+		return c.envvars()
+	})
+}
+
+// mqlApache2ConfEnvvars for the apache2.conf.envvars resource
+type mqlApache2ConfEnvvars struct {
+	MqlRuntime *plugin.Runtime
+	__id       string
+	// optional: if you define mqlApache2ConfEnvvarsInternal it will be used here
+	File   plugin.TValue[*mqlFile]
+	Params plugin.TValue[map[string]any]
+}
+
+// createApache2ConfEnvvars creates a new instance of this resource
+func createApache2ConfEnvvars(runtime *plugin.Runtime, args map[string]*llx.RawData) (plugin.Resource, error) {
+	res := &mqlApache2ConfEnvvars{
+		MqlRuntime: runtime,
+	}
+
+	err := SetAllData(res, args)
+	if err != nil {
+		return res, err
+	}
+
+	if res.__id == "" {
+		res.__id, err = res.id()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if runtime.HasRecording {
+		args, err = runtime.ResourceFromRecording("apache2.conf.envvars", res.__id)
+		if err != nil || args == nil {
+			return res, err
+		}
+		return res, SetAllData(res, args)
+	}
+
+	return res, nil
+}
+
+func (c *mqlApache2ConfEnvvars) MqlName() string {
+	return "apache2.conf.envvars"
+}
+
+func (c *mqlApache2ConfEnvvars) MqlID() string {
+	return c.__id
+}
+
+func (c *mqlApache2ConfEnvvars) GetFile() *plugin.TValue[*mqlFile] {
+	return plugin.GetOrCompute[*mqlFile](&c.File, func() (*mqlFile, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("apache2.conf.envvars", c.__id, "file")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.(*mqlFile), nil
+			}
+		}
+
+		return c.file()
+	})
+}
+
+func (c *mqlApache2ConfEnvvars) GetParams() *plugin.TValue[map[string]any] {
+	return plugin.GetOrCompute[map[string]any](&c.Params, func() (map[string]any, error) {
+		vargFile := c.GetFile()
+		if vargFile.Error != nil {
+			return nil, vargFile.Error
+		}
+
+		return c.params(vargFile.Data)
 	})
 }
 
