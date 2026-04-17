@@ -217,6 +217,7 @@ launchconfiguration
 launchtemplate
 lfs
 limitrange
+linuxbrew
 linuxefi
 liveanalytics
 loggingservice
