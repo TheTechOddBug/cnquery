@@ -336,6 +336,7 @@ privateca
 privs
 privsep
 psr
+pubspec
 processingjob
 proxmox
 psc
