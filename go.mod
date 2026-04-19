@@ -122,6 +122,8 @@ require (
 	sigs.k8s.io/yaml v1.6.0
 )
 
+require github.com/tailscale/hujson v0.0.0-20260302212456-ecc657c15afd
+
 require (
 	cloud.google.com/go v0.115.1 // indirect
 	cloud.google.com/go/auth v0.9.1 // indirect
