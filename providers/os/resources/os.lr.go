@@ -2476,6 +2476,9 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	"sshd.config.hostkeys": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlSshdConfig).GetHostkeys()).ToDataRes(types.Array(types.String))
 	},
+	"sshd.config.hostkeyalgorithms": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlSshdConfig).GetHostkeyalgorithms()).ToDataRes(types.Array(types.String))
+	},
 	"sshd.config.permitRootLogin": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlSshdConfig).GetPermitRootLogin()).ToDataRes(types.Array(types.String))
 	},
@@ -2496,6 +2499,9 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	},
 	"sshd.config.matchBlock.hostkeys": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlSshdConfigMatchBlock).GetHostkeys()).ToDataRes(types.Array(types.String))
+	},
+	"sshd.config.matchBlock.hostkeyalgorithms": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlSshdConfigMatchBlock).GetHostkeyalgorithms()).ToDataRes(types.Array(types.String))
 	},
 	"sshd.config.matchBlock.permitRootLogin": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlSshdConfigMatchBlock).GetPermitRootLogin()).ToDataRes(types.Array(types.String))
@@ -8060,6 +8066,10 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 		r.(*mqlSshdConfig).Hostkeys, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
 		return
 	},
+	"sshd.config.hostkeyalgorithms": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlSshdConfig).Hostkeyalgorithms, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
 	"sshd.config.permitRootLogin": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlSshdConfig).PermitRootLogin, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
 		return
@@ -8090,6 +8100,10 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 	},
 	"sshd.config.matchBlock.hostkeys": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlSshdConfigMatchBlock).Hostkeys, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
+	"sshd.config.matchBlock.hostkeyalgorithms": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlSshdConfigMatchBlock).Hostkeyalgorithms, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
 		return
 	},
 	"sshd.config.matchBlock.permitRootLogin": func(r plugin.Resource, v *llx.RawData) (ok bool) {
@@ -19276,15 +19290,16 @@ type mqlSshdConfig struct {
 	MqlRuntime *plugin.Runtime
 	__id       string
 	mqlSshdConfigInternal
-	File            plugin.TValue[*mqlFile]
-	Files           plugin.TValue[[]any]
-	Params          plugin.TValue[map[string]any]
-	Blocks          plugin.TValue[[]any]
-	Ciphers         plugin.TValue[[]any]
-	Macs            plugin.TValue[[]any]
-	Kexs            plugin.TValue[[]any]
-	Hostkeys        plugin.TValue[[]any]
-	PermitRootLogin plugin.TValue[[]any]
+	File              plugin.TValue[*mqlFile]
+	Files             plugin.TValue[[]any]
+	Params            plugin.TValue[map[string]any]
+	Blocks            plugin.TValue[[]any]
+	Ciphers           plugin.TValue[[]any]
+	Macs              plugin.TValue[[]any]
+	Kexs              plugin.TValue[[]any]
+	Hostkeys          plugin.TValue[[]any]
+	Hostkeyalgorithms plugin.TValue[[]any]
+	PermitRootLogin   plugin.TValue[[]any]
 }
 
 // createSshdConfig creates a new instance of this resource
@@ -19437,6 +19452,17 @@ func (c *mqlSshdConfig) GetHostkeys() *plugin.TValue[[]any] {
 	})
 }
 
+func (c *mqlSshdConfig) GetHostkeyalgorithms() *plugin.TValue[[]any] {
+	return plugin.GetOrCompute[[]any](&c.Hostkeyalgorithms, func() ([]any, error) {
+		vargParams := c.GetParams()
+		if vargParams.Error != nil {
+			return nil, vargParams.Error
+		}
+
+		return c.hostkeyalgorithms(vargParams.Data)
+	})
+}
+
 func (c *mqlSshdConfig) GetPermitRootLogin() *plugin.TValue[[]any] {
 	return plugin.GetOrCompute[[]any](&c.PermitRootLogin, func() ([]any, error) {
 		vargParams := c.GetParams()
@@ -19453,14 +19479,15 @@ type mqlSshdConfigMatchBlock struct {
 	MqlRuntime *plugin.Runtime
 	__id       string
 	// optional: if you define mqlSshdConfigMatchBlockInternal it will be used here
-	Criteria        plugin.TValue[string]
-	Params          plugin.TValue[map[string]any]
-	Ciphers         plugin.TValue[[]any]
-	Macs            plugin.TValue[[]any]
-	Kexs            plugin.TValue[[]any]
-	Hostkeys        plugin.TValue[[]any]
-	PermitRootLogin plugin.TValue[[]any]
-	Context         plugin.TValue[*mqlFileContext]
+	Criteria          plugin.TValue[string]
+	Params            plugin.TValue[map[string]any]
+	Ciphers           plugin.TValue[[]any]
+	Macs              plugin.TValue[[]any]
+	Kexs              plugin.TValue[[]any]
+	Hostkeys          plugin.TValue[[]any]
+	Hostkeyalgorithms plugin.TValue[[]any]
+	PermitRootLogin   plugin.TValue[[]any]
+	Context           plugin.TValue[*mqlFileContext]
 }
 
 // createSshdConfigMatchBlock creates a new instance of this resource
@@ -19544,6 +19571,17 @@ func (c *mqlSshdConfigMatchBlock) GetHostkeys() *plugin.TValue[[]any] {
 		}
 
 		return c.hostkeys(vargParams.Data)
+	})
+}
+
+func (c *mqlSshdConfigMatchBlock) GetHostkeyalgorithms() *plugin.TValue[[]any] {
+	return plugin.GetOrCompute[[]any](&c.Hostkeyalgorithms, func() ([]any, error) {
+		vargParams := c.GetParams()
+		if vargParams.Error != nil {
+			return nil, vargParams.Error
+		}
+
+		return c.hostkeyalgorithms(vargParams.Data)
 	})
 }
 
