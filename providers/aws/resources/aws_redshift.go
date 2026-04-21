@@ -85,6 +85,22 @@ func (a *mqlAwsRedshift) getClusters(conn *connection.AwsConnection) []*jobpool.
 						continue
 					}
 
+					var endpointAddress string
+					var endpointPort int64
+					endpointVpcEndpoints := []any{}
+					if cluster.Endpoint != nil {
+						endpointAddress = convert.ToValue(cluster.Endpoint.Address)
+						if cluster.Endpoint.Port != nil {
+							endpointPort = int64(*cluster.Endpoint.Port)
+						}
+						if len(cluster.Endpoint.VpcEndpoints) > 0 {
+							endpointVpcEndpoints, err = convert.JsonToDictSlice(cluster.Endpoint.VpcEndpoints)
+							if err != nil {
+								return nil, err
+							}
+						}
+					}
+
 					mqlDBInstance, err := CreateResource(a.MqlRuntime, ResourceAwsRedshiftCluster,
 						map[string]*llx.RawData{
 							"allowVersionUpgrade":              llx.BoolDataPtr(cluster.AllowVersionUpgrade),
@@ -107,6 +123,9 @@ func (a *mqlAwsRedshift) getClusters(conn *connection.AwsConnection) []*jobpool.
 							"numberOfNodes":                    llx.IntDataDefault(cluster.NumberOfNodes, 0),
 							"preferredMaintenanceWindow":       llx.StringDataPtr(cluster.PreferredMaintenanceWindow),
 							"publiclyAccessible":               llx.BoolDataPtr(cluster.PubliclyAccessible),
+							"endpointAddress":                  llx.StringData(endpointAddress),
+							"endpointPort":                     llx.IntData(endpointPort),
+							"endpointVpcEndpoints":             llx.ArrayData(endpointVpcEndpoints, types.Dict),
 							"region":                           llx.StringData(region),
 							"tags":                             llx.MapData(redshiftTagsToMap(cluster.Tags), types.String),
 							"vpcId":                            llx.StringDataPtr(cluster.VpcId),
