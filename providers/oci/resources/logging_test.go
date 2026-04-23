@@ -68,3 +68,64 @@ func TestConvertLogConfiguration(t *testing.T) {
 		assert.NotNil(t, result["source"])
 	})
 }
+
+// nonOciSource stands in for a hypothetical non-OciService source type.
+// OciService is the only modeled logging source today, so the extractor must
+// return empty values when the source is something else.
+type nonOciSource struct{}
+
+func TestExtractLogSource(t *testing.T) {
+	tests := []struct {
+		name         string
+		cfg          *logging.Configuration
+		wantCategory string
+		wantService  string
+		wantResource string
+	}{
+		{
+			name: "nil configuration",
+			cfg:  nil,
+		},
+		{
+			name: "nil source",
+			cfg:  &logging.Configuration{},
+		},
+		{
+			name: "OciService flow log",
+			cfg: &logging.Configuration{
+				Source: logging.OciService{
+					Service:  common.String("flowlogs"),
+					Resource: common.String("ocid1.subnet.oc1..example"),
+					Category: common.String("all"),
+				},
+			},
+			wantCategory: "all",
+			wantService:  "flowlogs",
+			wantResource: "ocid1.subnet.oc1..example",
+		},
+		{
+			name: "OciService with only service set",
+			cfg: &logging.Configuration{
+				Source: logging.OciService{
+					Service: common.String("objectstorage"),
+				},
+			},
+			wantService: "objectstorage",
+		},
+		{
+			name: "non-OciService source returns empty strings",
+			cfg: &logging.Configuration{
+				Source: nonOciSource{},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			category, service, resource := extractLogSource(tc.cfg)
+			assert.Equal(t, tc.wantCategory, category)
+			assert.Equal(t, tc.wantService, service)
+			assert.Equal(t, tc.wantResource, resource)
+		})
+	}
+}

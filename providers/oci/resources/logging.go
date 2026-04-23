@@ -200,6 +200,8 @@ func (o *mqlOciLoggingLogGroup) logs() ([]any, error) {
 			logLastModified = &l.TimeLastModified.Time
 		}
 
+		category, sourceService, sourceResource := extractLogSource(l.Configuration)
+
 		mqlInstance, err := CreateResource(o.MqlRuntime, "oci.logging.log", map[string]*llx.RawData{
 			"id":                llx.StringDataPtr(l.Id),
 			"name":              llx.StringDataPtr(l.DisplayName),
@@ -208,6 +210,9 @@ func (o *mqlOciLoggingLogGroup) logs() ([]any, error) {
 			"state":             llx.StringData(string(l.LifecycleState)),
 			"retentionDuration": llx.IntDataPtr(l.RetentionDuration),
 			"configuration":     llx.DictData(config),
+			"category":          llx.StringData(category),
+			"sourceService":     llx.StringData(sourceService),
+			"sourceResource":    llx.StringData(sourceResource),
 			"created":           llx.TimeDataPtr(logCreated),
 			"timeLastModified":  llx.TimeDataPtr(logLastModified),
 		})
@@ -266,6 +271,20 @@ func (o *mqlOciLoggingLog) logGroup() (*mqlOciLoggingLogGroup, error) {
 		return nil, err
 	}
 	return mqlLg.(*mqlOciLoggingLogGroup), nil
+}
+
+// extractLogSource pulls category, service, and resource out of a logging
+// configuration's Source union. Any missing layer (nil configuration, nil
+// source, unknown source type) yields empty strings.
+func extractLogSource(cfg *logging.Configuration) (category, service, resource string) {
+	if cfg == nil || cfg.Source == nil {
+		return "", "", ""
+	}
+	svc, ok := cfg.Source.(logging.OciService)
+	if !ok {
+		return "", "", ""
+	}
+	return stringValue(svc.Category), stringValue(svc.Service), stringValue(svc.Resource)
 }
 
 func convertLogConfiguration(cfg *logging.Configuration) (map[string]interface{}, error) {
