@@ -75,8 +75,7 @@ func (s *mqlParseIni) id() (string, error) {
 }
 
 func (s *mqlParseIni) content(file *mqlFile) (string, error) {
-	c := file.GetContent()
-	return c.Data, c.Error
+	return fileContentOrEmpty(file)
 }
 
 func (s *mqlParseIni) sections(content string, delimiter string) (map[string]any, error) {

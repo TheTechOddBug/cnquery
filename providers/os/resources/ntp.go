@@ -55,8 +55,7 @@ func (s *mqlNtpConf) file() (*mqlFile, error) {
 }
 
 func (s *mqlNtpConf) content(file *mqlFile) (string, error) {
-	content := file.GetContent()
-	return content.Data, content.Error
+	return fileContentOrEmpty(file)
 }
 
 func (s *mqlNtpConf) settings(content string) ([]any, error) {
