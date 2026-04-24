@@ -7,11 +7,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	firestoreadmin "cloud.google.com/go/firestore/apiv1/admin"
 	"cloud.google.com/go/firestore/apiv1/admin/adminpb"
+	"github.com/rs/zerolog/log"
 	"go.mondoo.com/mql/v13/llx"
 	"go.mondoo.com/mql/v13/providers-sdk/v1/plugin"
+	"go.mondoo.com/mql/v13/providers-sdk/v1/util/convert"
 	"go.mondoo.com/mql/v13/providers/gcp/connection"
 	"go.mondoo.com/mql/v13/types"
 	"google.golang.org/api/iterator"
@@ -41,6 +44,52 @@ func initGcpProjectFirestoreService(runtime *plugin.Runtime, args map[string]*ll
 	}
 	args["projectId"] = llx.StringData(conn.ResourceID())
 	return args, nil, nil
+}
+
+// initGcpProjectFirestoreServiceDatabase lets policies query a single Firestore
+// database directly (e.g. when cnspec scans a gcp-firestore-database asset).
+func initGcpProjectFirestoreServiceDatabase(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error) {
+	if len(args) > 2 {
+		return args, nil, nil
+	}
+
+	if len(args) == 0 {
+		if args == nil {
+			args = make(map[string]*llx.RawData)
+		}
+		if ids := getAssetIdentifier(runtime); ids != nil {
+			args["name"] = llx.StringData(ids.name)
+			args["projectId"] = llx.StringData(ids.project)
+		} else {
+			return nil, nil, errors.New("no asset identifier found")
+		}
+	}
+
+	obj, err := CreateResource(runtime, "gcp.project.firestoreService", map[string]*llx.RawData{
+		"projectId": args["projectId"],
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	firestoreSvc := obj.(*mqlGcpProjectFirestoreService)
+	databases := firestoreSvc.GetDatabases()
+	if databases.Error != nil {
+		return nil, nil, databases.Error
+	}
+
+	nameVal := args["name"].Value.(string)
+	for _, d := range databases.Data {
+		database := d.(*mqlGcpProjectFirestoreServiceDatabase)
+		// Firestore database name is a full resource path:
+		// projects/{project}/databases/{database}
+		nameParts := strings.Split(database.Name.Data, "/")
+		dbName := nameParts[len(nameParts)-1]
+		if dbName == nameVal {
+			return args, database, nil
+		}
+	}
+
+	return nil, nil, fmt.Errorf("Firestore database %q not found", nameVal)
 }
 
 func (g *mqlGcpProjectFirestoreService) id() (string, error) {
@@ -73,6 +122,10 @@ func (g *mqlGcpProjectFirestoreService) databases() ([]any, error) {
 		Parent: fmt.Sprintf("projects/%s", projectId),
 	})
 	if err != nil {
+		if isGRPCSkippable(err) {
+			log.Warn().Err(err).Msg("could not list Firestore databases")
+			return nil, nil
+		}
 		return nil, err
 	}
 
@@ -119,6 +172,7 @@ func (g *mqlGcpProjectFirestoreService) databases() ([]any, error) {
 			"appEngineIntegrationMode":      llx.StringData(db.AppEngineIntegrationMode.String()),
 			"pointInTimeRecoveryEnablement": llx.StringData(db.PointInTimeRecoveryEnablement.String()),
 			"deleteProtectionState":         llx.StringData(db.DeleteProtectionState.String()),
+			"tags":                          llx.MapData(convert.MapToInterfaceMap(db.Tags), types.String),
 			"cmekConfig":                    llx.DictData(cmekConfig),
 			"versionRetentionPeriod":        llx.StringData(versionRetentionPeriod),
 			"earliestVersionTime":           earliestVersionTime,
@@ -189,6 +243,10 @@ func (g *mqlGcpProjectFirestoreServiceDatabase) indexes() ([]any, error) {
 			break
 		}
 		if err != nil {
+			if isGRPCSkippable(err) {
+				log.Warn().Err(err).Msg("could not list Firestore indexes")
+				return nil, nil
+			}
 			return nil, err
 		}
 
@@ -240,6 +298,10 @@ func (g *mqlGcpProjectFirestoreServiceDatabase) backupSchedules() ([]any, error)
 		Parent: databaseName,
 	})
 	if err != nil {
+		if isGRPCSkippable(err) {
+			log.Warn().Err(err).Msg("could not list Firestore backup schedules")
+			return nil, nil
+		}
 		return nil, err
 	}
 
