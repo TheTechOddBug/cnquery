@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/go-github/v84/github"
+	"github.com/google/go-github/v85/github"
 	"github.com/rs/zerolog/log"
 	"go.mondoo.com/mql/v13/llx"
 	"go.mondoo.com/mql/v13/logger"
@@ -30,6 +30,7 @@ const (
 	saSecretScanningPushProtection
 	saDependabotSecurityUpdates
 	saSecretScanningValidityChecks
+	saCodeSecurity
 )
 
 func saEnabled(sa *github.SecurityAndAnalysis, field saField) bool {
@@ -56,6 +57,10 @@ func saEnabled(sa *github.SecurityAndAnalysis, field saField) bool {
 	case saSecretScanningValidityChecks:
 		if sa.SecretScanningValidityChecks != nil {
 			return sa.SecretScanningValidityChecks.GetStatus() == "enabled"
+		}
+	case saCodeSecurity:
+		if sa.CodeSecurity != nil {
+			return sa.CodeSecurity.GetStatus() == "enabled"
 		}
 	}
 	return false
@@ -118,6 +123,7 @@ func newMqlGithubRepository(runtime *plugin.Runtime, repo *github.Repository) (*
 		"secretScanningPushProtectionEnabled": llx.BoolData(saEnabled(repo.SecurityAndAnalysis, saSecretScanningPushProtection)),
 		"dependabotSecurityUpdatesEnabled":    llx.BoolData(saEnabled(repo.SecurityAndAnalysis, saDependabotSecurityUpdates)),
 		"secretScanningValidityChecksEnabled": llx.BoolData(saEnabled(repo.SecurityAndAnalysis, saSecretScanningValidityChecks)),
+		"codeSecurityEnabled":                 llx.BoolData(saEnabled(repo.SecurityAndAnalysis, saCodeSecurity)),
 	})
 	if err != nil {
 		return nil, err
@@ -695,6 +701,26 @@ func (g *mqlGithubBranch) protectionRules() (*mqlGithubBranchprotection, error) 
 		return nil, err
 	}
 
+	// Flatten the most-frequently-asserted PR review fields onto the resource
+	// for easier MQL queries (e.g. branchprotection.requireCodeOwnerReviews).
+	var (
+		requiredApprovingReviewCount int64
+		requireCodeOwnerReviews      bool
+		dismissStaleReviews          bool
+		requireLastPushApproval      bool
+		dismissalRestrictionsDict    map[string]any
+	)
+	if branchProtection.RequiredPullRequestReviews != nil {
+		rpr := branchProtection.RequiredPullRequestReviews
+		requiredApprovingReviewCount = int64(rpr.RequiredApprovingReviewCount)
+		requireCodeOwnerReviews = rpr.RequireCodeOwnerReviews
+		dismissStaleReviews = rpr.DismissStaleReviews
+		requireLastPushApproval = rpr.RequireLastPushApproval
+		if ghDismissalRestrictions != nil {
+			dismissalRestrictionsDict, _ = convert.JsonToDict(ghDismissalRestrictions)
+		}
+	}
+
 	res, err := CreateResource(g.MqlRuntime, "github.branchprotection", map[string]*llx.RawData{
 		"id":                             llx.StringData(repoName + "/" + branchName),
 		"requiredStatusChecks":           llx.MapData(rsc, types.Any),
@@ -706,9 +732,15 @@ func (g *mqlGithubBranch) protectionRules() (*mqlGithubBranchprotection, error) 
 		"allowDeletions":                 llx.MapData(ad, types.Any),
 		"requiredConversationResolution": llx.MapData(rcr, types.Any),
 		"requiredSignatures":             llx.BoolDataPtr(sc.Enabled),
+		"requireSignedCommits":           llx.BoolData(convert.ToValue(sc.Enabled)),
 		"blockCreations":                 llx.BoolData(branchProtection.GetBlockCreations().GetEnabled()),
 		"lockBranch":                     llx.BoolData(branchProtection.GetLockBranch().GetEnabled()),
 		"allowForkSyncing":               llx.BoolData(branchProtection.GetAllowForkSyncing().GetEnabled()),
+		"requiredApprovingReviewCount":   llx.IntData(requiredApprovingReviewCount),
+		"requireCodeOwnerReviews":        llx.BoolData(requireCodeOwnerReviews),
+		"dismissStaleReviews":            llx.BoolData(dismissStaleReviews),
+		"requireLastPushApproval":        llx.BoolData(requireLastPushApproval),
+		"dismissalRestrictions":          llx.MapData(dismissalRestrictionsDict, types.Any),
 	})
 	if err != nil {
 		return nil, err

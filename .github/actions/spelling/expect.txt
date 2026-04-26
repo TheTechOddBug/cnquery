@@ -90,6 +90,7 @@ cmnd
 cname
 CNs
 cocoapods
+codeowners
 codeql
 colo
 compressratio
