@@ -470,6 +470,7 @@ spo
 sqli
 sqlimatchstatement
 sqlserver
+sslv
 Sspr
 stdio
 stdlib
@@ -542,7 +543,9 @@ vrf
 vtpm
 vulnerabilityassessmentsettings
 vulnmgmt
+vulns
 vztmpl
+webcam
 webide
 WEBSERVERS
 Webstore
