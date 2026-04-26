@@ -28,23 +28,46 @@ func (c *mqlCloudflareZone) dnssec() (*mqlCloudflareZoneDnssec, error) {
 		return nil, err
 	}
 
-	res, err := CreateResource(c.MqlRuntime, "cloudflare.zone.dnssec", map[string]*llx.RawData{
-		"__id":            llx.StringData("cloudflare.zone.dnssec@" + c.Id.Data),
-		"status":          llx.StringData(ds.Status),
-		"flags":           llx.IntData(int64(ds.Flags)),
-		"algorithm":       llx.StringData(ds.Algorithm),
-		"keyType":         llx.StringData(ds.KeyType),
-		"digestType":      llx.StringData(ds.DigestType),
-		"digestAlgorithm": llx.StringData(ds.DigestAlgorithm),
-		"digest":          llx.StringData(ds.Digest),
-		"ds":              llx.StringData(ds.DS),
-		"keyTag":          llx.IntData(int64(ds.KeyTag)),
-		"publicKey":       llx.StringData(ds.PublicKey),
-		"modifiedOn":      llx.TimeData(ds.ModifiedOn),
-	})
+	// When DNSSEC is disabled the algorithm/key/digest/DS fields are not
+	// meaningful — omit them from the args so the runtime never caches the
+	// API zero-values and the fields surface as null when queried.
+	args := map[string]*llx.RawData{
+		"__id":       llx.StringData("cloudflare.zone.dnssec@" + c.Id.Data),
+		"status":     llx.StringData(ds.Status),
+		"flags":      llx.IntData(int64(ds.Flags)),
+		"modifiedOn": llx.TimeData(ds.ModifiedOn),
+	}
+	if ds.Status != "disabled" {
+		args["algorithm"] = llx.StringData(ds.Algorithm)
+		args["keyType"] = llx.StringData(ds.KeyType)
+		args["digestType"] = llx.StringData(ds.DigestType)
+		args["digestAlgorithm"] = llx.StringData(ds.DigestAlgorithm)
+		args["digest"] = llx.StringData(ds.Digest)
+		args["ds"] = llx.StringData(ds.DS)
+		args["keyTag"] = llx.IntData(int64(ds.KeyTag))
+		args["publicKey"] = llx.StringData(ds.PublicKey)
+	}
+
+	res, err := CreateResource(c.MqlRuntime, "cloudflare.zone.dnssec", args)
 	if err != nil {
 		return nil, err
 	}
 
-	return res.(*mqlCloudflareZoneDnssec), nil
+	mqlDnssec := res.(*mqlCloudflareZoneDnssec)
+
+	// Mark the omitted fields as explicitly null so the runtime doesn't try
+	// to recompute them when accessed.
+	if ds.Status == "disabled" {
+		nullState := plugin.StateIsSet | plugin.StateIsNull
+		mqlDnssec.Algorithm.State = nullState
+		mqlDnssec.KeyType.State = nullState
+		mqlDnssec.DigestType.State = nullState
+		mqlDnssec.DigestAlgorithm.State = nullState
+		mqlDnssec.Digest.State = nullState
+		mqlDnssec.Ds.State = nullState
+		mqlDnssec.KeyTag.State = nullState
+		mqlDnssec.PublicKey.State = nullState
+	}
+
+	return mqlDnssec, nil
 }
