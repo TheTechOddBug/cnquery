@@ -94,8 +94,10 @@ digitalocean.droplet @defaults("id name status") {
   privateIpv4 string
   // Tags
   tags []string
-  // VPC UUID
+  // Deprecated: use vpc() instead. VPC UUID
   vpcUuid string
+  // VPC the droplet is attached to
+  vpc() digitalocean.vpc
   // Features (e.g., monitoring, backups)
   features []string
   // Backup enabled
@@ -104,6 +106,10 @@ digitalocean.droplet @defaults("id name status") {
   monitoringEnabled bool
   // Image information
   image dict
+  // Firewalls covering this droplet (by id or matching tag)
+  firewalls() []digitalocean.firewall
+  // Whether the droplet has a public IPv4 not covered by any firewall
+  unprotectedPublicIp() bool
 }
 
 // DigitalOcean firewall
@@ -120,14 +126,16 @@ digitalocean.firewall @defaults("id name status") {
   inboundRules []dict
   // Outbound rules
   outboundRules []dict
-  // Droplet IDs protected by this firewall
+  // Deprecated: use droplets() instead. Droplet IDs protected by this firewall
   dropletIds []int
+  // Droplets covered by this firewall (by direct ID or matching tag)
+  droplets() []digitalocean.droplet
   // Tags used to target droplets
   tags []string
 }
 
 // DigitalOcean managed database cluster
-digitalocean.database @defaults("id name engine") {
+digitalocean.database @defaults("id name engine connectionSsl") {
   // Database cluster ID
   id string
   // Database cluster name
@@ -148,10 +156,20 @@ digitalocean.database @defaults("id name engine") {
   createdAt time
   // Private network UUID
   privateNetworkUuid string
+  // VPC the cluster is attached to (resolved from privateNetworkUuid)
+  vpc() digitalocean.vpc
   // Tags
   tags []string
-  // Firewall rules
+  // Firewall rules (trusted sources)
   firewallRules() []dict
+  // Whether the public connection object reports SSL enabled (DigitalOcean managed databases always require TLS on public endpoints; this reflects the SDK's per-connection SSL flag, not a cluster-level enforcement policy)
+  connectionSsl bool
+  // Public connection host
+  connectionHost string
+  // Public connection port
+  connectionPort int
+  // Whether a private (VPC-only) connection endpoint is available
+  privateConnectionAvailable bool
   // Maintenance window
   maintenanceWindow dict
   // Database users
@@ -260,8 +278,10 @@ digitalocean.volume @defaults("id name sizeGigabytes") {
   createdAt time
   // Tags
   tags []string
-  // Droplet IDs attached to
+  // Deprecated: use droplets() instead. Droplet IDs attached to
   dropletIds []int
+  // Droplets this volume is attached to
+  droplets() []digitalocean.droplet
 }
 
 // DigitalOcean load balancer
@@ -286,10 +306,14 @@ digitalocean.loadBalancer @defaults("id name status") {
   enableProxyProtocol bool
   // Enable backend keepalive
   enableBackendKeepalive bool
-  // VPC UUID
+  // Deprecated: use vpc() instead. VPC UUID
   vpcUuid string
-  // Droplet IDs
+  // VPC the load balancer is attached to
+  vpc() digitalocean.vpc
+  // Deprecated: use droplets() instead. Droplet IDs
   dropletIds []int
+  // Droplets attached to this load balancer
+  droplets() []digitalocean.droplet
   // Tags
   tags []string
   // Forwarding rules
@@ -354,14 +378,24 @@ digitalocean.kubernetes.cluster @defaults("id name version") {
   clusterSubnet string
   // Service subnet
   serviceSubnet string
-  // VPC UUID
+  // Deprecated: use vpc() instead. VPC UUID
   vpcUuid string
+  // VPC the cluster is attached to
+  vpc() digitalocean.vpc
   // Auto-upgrade enabled
   autoUpgrade bool
   // Surge upgrade enabled
   surgeUpgrade bool
   // HA control plane enabled
   ha bool
+  // Whether single sign-on is enabled for the cluster
+  ssoEnabled bool
+  // Whether single sign-on is required for the cluster
+  ssoRequired bool
+  // OIDC issuer URL configured for cluster SSO
+  ssoIssuerUrl string
+  // OAuth client ID configured for cluster SSO
+  ssoClientId string
   // Tags
   tags []string
   // Maintenance policy

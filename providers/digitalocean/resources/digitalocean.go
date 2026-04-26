@@ -277,19 +277,36 @@ func (r *mqlDigitalocean) databases() ([]interface{}, error) {
 				mw["pending"] = db.MaintenanceWindow.Pending
 			}
 
+			// The DigitalOcean API returns a public connection URI that embeds the
+			// admin password, so we deliberately do not surface it on the resource.
+			// Host/port are exposed separately for connectivity checks.
+			connHost := ""
+			connPort := int64(0)
+			connSsl := false
+			if db.Connection != nil {
+				connHost = db.Connection.Host
+				connPort = int64(db.Connection.Port)
+				connSsl = db.Connection.SSL
+			}
+			privateConnectionAvailable := db.PrivateConnection != nil
+
 			res, err := CreateResource(r.MqlRuntime, "digitalocean.database", map[string]*llx.RawData{
-				"id":                 llx.StringData(db.ID),
-				"name":               llx.StringData(db.Name),
-				"engine":             llx.StringData(db.EngineSlug),
-				"version":            llx.StringData(db.VersionSlug),
-				"numNodes":           llx.IntData(int64(db.NumNodes)),
-				"size":               llx.StringData(db.SizeSlug),
-				"region":             llx.StringData(db.RegionSlug),
-				"status":             llx.StringData(db.Status),
-				"createdAt":          llx.TimeData(db.CreatedAt),
-				"privateNetworkUuid": llx.StringData(db.PrivateNetworkUUID),
-				"tags":               llx.ArrayData(tags, "\x02"),
-				"maintenanceWindow":  llx.DictData(mw),
+				"id":                         llx.StringData(db.ID),
+				"name":                       llx.StringData(db.Name),
+				"engine":                     llx.StringData(db.EngineSlug),
+				"version":                    llx.StringData(db.VersionSlug),
+				"numNodes":                   llx.IntData(int64(db.NumNodes)),
+				"size":                       llx.StringData(db.SizeSlug),
+				"region":                     llx.StringData(db.RegionSlug),
+				"status":                     llx.StringData(db.Status),
+				"createdAt":                  llx.TimeData(db.CreatedAt),
+				"privateNetworkUuid":         llx.StringData(db.PrivateNetworkUUID),
+				"tags":                       llx.ArrayData(tags, "\x02"),
+				"maintenanceWindow":          llx.DictData(mw),
+				"connectionSsl":              llx.BoolData(connSsl),
+				"connectionHost":             llx.StringData(connHost),
+				"connectionPort":             llx.IntData(connPort),
+				"privateConnectionAvailable": llx.BoolData(privateConnectionAvailable),
 			})
 			if err != nil {
 				return nil, err
@@ -638,6 +655,15 @@ func (r *mqlDigitalocean) kubernetesClusters() ([]interface{}, error) {
 				status = string(c.Status.State)
 			}
 
+			var ssoEnabled, ssoRequired bool
+			var ssoIssuerURL, ssoClientID string
+			if c.SSO != nil {
+				ssoEnabled = c.SSO.Enabled
+				ssoRequired = c.SSO.Required
+				ssoIssuerURL = c.SSO.IssuerURL
+				ssoClientID = c.SSO.ClientID
+			}
+
 			res, err := CreateResource(r.MqlRuntime, "digitalocean.kubernetes.cluster", map[string]*llx.RawData{
 				"id":                llx.StringData(c.ID),
 				"name":              llx.StringData(c.Name),
@@ -652,6 +678,10 @@ func (r *mqlDigitalocean) kubernetesClusters() ([]interface{}, error) {
 				"autoUpgrade":       llx.BoolData(c.AutoUpgrade),
 				"surgeUpgrade":      llx.BoolData(c.SurgeUpgrade),
 				"ha":                llx.BoolData(c.HA),
+				"ssoEnabled":        llx.BoolData(ssoEnabled),
+				"ssoRequired":       llx.BoolData(ssoRequired),
+				"ssoIssuerUrl":      llx.StringData(ssoIssuerURL),
+				"ssoClientId":       llx.StringData(ssoClientID),
 				"tags":              llx.ArrayData(tags, "\x02"),
 				"maintenancePolicy": llx.DictData(mp),
 			})
