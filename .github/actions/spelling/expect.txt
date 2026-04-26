@@ -387,6 +387,7 @@ Pids
 pipefail
 pki
 podfile
+Policer
 portgroup
 posix
 postgre
@@ -486,6 +487,7 @@ superusers
 swi
 switchports
 symfony
+tacacs
 tailnets
 tailscale
 tanium
