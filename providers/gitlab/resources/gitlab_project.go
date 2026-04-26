@@ -67,6 +67,24 @@ func initGitlabProject(runtime *plugin.Runtime, args map[string]*llx.RawData) (m
 	}
 
 	conn := runtime.Connection.(*connection.GitLabConnection)
+
+	// If only id is provided, fetch the project by id - used by typed refs
+	// (e.g. webhook.project(), deployKey.project(), auditEvent.entityProject()).
+	// 403/404 yields a bare resource so the typed back-ref doesn't fail the
+	// whole resource graph on insufficient perms.
+	if idArg, ok := args["id"]; ok && idArg != nil && idArg.Error == nil {
+		pid := int(idArg.Value.(int64))
+		project, resp, err := conn.Client().Projects.GetProject(pid, nil)
+		if err != nil {
+			if resp != nil && (resp.StatusCode == 403 || resp.StatusCode == 404) {
+				return args, nil, nil
+			}
+			return nil, nil, err
+		}
+		args = getGitlabProjectArgs(project)
+		return args, nil, nil
+	}
+
 	project, err := conn.Project()
 	if err != nil {
 		return nil, nil, err
@@ -204,13 +222,31 @@ func (p *mqlGitlabProject) projectMembers() ([]any, error) {
 
 	projectID := int(p.Id.Data)
 
-	members, _, err := conn.Client().ProjectMembers.ListAllProjectMembers(projectID, nil)
-	if err != nil {
-		return nil, err
+	perPage := int64(50)
+	page := int64(1)
+	var allMembers []*gitlab.ProjectMember
+
+	for {
+		members, resp, err := conn.Client().ProjectMembers.ListAllProjectMembers(projectID, &gitlab.ListProjectMembersOptions{
+			ListOptions: gitlab.ListOptions{
+				Page:    page,
+				PerPage: perPage,
+			},
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		allMembers = append(allMembers, members...)
+
+		if resp.NextPage == 0 {
+			break
+		}
+		page = resp.NextPage
 	}
 
 	var mqlMembers []any
-	for _, member := range members {
+	for _, member := range allMembers {
 		role := mapAccessLevelToRole(int(member.AccessLevel))
 
 		mqlUser, err := CreateResource(p.MqlRuntime, "gitlab.user", map[string]*llx.RawData{
@@ -314,27 +350,96 @@ func (p *mqlGitlabProject) projectFiles() ([]any, error) {
 	return mqlFiles, nil
 }
 
-// id function for gitlab.project.webhook
+// id function for gitlab.project.webhook - hook ID is unique per project, but
+// hooks are scoped to a project so we include the project ID for global uniqueness.
 func (g *mqlGitlabProjectWebhook) id() (string, error) {
-	return g.Url.Data, nil
+	return "gitlab.project.webhook/" + strconv.FormatInt(g.Id.Data, 10), nil
 }
 
-// webhooks fetches the webhooks for a project
+// mqlGitlabProjectWebhookInternal stores parent project context for typed refs.
+type mqlGitlabProjectWebhookInternal struct {
+	projectID int64
+}
+
+// project returns a typed reference to the parent project this webhook is registered on.
+func (h *mqlGitlabProjectWebhook) project() (*mqlGitlabProject, error) {
+	if h.projectID == 0 {
+		h.Project.State = plugin.StateIsSet | plugin.StateIsNull
+		return nil, nil
+	}
+	mqlProject, err := NewResource(h.MqlRuntime, "gitlab.project", map[string]*llx.RawData{
+		"id": llx.IntData(h.projectID),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return mqlProject.(*mqlGitlabProject), nil
+}
+
+// webhooks fetches the webhooks for a project. The list/get hook responses
+// from GitLab never include the configured secret token (write-only field), so
+// we cannot expose token presence or value here - sslVerification + the per-event
+// trigger flags are the auditable surface.
 func (p *mqlGitlabProject) webhooks() ([]any, error) {
 	conn := p.MqlRuntime.Connection.(*connection.GitLabConnection)
 
 	projectID := int(p.Id.Data)
 
-	hooks, _, err := conn.Client().Projects.ListProjectHooks(projectID, nil)
-	if err != nil {
-		return nil, err
+	perPage := int64(50)
+	page := int64(1)
+	var allHooks []*gitlab.ProjectHook
+
+	for {
+		hooks, resp, err := conn.Client().Projects.ListProjectHooks(projectID, &gitlab.ListProjectHooksOptions{
+			ListOptions: gitlab.ListOptions{
+				Page:    page,
+				PerPage: perPage,
+			},
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		allHooks = append(allHooks, hooks...)
+
+		if resp.NextPage == 0 {
+			break
+		}
+		page = resp.NextPage
 	}
 
 	var mqlWebhooks []any
-	for _, hook := range hooks {
+	for _, hook := range allHooks {
 		hookInfo := map[string]*llx.RawData{
-			"url":             llx.StringData(hook.URL),
-			"sslVerification": llx.BoolData(hook.EnableSSLVerification),
+			"id":                        llx.IntData(hook.ID),
+			"url":                       llx.StringData(hook.URL),
+			"name":                      llx.StringData(hook.Name),
+			"description":               llx.StringData(hook.Description),
+			"sslVerification":           llx.BoolData(hook.EnableSSLVerification),
+			"pushEvents":                llx.BoolData(hook.PushEvents),
+			"pushEventsBranchFilter":    llx.StringData(hook.PushEventsBranchFilter),
+			"issuesEvents":              llx.BoolData(hook.IssuesEvents),
+			"confidentialIssuesEvents":  llx.BoolData(hook.ConfidentialIssuesEvents),
+			"mergeRequestsEvents":       llx.BoolData(hook.MergeRequestsEvents),
+			"tagPushEvents":             llx.BoolData(hook.TagPushEvents),
+			"noteEvents":                llx.BoolData(hook.NoteEvents),
+			"confidentialNoteEvents":    llx.BoolData(hook.ConfidentialNoteEvents),
+			"jobEvents":                 llx.BoolData(hook.JobEvents),
+			"pipelineEvents":            llx.BoolData(hook.PipelineEvents),
+			"wikiPageEvents":            llx.BoolData(hook.WikiPageEvents),
+			"deploymentEvents":          llx.BoolData(hook.DeploymentEvents),
+			"releasesEvents":            llx.BoolData(hook.ReleasesEvents),
+			"resourceAccessTokenEvents": llx.BoolData(hook.ResourceAccessTokenEvents),
+			"vulnerabilityEvents":       llx.BoolData(hook.VulnerabilityEvents),
+			"featureFlagEvents":         llx.BoolData(hook.FeatureFlagEvents),
+			"milestoneEvents":           llx.BoolData(hook.MilestoneEvents),
+			"emojiEvents":               llx.BoolData(hook.EmojiEvents),
+			"repositoryUpdateEvents":    llx.BoolData(hook.RepositoryUpdateEvents),
+			"branchFilterStrategy":      llx.StringData(hook.BranchFilterStrategy),
+			"customWebhookTemplate":     llx.StringData(hook.CustomWebhookTemplate),
+			"createdAt":                 llx.TimeDataPtr(hook.CreatedAt),
+			"disabledUntil":             llx.TimeDataPtr(hook.DisabledUntil),
+			"alertStatus":               llx.StringData(hook.AlertStatus),
 		}
 
 		mqlWebhook, err := CreateResource(p.MqlRuntime, "gitlab.project.webhook", hookInfo)
@@ -342,6 +447,7 @@ func (p *mqlGitlabProject) webhooks() ([]any, error) {
 			return nil, err
 		}
 
+		mqlWebhook.(*mqlGitlabProjectWebhook).projectID = p.Id.Data
 		mqlWebhooks = append(mqlWebhooks, mqlWebhook)
 	}
 
@@ -398,12 +504,11 @@ func createMilestoneResource(runtime *plugin.Runtime, milestone *gitlab.Mileston
 	return mqlMilestone.(*mqlGitlabProjectMilestone), nil
 }
 
-// milestone fetches the milestone for a merge request
+// milestone fetches the milestone for a merge request. The milestone is
+// populated eagerly when the merge request is materialized; this fallback
+// covers MRs without an attached milestone.
 func (m *mqlGitlabProjectMergeRequest) milestone() (*mqlGitlabProjectMilestone, error) {
-	// The milestone should already be set when the merge request is created
-	// This method is only called as a fallback if it wasn't set
-	// In that case, we would need to fetch the merge request details again
-	// For now, return nil to indicate no milestone
+	m.Milestone.State = plugin.StateIsSet | plugin.StateIsNull
 	return nil, nil
 }
 
@@ -488,12 +593,11 @@ func (i *mqlGitlabProjectIssue) id() (string, error) {
 	return strconv.FormatInt(i.Id.Data, 10), nil
 }
 
-// milestone fetches the milestone for an issue
+// milestone fetches the milestone for an issue. The milestone is populated
+// eagerly when the issue is materialized; this fallback covers issues without
+// an attached milestone.
 func (i *mqlGitlabProjectIssue) milestone() (*mqlGitlabProjectMilestone, error) {
-	// The milestone should already be set when the issue is created
-	// This method is only called as a fallback if it wasn't set
-	// In that case, we would need to fetch the issue details again
-	// For now, return nil to indicate no milestone
+	i.Milestone.State = plugin.StateIsSet | plugin.StateIsNull
 	return nil, nil
 }
 
@@ -969,9 +1073,14 @@ func (p *mqlGitlabProject) pushRules() (*mqlGitlabProjectPushRule, error) {
 	rules, resp, err := conn.Client().Projects.GetProjectPushRules(projectID)
 	if err != nil {
 		if resp != nil && resp.StatusCode == 404 {
+			p.PushRules.State = plugin.StateIsSet | plugin.StateIsNull
 			return nil, nil // no push rules configured
 		}
 		return nil, err
+	}
+	if rules == nil {
+		p.PushRules.State = plugin.StateIsSet | plugin.StateIsNull
+		return nil, nil
 	}
 
 	ruleInfo := map[string]*llx.RawData{
@@ -1070,6 +1179,35 @@ func (k *mqlGitlabProjectDeployKey) id() (string, error) {
 	return "gitlab.project.deployKey/" + strconv.FormatInt(k.Id.Data, 10), nil
 }
 
+// mqlGitlabProjectDeployKeyInternal stores parent project context for typed refs.
+type mqlGitlabProjectDeployKeyInternal struct {
+	projectID int64
+}
+
+// daysOld returns the age of the deploy key in days. Returns -1 when createdAt
+// isn't set so callers can distinguish "missing data" from "fresh key".
+func (k *mqlGitlabProjectDeployKey) daysOld() (int64, error) {
+	if !k.CreatedAt.IsSet() || k.CreatedAt.Data == nil || k.CreatedAt.Data.IsZero() {
+		return -1, nil
+	}
+	return int64(time.Since(*k.CreatedAt.Data).Hours() / 24), nil
+}
+
+// project returns a typed reference to the parent project the deploy key is registered against.
+func (k *mqlGitlabProjectDeployKey) project() (*mqlGitlabProject, error) {
+	if k.projectID == 0 {
+		k.Project.State = plugin.StateIsSet | plugin.StateIsNull
+		return nil, nil
+	}
+	mqlProject, err := NewResource(k.MqlRuntime, "gitlab.project", map[string]*llx.RawData{
+		"id": llx.IntData(k.projectID),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return mqlProject.(*mqlGitlabProject), nil
+}
+
 // deployKeys fetches the list of deploy keys for the project
 func (p *mqlGitlabProject) deployKeys() ([]any, error) {
 	conn := p.MqlRuntime.Connection.(*connection.GitLabConnection)
@@ -1117,6 +1255,7 @@ func (p *mqlGitlabProject) deployKeys() ([]any, error) {
 			return nil, err
 		}
 
+		mqlKey.(*mqlGitlabProjectDeployKey).projectID = p.Id.Data
 		mqlKeys = append(mqlKeys, mqlKey)
 	}
 
@@ -1188,9 +1327,14 @@ func (p *mqlGitlabProject) securitySettings() (*mqlGitlabProjectSecuritySetting,
 	settings, resp, err := conn.Client().ProjectSecuritySettings.ListProjectSecuritySettings(projectID)
 	if err != nil {
 		if resp != nil && (resp.StatusCode == 403 || resp.StatusCode == 404) {
+			p.SecuritySettings.State = plugin.StateIsSet | plugin.StateIsNull
 			return nil, nil // not available on this GitLab tier
 		}
 		return nil, err
+	}
+	if settings == nil {
+		p.SecuritySettings.State = plugin.StateIsSet | plugin.StateIsNull
+		return nil, nil
 	}
 
 	settingInfo := map[string]*llx.RawData{
