@@ -50,7 +50,7 @@ func (a *mqlAtlassianJira) users() ([]any, error) {
 					"id":      llx.StringData(user.AccountID),
 					"name":    llx.StringData(user.DisplayName),
 					"type":    llx.StringData(user.AccountType),
-					"picture": llx.StringData(user.AvatarUrls.One6X16),
+					"picture": llx.StringData(user.AvatarURLs.One6X16),
 				})
 			if err != nil {
 				return nil, err
@@ -224,9 +224,10 @@ func (a *mqlAtlassianJira) issues() ([]any, error) {
 			return nil, err
 		}
 		for _, issue := range issues.Issues {
-			created, err := time.Parse(JIRA_TIME_FORMAT, issue.Fields.Created)
-			if err != nil {
-				return nil, err
+			var createdAt *time.Time
+			if issue.Fields.Created != nil {
+				t := time.Time(*issue.Fields.Created).UTC()
+				createdAt = &t
 			}
 
 			creator := issue.Fields.Creator
@@ -235,7 +236,7 @@ func (a *mqlAtlassianJira) issues() ([]any, error) {
 					"id":      llx.StringData(creator.AccountID),
 					"name":    llx.StringData(creator.DisplayName),
 					"type":    llx.StringData(creator.AccountType),
-					"picture": llx.StringData(creator.AvatarUrls.One6X16),
+					"picture": llx.StringData(creator.AvatarURLs.One6X16),
 				})
 			if err != nil {
 				return nil, err
@@ -248,7 +249,7 @@ func (a *mqlAtlassianJira) issues() ([]any, error) {
 					"projectKey":  llx.StringData(issue.Fields.Project.Key),
 					"status":      llx.StringData(issue.Fields.Status.Name),
 					"description": llx.StringData(issue.Fields.Description),
-					"createdAt":   llx.TimeData(created.UTC()),
+					"createdAt":   llx.TimeDataPtr(createdAt),
 					"creator":     llx.AnyData(mqlAtlassianJiraUser),
 					"typeName":    llx.StringData(issue.Fields.IssueType.Name),
 				})
