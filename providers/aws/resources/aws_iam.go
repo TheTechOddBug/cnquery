@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
@@ -825,6 +826,28 @@ func initAwsIamUser(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[
 	return args, nil, nil
 }
 
+type mqlAwsIamUserInternal struct {
+	accessKeysFetched atomic.Bool
+	accessKeysCache   []any
+	accessKeysLock    sync.Mutex
+
+	policiesFetched atomic.Bool
+	policiesCache   []any
+	policiesLock    sync.Mutex
+
+	attachedPoliciesFetched atomic.Bool
+	attachedPoliciesCache   []any
+	attachedPoliciesLock    sync.Mutex
+
+	groupsFetched atomic.Bool
+	groupsCache   []any
+	groupsLock    sync.Mutex
+
+	loginProfileFetched atomic.Bool
+	loginProfileCache   *mqlAwsIamLoginProfile
+	loginProfileLock    sync.Mutex
+}
+
 func (a *mqlAwsIamUser) id() (string, error) {
 	if a.Arn.Error != nil {
 		return "", a.Arn.Error
@@ -833,6 +856,15 @@ func (a *mqlAwsIamUser) id() (string, error) {
 }
 
 func (a *mqlAwsIamUser) accessKeys() ([]any, error) {
+	if a.accessKeysFetched.Load() {
+		return a.accessKeysCache, nil
+	}
+	a.accessKeysLock.Lock()
+	defer a.accessKeysLock.Unlock()
+	if a.accessKeysFetched.Load() {
+		return a.accessKeysCache, nil
+	}
+
 	conn := a.MqlRuntime.Connection.(*connection.AwsConnection)
 
 	svc := conn.Iam("")
@@ -857,10 +889,21 @@ func (a *mqlAwsIamUser) accessKeys() ([]any, error) {
 		res = append(res, metadata)
 	}
 
+	a.accessKeysCache = res
+	a.accessKeysFetched.Store(true)
 	return res, nil
 }
 
 func (a *mqlAwsIamUser) policies() ([]any, error) {
+	if a.policiesFetched.Load() {
+		return a.policiesCache, nil
+	}
+	a.policiesLock.Lock()
+	defer a.policiesLock.Unlock()
+	if a.policiesFetched.Load() {
+		return a.policiesCache, nil
+	}
+
 	conn := a.MqlRuntime.Connection.(*connection.AwsConnection)
 
 	svc := conn.Iam("")
@@ -884,10 +927,21 @@ func (a *mqlAwsIamUser) policies() ([]any, error) {
 		}
 	}
 
+	a.policiesCache = res
+	a.policiesFetched.Store(true)
 	return res, nil
 }
 
 func (a *mqlAwsIamUser) attachedPolicies() ([]any, error) {
+	if a.attachedPoliciesFetched.Load() {
+		return a.attachedPoliciesCache, nil
+	}
+	a.attachedPoliciesLock.Lock()
+	defer a.attachedPoliciesLock.Unlock()
+	if a.attachedPoliciesFetched.Load() {
+		return a.attachedPoliciesCache, nil
+	}
+
 	conn := a.MqlRuntime.Connection.(*connection.AwsConnection)
 
 	svc := conn.Iam("")
@@ -917,25 +971,27 @@ func (a *mqlAwsIamUser) attachedPolicies() ([]any, error) {
 		}
 	}
 
+	a.attachedPoliciesCache = res
+	a.attachedPoliciesFetched.Store(true)
 	return res, nil
 }
 
 type mqlAwsIamPolicyInternal struct {
 	cachePolicy     *iamtypes.Policy
-	policyFetched   bool
+	policyFetched   atomic.Bool
 	policyLock      sync.Mutex
 	cachedVersions  []iamtypes.PolicyVersion
-	versionsFetched bool
+	versionsFetched atomic.Bool
 	versionsLock    sync.Mutex
 }
 
 func (a *mqlAwsIamPolicy) loadPolicy(arn string) (*iamtypes.Policy, error) {
-	if a.policyFetched {
+	if a.policyFetched.Load() {
 		return a.cachePolicy, nil
 	}
 	a.policyLock.Lock()
 	defer a.policyLock.Unlock()
-	if a.policyFetched {
+	if a.policyFetched.Load() {
 		return a.cachePolicy, nil
 	}
 
@@ -950,7 +1006,7 @@ func (a *mqlAwsIamPolicy) loadPolicy(arn string) (*iamtypes.Policy, error) {
 	}
 
 	a.cachePolicy = policy.Policy
-	a.policyFetched = true
+	a.policyFetched.Store(true)
 	return policy.Policy, nil
 }
 
@@ -1158,12 +1214,12 @@ func (a *mqlAwsIamPolicy) attachedGroups() ([]any, error) {
 // fetchPolicyVersions fetches and caches ListPolicyVersions with double-check locking.
 // Shared between defaultVersion() and versions().
 func (a *mqlAwsIamPolicy) fetchPolicyVersions() ([]iamtypes.PolicyVersion, error) {
-	if a.versionsFetched {
+	if a.versionsFetched.Load() {
 		return a.cachedVersions, nil
 	}
 	a.versionsLock.Lock()
 	defer a.versionsLock.Unlock()
-	if a.versionsFetched {
+	if a.versionsFetched.Load() {
 		return a.cachedVersions, nil
 	}
 
@@ -1178,7 +1234,7 @@ func (a *mqlAwsIamPolicy) fetchPolicyVersions() ([]iamtypes.PolicyVersion, error
 	}
 
 	a.cachedVersions = resp.Versions
-	a.versionsFetched = true
+	a.versionsFetched.Store(true)
 	return a.cachedVersions, nil
 }
 
@@ -1560,6 +1616,15 @@ func (a *mqlAwsIamGroup) inlinePolicies() ([]any, error) {
 }
 
 func (a *mqlAwsIamUser) groups() ([]any, error) {
+	if a.groupsFetched.Load() {
+		return a.groupsCache, nil
+	}
+	a.groupsLock.Lock()
+	defer a.groupsLock.Unlock()
+	if a.groupsFetched.Load() {
+		return a.groupsCache, nil
+	}
+
 	conn := a.MqlRuntime.Connection.(*connection.AwsConnection)
 
 	svc := conn.Iam("")
@@ -1583,10 +1648,29 @@ func (a *mqlAwsIamUser) groups() ([]any, error) {
 		}
 	}
 
+	a.groupsCache = res
+	a.groupsFetched.Store(true)
 	return res, nil
 }
 
 func (a *mqlAwsIamUser) loginProfile() (*mqlAwsIamLoginProfile, error) {
+	if a.loginProfileFetched.Load() {
+		if a.loginProfileCache == nil {
+			a.LoginProfile.State = plugin.StateIsSet | plugin.StateIsNull
+			return nil, nil
+		}
+		return a.loginProfileCache, nil
+	}
+	a.loginProfileLock.Lock()
+	defer a.loginProfileLock.Unlock()
+	if a.loginProfileFetched.Load() {
+		if a.loginProfileCache == nil {
+			a.LoginProfile.State = plugin.StateIsSet | plugin.StateIsNull
+			return nil, nil
+		}
+		return a.loginProfileCache, nil
+	}
+
 	conn := a.MqlRuntime.Connection.(*connection.AwsConnection)
 
 	svc := conn.Iam("")
@@ -1600,6 +1684,7 @@ func (a *mqlAwsIamUser) loginProfile() (*mqlAwsIamLoginProfile, error) {
 	var ae smithy.APIError
 	if errors.As(err, &ae) {
 		if ae.ErrorCode() == "NoSuchEntity" {
+			a.loginProfileFetched.Store(true)
 			a.LoginProfile.State = plugin.StateIsSet | plugin.StateIsNull
 			return nil, nil
 		}
@@ -1620,7 +1705,9 @@ func (a *mqlAwsIamUser) loginProfile() (*mqlAwsIamLoginProfile, error) {
 	if err != nil {
 		return nil, err
 	}
-	return o.(*mqlAwsIamLoginProfile), nil
+	a.loginProfileCache = o.(*mqlAwsIamLoginProfile)
+	a.loginProfileFetched.Store(true)
+	return a.loginProfileCache, nil
 }
 
 func (a *mqlAwsIamLoginProfile) init() (string, error) {
