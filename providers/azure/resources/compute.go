@@ -21,6 +21,7 @@ import (
 	"go.mondoo.com/mql/v13/providers-sdk/v1/util/convert"
 	"go.mondoo.com/mql/v13/providers/azure/connection"
 	"go.mondoo.com/mql/v13/types"
+	"golang.org/x/sync/errgroup"
 )
 
 func (a *mqlAzureSubscriptionComputeService) id() (string, error) {
@@ -467,39 +468,70 @@ func (a *mqlAzureSubscriptionComputeServiceVm) dataDisks() ([]any, error) {
 
 	dataDisks := properties.StorageProfile.DataDisks
 
-	res := []any{}
-	for _, dd := range dataDisks {
+	// Pre-validate all disks (parse IDs, build clients) before spawning any
+	// goroutines so that an early error can't leak in-flight workers.
+	type diskFetch struct {
+		client *compute.DisksClient
+		rg     string
+		name   string
+		index  int
+	}
+	clientsBySub := map[string]*compute.DisksClient{}
+	disks := make([]compute.Disk, len(dataDisks))
+	fetches := make([]diskFetch, 0, len(dataDisks))
+	for i, dd := range dataDisks {
+		if dd.ManagedDisk == nil || dd.ManagedDisk.ID == nil {
+			continue
+		}
 		resourceID, err := ParseResourceID(*dd.ManagedDisk.ID)
 		if err != nil {
 			return nil, err
 		}
-
 		diskName, err := resourceID.Component("disks")
 		if err != nil {
 			return nil, err
 		}
-
-		ctx := context.Background()
-		if err != nil {
-			return nil, err
+		client, ok := clientsBySub[resourceID.SubscriptionID]
+		if !ok {
+			client, err = compute.NewDisksClient(resourceID.SubscriptionID, token, &arm.ClientOptions{
+				ClientOptions: conn.ClientOptions(),
+			})
+			if err != nil {
+				return nil, err
+			}
+			clientsBySub[resourceID.SubscriptionID] = client
 		}
+		fetches = append(fetches, diskFetch{client: client, rg: resourceID.ResourceGroup, name: diskName, index: i})
+	}
 
-		client, err := compute.NewDisksClient(resourceID.SubscriptionID, token, &arm.ClientOptions{
-			ClientOptions: conn.ClientOptions(),
+	// Azure has no batch get-by-id endpoint for disks, so concurrent per-disk
+	// Gets in a bounded errgroup is the cheapest fix.
+	ctx := context.Background()
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(10)
+	for _, f := range fetches {
+		g.Go(func() error {
+			resp, err := f.client.Get(gctx, f.rg, f.name, &compute.DisksClientGetOptions{})
+			if err != nil {
+				return err
+			}
+			disks[f.index] = resp.Disk
+			return nil
 		})
-		if err != nil {
-			return nil, err
-		}
-		disk, err := client.Get(ctx, resourceID.ResourceGroup, diskName, &compute.DisksClientGetOptions{})
-		if err != nil {
-			return nil, err
-		}
+	}
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
 
-		mqlDisk, err := diskToMql(a.MqlRuntime, disk.Disk)
+	res := []any{}
+	for _, disk := range disks {
+		if disk.ID == nil {
+			continue
+		}
+		mqlDisk, err := diskToMql(a.MqlRuntime, disk)
 		if err != nil {
 			return nil, err
 		}
-
 		res = append(res, mqlDisk)
 	}
 
@@ -557,45 +589,97 @@ func (a *mqlAzureSubscriptionComputeServiceVm) publicIpAddresses() ([]any, error
 	if err != nil {
 		return nil, err
 	}
-	for _, iface := range networkInterfaces.NetworkInterfaces {
+	// Phase 1: pre-validate NIC IDs, then fetch all NICs concurrently. Per-NIC
+	// Get is the only API option here (no batch endpoint), so a bounded
+	// errgroup is the cheapest fix that preserves semantics.
+	type nicFetch struct {
+		rg    string
+		name  string
+		index int
+	}
+	nicFetches := make([]nicFetch, 0, len(networkInterfaces.NetworkInterfaces))
+	for i, iface := range networkInterfaces.NetworkInterfaces {
+		if iface.ID == nil {
+			continue
+		}
 		resource, err := ParseResourceID(*iface.ID)
 		if err != nil {
 			return nil, err
 		}
-
 		name, err := resource.Component("networkInterfaces")
 		if err != nil {
 			return nil, err
 		}
-		networkInterface, err := nicClient.Get(ctx, resource.ResourceGroup, name, &network.InterfacesClientGetOptions{})
+		nicFetches = append(nicFetches, nicFetch{rg: resource.ResourceGroup, name: name, index: i})
+	}
+
+	nics := make([]network.Interface, len(networkInterfaces.NetworkInterfaces))
+	g1, gctx1 := errgroup.WithContext(ctx)
+	g1.SetLimit(10)
+	for _, f := range nicFetches {
+		g1.Go(func() error {
+			resp, err := nicClient.Get(gctx1, f.rg, f.name, &network.InterfacesClientGetOptions{})
+			if err != nil {
+				return err
+			}
+			nics[f.index] = resp.Interface
+			return nil
+		})
+	}
+	if err := g1.Wait(); err != nil {
+		return nil, err
+	}
+
+	// Phase 2: collect all public IP IDs across NICs, then fetch concurrently.
+	type ipFetch struct {
+		rg   string
+		name string
+	}
+	var fetches []ipFetch
+	for _, ni := range nics {
+		if ni.Properties == nil {
+			continue
+		}
+		for _, config := range ni.Properties.IPConfigurations {
+			if config.Properties == nil || config.Properties.PublicIPAddress == nil || config.Properties.PublicIPAddress.ID == nil {
+				continue
+			}
+			publicIPID := *config.Properties.PublicIPAddress.ID
+			publicIpResource, err := ParseResourceID(publicIPID)
+			if err != nil {
+				return nil, errors.New("invalid network information for resource " + publicIPID)
+			}
+			ipAddrName, err := publicIpResource.Component("publicIPAddresses")
+			if err != nil {
+				return nil, errors.New("invalid network information for resource " + publicIPID)
+			}
+			fetches = append(fetches, ipFetch{rg: publicIpResource.ResourceGroup, name: ipAddrName})
+		}
+	}
+
+	ipResults := make([]network.PublicIPAddress, len(fetches))
+	g2, gctx2 := errgroup.WithContext(ctx)
+	g2.SetLimit(10)
+	for i, f := range fetches {
+		g2.Go(func() error {
+			resp, err := ipClient.Get(gctx2, f.rg, f.name, &network.PublicIPAddressesClientGetOptions{})
+			if err != nil {
+				return err
+			}
+			ipResults[i] = resp.PublicIPAddress
+			return nil
+		})
+	}
+	if err := g2.Wait(); err != nil {
+		return nil, err
+	}
+
+	for _, ipAddress := range ipResults {
+		mqlIpAddress, err := azureIpToMql(a.MqlRuntime, ipAddress)
 		if err != nil {
 			return nil, err
 		}
-
-		for _, config := range networkInterface.Interface.Properties.IPConfigurations {
-			ip := config.Properties.PublicIPAddress
-			if ip != nil {
-				publicIPID := *ip.ID
-				publicIpResource, err := ParseResourceID(publicIPID)
-				if err != nil {
-					return nil, errors.New("invalid network information for resource " + publicIPID)
-				}
-
-				ipAddrName, err := publicIpResource.Component("publicIPAddresses")
-				if err != nil {
-					return nil, errors.New("invalid network information for resource " + publicIPID)
-				}
-				ipAddress, err := ipClient.Get(ctx, publicIpResource.ResourceGroup, ipAddrName, &network.PublicIPAddressesClientGetOptions{})
-				if err != nil {
-					return nil, err
-				}
-				mqlIpAddress, err := azureIpToMql(a.MqlRuntime, ipAddress.PublicIPAddress)
-				if err != nil {
-					return nil, err
-				}
-				res = append(res, mqlIpAddress)
-			}
-		}
+		res = append(res, mqlIpAddress)
 	}
 
 	return res, nil

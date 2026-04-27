@@ -23,6 +23,7 @@ import (
 	"go.mondoo.com/mql/v13/providers/azure/connection"
 	"go.mondoo.com/mql/v13/types"
 	"go.mondoo.com/mql/v13/utils/stringx"
+	"golang.org/x/sync/errgroup"
 
 	network "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v9"
 )
@@ -1899,10 +1900,24 @@ func (a *mqlAzureSubscriptionNetworkServiceApplicationFirewallPolicy) gateways()
 	}
 
 	gatewaysList := gateways.([]any)
-	res := []any{}
-	for _, g := range gatewaysList {
-		id := g.(map[string]any)["id"]
-		strId := id.(string)
+
+	// Pre-validate all gateway IDs before launching any goroutines so that an
+	// early parse error can't leak in-flight workers.
+	type gwFetch struct {
+		rg    string
+		name  string
+		index int
+	}
+	fetches := make([]gwFetch, 0, len(gatewaysList))
+	for i, gw := range gatewaysList {
+		idVal, ok := gw.(map[string]any)["id"]
+		if !ok {
+			continue
+		}
+		strId, ok := idVal.(string)
+		if !ok {
+			continue
+		}
 		azureId, err := ParseResourceID(strId)
 		if err != nil {
 			return nil, err
@@ -1911,11 +1926,34 @@ func (a *mqlAzureSubscriptionNetworkServiceApplicationFirewallPolicy) gateways()
 		if err != nil {
 			return nil, err
 		}
-		gateway, err := client.Get(ctx, azureId.ResourceGroup, gatewayName, &network.ApplicationGatewaysClientGetOptions{})
-		if err != nil {
-			return nil, err
+		fetches = append(fetches, gwFetch{rg: azureId.ResourceGroup, name: gatewayName, index: i})
+	}
+
+	// Fetch the referenced application gateways in parallel; there is no
+	// batch endpoint, so a bounded errgroup is the cheapest fix.
+	results := make([]network.ApplicationGateway, len(gatewaysList))
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(10)
+	for _, f := range fetches {
+		g.Go(func() error {
+			resp, err := client.Get(gctx, f.rg, f.name, &network.ApplicationGatewaysClientGetOptions{})
+			if err != nil {
+				return err
+			}
+			results[f.index] = resp.ApplicationGateway
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+
+	res := []any{}
+	for _, gw := range results {
+		if gw.ID == nil {
+			continue
 		}
-		mqlGateway, err := azureAppGatewayToMql(a.MqlRuntime, gateway.ApplicationGateway)
+		mqlGateway, err := azureAppGatewayToMql(a.MqlRuntime, gw)
 		if err != nil {
 			return nil, err
 		}
