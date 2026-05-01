@@ -7,7 +7,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
+	"sync"
 
 	"github.com/rs/zerolog/log"
 	"go.mondoo.com/mql/v13/llx"
@@ -19,6 +21,11 @@ import (
 	"google.golang.org/api/iam/v1"
 	"google.golang.org/api/option"
 	"google.golang.org/api/storage/v1"
+)
+
+const (
+	gcsAllUsers              = "allUsers"
+	gcsAllAuthenticatedUsers = "allAuthenticatedUsers"
 )
 
 func (g *mqlGcpProjectStorageService) id() (string, error) {
@@ -201,6 +208,11 @@ func mqlBucketFromAPI(runtime *plugin.Runtime, projectId string, bucket *storage
 
 type mqlGcpProjectStorageServiceBucketInternal struct {
 	cacheDefaultKmsKeyName string
+
+	aclLock            sync.Mutex
+	aclFetched         bool
+	cacheAcl           []*storage.BucketAccessControl
+	cacheDefaultObjAcl []*storage.ObjectAccessControl
 }
 
 func (g *mqlGcpProjectStorageServiceBucket) defaultKmsKey() (*mqlGcpProjectKmsServiceKeyringCryptokey, error) {
@@ -413,4 +425,128 @@ func (g *mqlGcpProjectStorageServiceBucket) iamPolicy() ([]any, error) {
 	}
 
 	return res, nil
+}
+
+// Buckets.List defaults to projection=noAcl, so acl/defaultObjectAcl require a
+// follow-up Buckets.Get with projection=full. They're also nil when uniform
+// bucket-level access is enabled.
+func (g *mqlGcpProjectStorageServiceBucket) fetchAcls() error {
+	if g.aclFetched {
+		return nil
+	}
+	g.aclLock.Lock()
+	defer g.aclLock.Unlock()
+	if g.aclFetched {
+		return nil
+	}
+
+	if g.Name.Error != nil {
+		return g.Name.Error
+	}
+	bucketName := g.Name.Data
+
+	conn := g.MqlRuntime.Connection.(*connection.GcpConnection)
+	client, err := conn.Client(cloudresourcemanager.CloudPlatformReadOnlyScope, iam.CloudPlatformScope, storage.CloudPlatformScope)
+	if err != nil {
+		return err
+	}
+	ctx := context.Background()
+	storeSvc, err := storage.NewService(ctx, option.WithHTTPClient(client))
+	if err != nil {
+		return err
+	}
+
+	bucket, err := storeSvc.Buckets.Get(bucketName).Projection("full").Do()
+	if err != nil {
+		return err
+	}
+
+	g.cacheAcl = bucket.Acl
+	g.cacheDefaultObjAcl = bucket.DefaultObjectAcl
+	g.aclFetched = true
+	return nil
+}
+
+func (g *mqlGcpProjectStorageServiceBucket) acl() ([]any, error) {
+	if err := g.fetchAcls(); err != nil {
+		return nil, err
+	}
+	return convert.JsonToDictSlice(g.cacheAcl)
+}
+
+func (g *mqlGcpProjectStorageServiceBucket) defaultObjectAcl() ([]any, error) {
+	if err := g.fetchAcls(); err != nil {
+		return nil, err
+	}
+	return convert.JsonToDictSlice(g.cacheDefaultObjAcl)
+}
+
+func (g *mqlGcpProjectStorageServiceBucket) public() (bool, error) {
+	if g.PublicAccessPrevention.Error != nil {
+		return false, g.PublicAccessPrevention.Error
+	}
+	// PAP=enforced is GCS's hard block — short-circuit before any IAM/ACL fetch.
+	if g.PublicAccessPrevention.Data == "enforced" {
+		return false, nil
+	}
+
+	bindings := g.GetIamPolicy()
+	if bindings.Error != nil {
+		return false, bindings.Error
+	}
+	for _, raw := range bindings.Data {
+		binding, ok := raw.(*mqlGcpResourcemanagerBinding)
+		if !ok || binding == nil {
+			continue
+		}
+		members := binding.GetMembers()
+		if members.Error != nil {
+			return false, members.Error
+		}
+		for _, m := range members.Data {
+			if s, ok := m.(string); ok && isPublicEntity(s) {
+				return true, nil
+			}
+		}
+	}
+
+	if err := g.fetchAcls(); err != nil {
+		return false, err
+	}
+	return aclsHavePublicEntity(g.cacheAcl, g.cacheDefaultObjAcl), nil
+}
+
+// evaluateBucketPublic is the canonical logic behind bucket.public(), used for
+// unit testing. The bucket.public() method itself short-circuits on PAP and IAM
+// before fetching ACLs to avoid an unnecessary Buckets.Get call.
+func evaluateBucketPublic(pap string, iamMembers []string, acl []*storage.BucketAccessControl, defaultObjectAcl []*storage.ObjectAccessControl) bool {
+	if pap == "enforced" {
+		return false
+	}
+	if anyPublicEntity(iamMembers) {
+		return true
+	}
+	return aclsHavePublicEntity(acl, defaultObjectAcl)
+}
+
+func aclsHavePublicEntity(acl []*storage.BucketAccessControl, defaultObjectAcl []*storage.ObjectAccessControl) bool {
+	for _, entry := range acl {
+		if entry != nil && isPublicEntity(entry.Entity) {
+			return true
+		}
+	}
+	for _, entry := range defaultObjectAcl {
+		if entry != nil && isPublicEntity(entry.Entity) {
+			return true
+		}
+	}
+	return false
+}
+
+func isPublicEntity(s string) bool {
+	return s == gcsAllUsers || s == gcsAllAuthenticatedUsers
+}
+
+func anyPublicEntity(entities []string) bool {
+	return slices.ContainsFunc(entities, isPublicEntity)
 }
