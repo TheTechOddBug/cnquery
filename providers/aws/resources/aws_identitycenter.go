@@ -578,3 +578,78 @@ func (a *mqlAwsIdentitycenterUser) id() (string, error) {
 // emails and externalIds are eagerly populated
 func (a *mqlAwsIdentitycenterUser) emails() ([]any, error)      { return nil, nil }
 func (a *mqlAwsIdentitycenterUser) externalIds() ([]any, error) { return nil, nil }
+
+// Identity Center applications (Identity Center–managed and customer-managed)
+func (a *mqlAwsIdentitycenterInstance) applications() ([]any, error) {
+	conn := a.MqlRuntime.Connection.(*connection.AwsConnection)
+	svc := conn.SsoAdmin("")
+	ctx := context.Background()
+
+	instanceArn := a.Arn.Data
+	res := []any{}
+
+	paginator := ssoadmin.NewListApplicationsPaginator(svc, &ssoadmin.ListApplicationsInput{
+		InstanceArn: &instanceArn,
+	})
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			if Is400AccessDeniedError(err) {
+				return res, nil
+			}
+			return nil, err
+		}
+		for _, app := range page.Applications {
+			portalVisibility := ""
+			signInOrigin := ""
+			applicationUrl := ""
+			if app.PortalOptions != nil {
+				portalVisibility = string(app.PortalOptions.Visibility)
+				if app.PortalOptions.SignInOptions != nil {
+					signInOrigin = string(app.PortalOptions.SignInOptions.Origin)
+					applicationUrl = convert.ToValue(app.PortalOptions.SignInOptions.ApplicationUrl)
+				}
+			}
+
+			mqlApp, err := CreateResource(a.MqlRuntime, "aws.identitycenter.application",
+				map[string]*llx.RawData{
+					"__id":                   llx.StringDataPtr(app.ApplicationArn),
+					"arn":                    llx.StringDataPtr(app.ApplicationArn),
+					"name":                   llx.StringDataPtr(app.Name),
+					"description":            llx.StringDataPtr(app.Description),
+					"status":                 llx.StringData(string(app.Status)),
+					"identityStoreArn":       llx.StringDataPtr(app.IdentityStoreArn),
+					"applicationProviderArn": llx.StringDataPtr(app.ApplicationProviderArn),
+					"applicationAccount":     llx.StringDataPtr(app.ApplicationAccount),
+					"createdFrom":            llx.StringDataPtr(app.CreatedFrom),
+					"createdDate":            llx.TimeDataPtr(app.CreatedDate),
+					"portalVisibility":       llx.StringData(portalVisibility),
+					"signInOrigin":           llx.StringData(signInOrigin),
+					"applicationUrl":         llx.StringData(applicationUrl),
+				})
+			if err != nil {
+				return nil, err
+			}
+			cast := mqlApp.(*mqlAwsIdentitycenterApplication)
+			cast.cacheInstance = a
+			res = append(res, mqlApp)
+		}
+	}
+	return res, nil
+}
+
+type mqlAwsIdentitycenterApplicationInternal struct {
+	cacheInstance *mqlAwsIdentitycenterInstance
+}
+
+func (a *mqlAwsIdentitycenterApplication) id() (string, error) {
+	return a.Arn.Data, nil
+}
+
+func (a *mqlAwsIdentitycenterApplication) instance() (*mqlAwsIdentitycenterInstance, error) {
+	if a.cacheInstance != nil {
+		return a.cacheInstance, nil
+	}
+	a.Instance.State = plugin.StateIsNull | plugin.StateIsSet
+	return nil, nil
+}
