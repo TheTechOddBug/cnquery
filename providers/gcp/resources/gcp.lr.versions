@@ -2971,6 +2971,12 @@ gcp.project.redisService.cluster 11.1.0
 gcp.project.redisService.cluster.authorizationMode 11.1.0
 gcp.project.redisService.cluster.automatedBackupConfig 11.1.0
 gcp.project.redisService.cluster.backup 11.1.0
+gcp.project.redisService.cluster.backup.backupFile 13.12.2
+gcp.project.redisService.cluster.backup.backupFile.backupName 13.12.2
+gcp.project.redisService.cluster.backup.backupFile.createTime 13.12.2
+gcp.project.redisService.cluster.backup.backupFile.fileName 13.12.2
+gcp.project.redisService.cluster.backup.backupFile.projectId 13.12.2
+gcp.project.redisService.cluster.backup.backupFile.sizeBytes 13.12.2
 gcp.project.redisService.cluster.backup.backupFiles 11.1.0
 gcp.project.redisService.cluster.backup.backupType 11.1.0
 gcp.project.redisService.cluster.backup.cluster 11.1.0
@@ -3008,6 +3014,7 @@ gcp.project.redisService.cluster.connectionDetail.pscConnectionStatus 11.1.0
 gcp.project.redisService.cluster.connectionDetail.serviceAttachment 11.1.0
 gcp.project.redisService.cluster.createTime 11.1.0
 gcp.project.redisService.cluster.crossClusterReplicationConfig 11.1.0
+gcp.project.redisService.cluster.cryptoKey 13.12.2
 gcp.project.redisService.cluster.deletionProtectionEnabled 11.1.0
 gcp.project.redisService.cluster.discoveryEndpoint 11.1.0
 gcp.project.redisService.cluster.discoveryEndpoint.address 11.1.0
@@ -3050,6 +3057,7 @@ gcp.project.redisService.cluster.serverCaPool 13.3.5
 gcp.project.redisService.cluster.shardCount 11.1.0
 gcp.project.redisService.cluster.sizeGb 11.1.0
 gcp.project.redisService.cluster.state 11.1.0
+gcp.project.redisService.cluster.stateInfo 13.12.2
 gcp.project.redisService.cluster.transitEncryptionMode 11.1.0
 gcp.project.redisService.cluster.uid 11.1.0
 gcp.project.redisService.cluster.zoneDistributionConfig 11.1.0
@@ -3065,6 +3073,7 @@ gcp.project.redisService.instance.currentLocationId 11.0.79
 gcp.project.redisService.instance.customerManagedKey 11.0.79
 gcp.project.redisService.instance.displayName 11.0.79
 gcp.project.redisService.instance.host 11.0.79
+gcp.project.redisService.instance.kmsKey 13.12.2
 gcp.project.redisService.instance.labels 11.0.79
 gcp.project.redisService.instance.locationId 11.0.79
 gcp.project.redisService.instance.maintenancePolicy 11.0.79
