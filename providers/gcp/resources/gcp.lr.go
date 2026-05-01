@@ -7258,6 +7258,9 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	"gcp.project.secretmanagerService.secret.customerManagedEncryption": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlGcpProjectSecretmanagerServiceSecret).GetCustomerManagedEncryption()).ToDataRes(types.Array(types.String))
 	},
+	"gcp.project.secretmanagerService.secret.tags": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlGcpProjectSecretmanagerServiceSecret).GetTags()).ToDataRes(types.Map(types.String, types.String))
+	},
 	"gcp.project.secretmanagerService.secret.versions": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlGcpProjectSecretmanagerServiceSecret).GetVersions()).ToDataRes(types.Array(types.Resource("gcp.project.secretmanagerService.secret.version")))
 	},
@@ -7783,6 +7786,9 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	"gcp.project.bigtableService.table.changeStreamConfig": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlGcpProjectBigtableServiceTable).GetChangeStreamConfig()).ToDataRes(types.Dict)
 	},
+	"gcp.project.bigtableService.table.tieredStorageConfig": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlGcpProjectBigtableServiceTable).GetTieredStorageConfig()).ToDataRes(types.Dict)
+	},
 	"gcp.project.bigtableService.appProfile.projectId": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlGcpProjectBigtableServiceAppProfile).GetProjectId()).ToDataRes(types.String)
 	},
@@ -7971,6 +7977,12 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	},
 	"gcp.project.alloydbService.instance.pscInstanceConfig": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlGcpProjectAlloydbServiceInstance).GetPscInstanceConfig()).ToDataRes(types.Dict)
+	},
+	"gcp.project.alloydbService.instance.activationPolicy": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlGcpProjectAlloydbServiceInstance).GetActivationPolicy()).ToDataRes(types.String)
+	},
+	"gcp.project.alloydbService.instance.connectionPoolConfig": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlGcpProjectAlloydbServiceInstance).GetConnectionPoolConfig()).ToDataRes(types.Dict)
 	},
 	"gcp.project.alloydbService.instance.nodes": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlGcpProjectAlloydbServiceInstance).GetNodes()).ToDataRes(types.Array(types.Dict))
@@ -20036,6 +20048,10 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 		r.(*mqlGcpProjectSecretmanagerServiceSecret).CustomerManagedEncryption, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
 		return
 	},
+	"gcp.project.secretmanagerService.secret.tags": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlGcpProjectSecretmanagerServiceSecret).Tags, ok = plugin.RawToTValue[map[string]any](v.Value, v.Error)
+		return
+	},
 	"gcp.project.secretmanagerService.secret.versions": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlGcpProjectSecretmanagerServiceSecret).Versions, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
 		return
@@ -20804,6 +20820,10 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 		r.(*mqlGcpProjectBigtableServiceTable).ChangeStreamConfig, ok = plugin.RawToTValue[any](v.Value, v.Error)
 		return
 	},
+	"gcp.project.bigtableService.table.tieredStorageConfig": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlGcpProjectBigtableServiceTable).TieredStorageConfig, ok = plugin.RawToTValue[any](v.Value, v.Error)
+		return
+	},
 	"gcp.project.bigtableService.appProfile.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlGcpProjectBigtableServiceAppProfile).__id, ok = v.Value.(string)
 		return
@@ -21074,6 +21094,14 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 	},
 	"gcp.project.alloydbService.instance.pscInstanceConfig": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlGcpProjectAlloydbServiceInstance).PscInstanceConfig, ok = plugin.RawToTValue[any](v.Value, v.Error)
+		return
+	},
+	"gcp.project.alloydbService.instance.activationPolicy": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlGcpProjectAlloydbServiceInstance).ActivationPolicy, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"gcp.project.alloydbService.instance.connectionPoolConfig": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlGcpProjectAlloydbServiceInstance).ConnectionPoolConfig, ok = plugin.RawToTValue[any](v.Value, v.Error)
 		return
 	},
 	"gcp.project.alloydbService.instance.nodes": func(r plugin.Resource, v *llx.RawData) (ok bool) {
@@ -46338,6 +46366,7 @@ type mqlGcpProjectSecretmanagerServiceSecret struct {
 	Annotations               plugin.TValue[map[string]any]
 	VersionDestroyTtl         plugin.TValue[*time.Time]
 	CustomerManagedEncryption plugin.TValue[[]any]
+	Tags                      plugin.TValue[map[string]any]
 	Versions                  plugin.TValue[[]any]
 	IamPolicy                 plugin.TValue[[]any]
 }
@@ -46433,6 +46462,10 @@ func (c *mqlGcpProjectSecretmanagerServiceSecret) GetVersionDestroyTtl() *plugin
 
 func (c *mqlGcpProjectSecretmanagerServiceSecret) GetCustomerManagedEncryption() *plugin.TValue[[]any] {
 	return &c.CustomerManagedEncryption
+}
+
+func (c *mqlGcpProjectSecretmanagerServiceSecret) GetTags() *plugin.TValue[map[string]any] {
+	return &c.Tags
 }
 
 func (c *mqlGcpProjectSecretmanagerServiceSecret) GetVersions() *plugin.TValue[[]any] {
@@ -48227,6 +48260,7 @@ type mqlGcpProjectBigtableServiceTable struct {
 	DeletionProtection    plugin.TValue[bool]
 	AutomatedBackupPolicy plugin.TValue[any]
 	ChangeStreamConfig    plugin.TValue[any]
+	TieredStorageConfig   plugin.TValue[any]
 }
 
 // createGcpProjectBigtableServiceTable creates a new instance of this resource
@@ -48296,6 +48330,10 @@ func (c *mqlGcpProjectBigtableServiceTable) GetAutomatedBackupPolicy() *plugin.T
 
 func (c *mqlGcpProjectBigtableServiceTable) GetChangeStreamConfig() *plugin.TValue[any] {
 	return &c.ChangeStreamConfig
+}
+
+func (c *mqlGcpProjectBigtableServiceTable) GetTieredStorageConfig() *plugin.TValue[any] {
+	return &c.TieredStorageConfig
 }
 
 // mqlGcpProjectBigtableServiceAppProfile for the gcp.project.bigtableService.appProfile resource
@@ -48758,6 +48796,8 @@ type mqlGcpProjectAlloydbServiceInstance struct {
 	ReadPoolConfig         plugin.TValue[any]
 	ClientConnectionConfig plugin.TValue[any]
 	PscInstanceConfig      plugin.TValue[any]
+	ActivationPolicy       plugin.TValue[string]
+	ConnectionPoolConfig   plugin.TValue[any]
 	Nodes                  plugin.TValue[[]any]
 	WritableNode           plugin.TValue[any]
 	Reconciling            plugin.TValue[bool]
@@ -48873,6 +48913,14 @@ func (c *mqlGcpProjectAlloydbServiceInstance) GetClientConnectionConfig() *plugi
 
 func (c *mqlGcpProjectAlloydbServiceInstance) GetPscInstanceConfig() *plugin.TValue[any] {
 	return &c.PscInstanceConfig
+}
+
+func (c *mqlGcpProjectAlloydbServiceInstance) GetActivationPolicy() *plugin.TValue[string] {
+	return &c.ActivationPolicy
+}
+
+func (c *mqlGcpProjectAlloydbServiceInstance) GetConnectionPoolConfig() *plugin.TValue[any] {
+	return &c.ConnectionPoolConfig
 }
 
 func (c *mqlGcpProjectAlloydbServiceInstance) GetNodes() *plugin.TValue[[]any] {
