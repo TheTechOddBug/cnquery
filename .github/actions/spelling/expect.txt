@@ -17,6 +17,7 @@ alloydb
 alpn
 antispam
 aof
+apm
 apparmor
 appslot
 armcontainerregistry
@@ -110,6 +111,8 @@ customresources
 cwes
 cyclonedx
 dast
+datadog
+datadoghq
 databricks
 datapath
 datasource
@@ -217,6 +220,7 @@ hostkeys
 hotlink
 hpi
 hsts
+httpbin
 hvm
 Iaa
 iana
@@ -261,6 +265,7 @@ keyspace
 kilocode
 kiro
 kolide
+kotlin
 KQL
 kqueue
 krbtgt
@@ -320,6 +325,7 @@ mongodb
 Mpim
 msk
 mtls
+multiplatform
 MULTIAZ
 myapp
 mychart
@@ -429,11 +435,13 @@ rbcd
 recaptcha
 regexmatchstatement
 regexpatternsetreferencestatement
+rehydration
 replicators
 resourcegroup
 resourcepolicy
 resourcequota
 richrule
+roku
 rootdir
 rpo
 RRULE
@@ -495,6 +503,7 @@ swi
 switchports
 SYMANTEC
 symfony
+synthetics
 tacacs
 tailnets
 tailscale
@@ -506,6 +515,7 @@ tensorboard
 testutils
 tgw
 throughputs
+timeframe
 timestream
 tokenauth
 tokenid
