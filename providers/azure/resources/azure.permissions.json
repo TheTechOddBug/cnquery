@@ -1,7 +1,7 @@
 {
   "provider": "azure",
   "version": "13.8.1",
-  "generated_at": "2026-04-29T09:56:02-07:00",
+  "generated_at": "2026-05-01T15:26:02-07:00",
   "permissions": [
     "Microsoft.Advisor/recommendations/read",
     "Microsoft.Authorization/classicAdministrators/read",
@@ -109,6 +109,18 @@
     "Microsoft.ServiceBus/namespaces/read",
     "Microsoft.ServiceBus/namespaces/topics/read",
     "Microsoft.ServiceBus/namespaces/topics/subscriptions/read",
+    "Microsoft.Sql/dataMaskingPolicies/read",
+    "Microsoft.Sql/dataMaskingRules/read",
+    "Microsoft.Sql/databaseVulnerabilityAssessmentScans/read",
+    "Microsoft.Sql/databaseVulnerabilityAssessments/read",
+    "Microsoft.Sql/failoverGroups/read",
+    "Microsoft.Sql/geoBackupPolicies/read",
+    "Microsoft.Sql/ledgerDigestUploads/read",
+    "Microsoft.Sql/outboundFirewallRules/read",
+    "Microsoft.Sql/privateEndpointConnections/read",
+    "Microsoft.Sql/replicationLinks/read",
+    "Microsoft.Sql/serverDevOpsAuditSettings/read",
+    "Microsoft.Sql/serverKeys/read",
     "Microsoft.Sql/servers/administrators/read",
     "Microsoft.Sql/servers/advancedThreatProtectionSettings/read",
     "Microsoft.Sql/servers/auditingSettings/read",
@@ -799,6 +811,78 @@
       "service": "Microsoft.ServiceBus",
       "action": "NewListByTopicPager",
       "source_file": "servicebus.go"
+    },
+    {
+      "permission": "Microsoft.Sql/dataMaskingPolicies/read",
+      "service": "Microsoft.Sql",
+      "action": "Get",
+      "source_file": "sql.go"
+    },
+    {
+      "permission": "Microsoft.Sql/dataMaskingRules/read",
+      "service": "Microsoft.Sql",
+      "action": "NewListByDatabasePager",
+      "source_file": "sql.go"
+    },
+    {
+      "permission": "Microsoft.Sql/databaseVulnerabilityAssessmentScans/read",
+      "service": "Microsoft.Sql",
+      "action": "NewListByDatabasePager",
+      "source_file": "sql.go"
+    },
+    {
+      "permission": "Microsoft.Sql/databaseVulnerabilityAssessments/read",
+      "service": "Microsoft.Sql",
+      "action": "Get",
+      "source_file": "sql.go"
+    },
+    {
+      "permission": "Microsoft.Sql/failoverGroups/read",
+      "service": "Microsoft.Sql",
+      "action": "NewListByServerPager",
+      "source_file": "sql.go"
+    },
+    {
+      "permission": "Microsoft.Sql/geoBackupPolicies/read",
+      "service": "Microsoft.Sql",
+      "action": "Get",
+      "source_file": "sql.go"
+    },
+    {
+      "permission": "Microsoft.Sql/ledgerDigestUploads/read",
+      "service": "Microsoft.Sql",
+      "action": "Get",
+      "source_file": "sql.go"
+    },
+    {
+      "permission": "Microsoft.Sql/outboundFirewallRules/read",
+      "service": "Microsoft.Sql",
+      "action": "NewListByServerPager",
+      "source_file": "sql.go"
+    },
+    {
+      "permission": "Microsoft.Sql/privateEndpointConnections/read",
+      "service": "Microsoft.Sql",
+      "action": "NewListByServerPager",
+      "source_file": "sql.go"
+    },
+    {
+      "permission": "Microsoft.Sql/replicationLinks/read",
+      "service": "Microsoft.Sql",
+      "action": "NewListByServerPager",
+      "source_file": "sql.go"
+    },
+    {
+      "permission": "Microsoft.Sql/serverDevOpsAuditSettings/read",
+      "service": "Microsoft.Sql",
+      "action": "Get",
+      "source_file": "sql.go"
+    },
+    {
+      "permission": "Microsoft.Sql/serverKeys/read",
+      "service": "Microsoft.Sql",
+      "action": "NewListByServerPager",
+      "source_file": "sql.go"
     },
     {
       "permission": "Microsoft.Sql/servers/administrators/read",
