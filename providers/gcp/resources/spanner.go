@@ -306,9 +306,56 @@ func (g *mqlGcpProjectSpannerServiceInstance) databases() ([]any, error) {
 		if err != nil {
 			return nil, err
 		}
+		mqlSpannerDb := mqlDb.(*mqlGcpProjectSpannerServiceInstanceDatabase)
+		if db.EncryptionConfig != nil {
+			mqlSpannerDb.cacheKmsKeyNames = collectSpannerKmsKeyNames(db.EncryptionConfig)
+		}
 		res = append(res, mqlDb)
 	}
 
+	return res, nil
+}
+
+func collectSpannerKmsKeyNames(cfg *databasepb.EncryptionConfig) []string {
+	if cfg == nil {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(cfg.KmsKeyNames)+1)
+	out := make([]string, 0, len(cfg.KmsKeyNames)+1)
+	add := func(name string) {
+		if name == "" {
+			return
+		}
+		if _, ok := seen[name]; ok {
+			return
+		}
+		seen[name] = struct{}{}
+		out = append(out, name)
+	}
+	add(cfg.KmsKeyName)
+	for _, n := range cfg.KmsKeyNames {
+		add(n)
+	}
+	return out
+}
+
+type mqlGcpProjectSpannerServiceInstanceDatabaseInternal struct {
+	cacheKmsKeyNames []string
+}
+
+func (g *mqlGcpProjectSpannerServiceInstanceDatabase) kmsKeys() ([]any, error) {
+	if len(g.cacheKmsKeyNames) == 0 {
+		return []any{}, nil
+	}
+	res := make([]any, 0, len(g.cacheKmsKeyNames))
+	for _, name := range g.cacheKmsKeyNames {
+		key, err := NewResource(g.MqlRuntime, "gcp.project.kmsService.keyring.cryptokey",
+			map[string]*llx.RawData{"resourcePath": llx.StringData(name)})
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, key)
+	}
 	return res, nil
 }
 
