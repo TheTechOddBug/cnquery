@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -3287,4 +3288,116 @@ func (g *mqlGcpProjectComputeServiceImage) public() (bool, error) {
 		return false, bindings.Error
 	}
 	return iamPolicyHasPublicMember(bindings.Data)
+}
+
+var defaultComputeServiceAccountRe = regexp.MustCompile(`^\d+-compute@developer\.gserviceaccount\.com$`)
+
+func (g *mqlGcpProjectComputeServiceInstance) usesDefaultServiceAccount() (bool, error) {
+	sas := g.GetServiceAccounts()
+	if sas.Error != nil {
+		return false, sas.Error
+	}
+	for _, raw := range sas.Data {
+		sa, ok := raw.(*mqlGcpProjectComputeServiceServiceaccount)
+		if !ok || sa == nil {
+			continue
+		}
+		email := sa.GetEmail()
+		if email.Error != nil {
+			return false, email.Error
+		}
+		if defaultComputeServiceAccountRe.MatchString(email.Data) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+const cloudPlatformOAuthScope = "https://www.googleapis.com/auth/cloud-platform"
+
+func (g *mqlGcpProjectComputeServiceInstance) hasFullCloudPlatformScope() (bool, error) {
+	sas := g.GetServiceAccounts()
+	if sas.Error != nil {
+		return false, sas.Error
+	}
+	for _, raw := range sas.Data {
+		sa, ok := raw.(*mqlGcpProjectComputeServiceServiceaccount)
+		if !ok || sa == nil {
+			continue
+		}
+		scopes := sa.GetScopes()
+		if scopes.Error != nil {
+			return false, scopes.Error
+		}
+		for _, s := range scopes.Data {
+			if str, ok := s.(string); ok && str == cloudPlatformOAuthScope {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
+func metadataBoolFlag(metadata map[string]any, key string) bool {
+	v, ok := metadata[key]
+	if !ok {
+		return false
+	}
+	s, ok := v.(string)
+	if !ok {
+		return false
+	}
+	switch strings.ToLower(s) {
+	case "true", "1":
+		return true
+	}
+	return false
+}
+
+func (g *mqlGcpProjectComputeServiceInstance) blockProjectSshKeysEnabled() (bool, error) {
+	md := g.GetMetadata()
+	if md.Error != nil {
+		return false, md.Error
+	}
+	return metadataBoolFlag(md.Data, "block-project-ssh-keys"), nil
+}
+
+func (g *mqlGcpProjectComputeServiceInstance) osLoginEnabled() (bool, error) {
+	md := g.GetMetadata()
+	if md.Error != nil {
+		return false, md.Error
+	}
+	if _, set := md.Data["enable-oslogin"]; set {
+		return metadataBoolFlag(md.Data, "enable-oslogin"), nil
+	}
+	if g.ProjectId.Error != nil {
+		return false, g.ProjectId.Error
+	}
+	projectId := g.ProjectId.Data
+	if projectId == "" {
+		return false, nil
+	}
+	projRes, err := NewResource(g.MqlRuntime, "gcp.project", map[string]*llx.RawData{
+		"id": llx.StringData(projectId),
+	})
+	if err != nil {
+		return false, err
+	}
+	proj := projRes.(*mqlGcpProject)
+	projMd := proj.GetCommonInstanceMetadata()
+	if projMd.Error != nil {
+		return false, projMd.Error
+	}
+	if projMd.Data == nil {
+		return false, nil
+	}
+	return metadataBoolFlag(projMd.Data, "enable-oslogin"), nil
+}
+
+func (g *mqlGcpProjectComputeServiceInstance) serialPortEnabled() (bool, error) {
+	md := g.GetMetadata()
+	if md.Error != nil {
+		return false, md.Error
+	}
+	return metadataBoolFlag(md.Data, "serial-port-enable"), nil
 }
