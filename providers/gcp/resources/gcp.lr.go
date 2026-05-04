@@ -4907,6 +4907,9 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	"gcp.project.gkeService.cluster.workloadIdentityConfig": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlGcpProjectGkeServiceCluster).GetWorkloadIdentityConfig()).ToDataRes(types.Dict)
 	},
+	"gcp.project.gkeService.cluster.workloadIdentityEnabled": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlGcpProjectGkeServiceCluster).GetWorkloadIdentityEnabled()).ToDataRes(types.Bool)
+	},
 	"gcp.project.gkeService.cluster.ipAllocationPolicy": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlGcpProjectGkeServiceCluster).GetIpAllocationPolicy()).ToDataRes(types.Resource("gcp.project.gkeService.cluster.ipAllocationPolicy"))
 	},
@@ -4916,8 +4919,14 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	"gcp.project.gkeService.cluster.binaryAuthorization": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlGcpProjectGkeServiceCluster).GetBinaryAuthorization()).ToDataRes(types.Dict)
 	},
+	"gcp.project.gkeService.cluster.binaryAuthorizationEnabled": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlGcpProjectGkeServiceCluster).GetBinaryAuthorizationEnabled()).ToDataRes(types.Bool)
+	},
 	"gcp.project.gkeService.cluster.legacyAbac": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlGcpProjectGkeServiceCluster).GetLegacyAbac()).ToDataRes(types.Dict)
+	},
+	"gcp.project.gkeService.cluster.legacyAbacEnabled": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlGcpProjectGkeServiceCluster).GetLegacyAbacEnabled()).ToDataRes(types.Bool)
 	},
 	"gcp.project.gkeService.cluster.masterAuth": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlGcpProjectGkeServiceCluster).GetMasterAuth()).ToDataRes(types.Dict)
@@ -4951,6 +4960,9 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	},
 	"gcp.project.gkeService.cluster.shieldedNodesConfig": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlGcpProjectGkeServiceCluster).GetShieldedNodesConfig()).ToDataRes(types.Dict)
+	},
+	"gcp.project.gkeService.cluster.shieldedNodesEnabled": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlGcpProjectGkeServiceCluster).GetShieldedNodesEnabled()).ToDataRes(types.Bool)
 	},
 	"gcp.project.gkeService.cluster.costManagementConfig": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlGcpProjectGkeServiceCluster).GetCostManagementConfig()).ToDataRes(types.Dict)
@@ -5218,6 +5230,12 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	},
 	"gcp.project.gkeService.cluster.nodepool.management": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlGcpProjectGkeServiceClusterNodepool).GetManagement()).ToDataRes(types.Dict)
+	},
+	"gcp.project.gkeService.cluster.nodepool.autoUpgrade": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlGcpProjectGkeServiceClusterNodepool).GetAutoUpgrade()).ToDataRes(types.Bool)
+	},
+	"gcp.project.gkeService.cluster.nodepool.autoRepair": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlGcpProjectGkeServiceClusterNodepool).GetAutoRepair()).ToDataRes(types.Bool)
 	},
 	"gcp.project.gkeService.cluster.nodepool.autoscaling": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlGcpProjectGkeServiceClusterNodepool).GetAutoscaling()).ToDataRes(types.Resource("gcp.project.gkeService.cluster.nodepool.autoscaling"))
@@ -16649,6 +16667,10 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 		r.(*mqlGcpProjectGkeServiceCluster).WorkloadIdentityConfig, ok = plugin.RawToTValue[any](v.Value, v.Error)
 		return
 	},
+	"gcp.project.gkeService.cluster.workloadIdentityEnabled": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlGcpProjectGkeServiceCluster).WorkloadIdentityEnabled, ok = plugin.RawToTValue[bool](v.Value, v.Error)
+		return
+	},
 	"gcp.project.gkeService.cluster.ipAllocationPolicy": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlGcpProjectGkeServiceCluster).IpAllocationPolicy, ok = plugin.RawToTValue[*mqlGcpProjectGkeServiceClusterIpAllocationPolicy](v.Value, v.Error)
 		return
@@ -16661,8 +16683,16 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 		r.(*mqlGcpProjectGkeServiceCluster).BinaryAuthorization, ok = plugin.RawToTValue[any](v.Value, v.Error)
 		return
 	},
+	"gcp.project.gkeService.cluster.binaryAuthorizationEnabled": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlGcpProjectGkeServiceCluster).BinaryAuthorizationEnabled, ok = plugin.RawToTValue[bool](v.Value, v.Error)
+		return
+	},
 	"gcp.project.gkeService.cluster.legacyAbac": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlGcpProjectGkeServiceCluster).LegacyAbac, ok = plugin.RawToTValue[any](v.Value, v.Error)
+		return
+	},
+	"gcp.project.gkeService.cluster.legacyAbacEnabled": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlGcpProjectGkeServiceCluster).LegacyAbacEnabled, ok = plugin.RawToTValue[bool](v.Value, v.Error)
 		return
 	},
 	"gcp.project.gkeService.cluster.masterAuth": func(r plugin.Resource, v *llx.RawData) (ok bool) {
@@ -16707,6 +16737,10 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 	},
 	"gcp.project.gkeService.cluster.shieldedNodesConfig": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlGcpProjectGkeServiceCluster).ShieldedNodesConfig, ok = plugin.RawToTValue[any](v.Value, v.Error)
+		return
+	},
+	"gcp.project.gkeService.cluster.shieldedNodesEnabled": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlGcpProjectGkeServiceCluster).ShieldedNodesEnabled, ok = plugin.RawToTValue[bool](v.Value, v.Error)
 		return
 	},
 	"gcp.project.gkeService.cluster.costManagementConfig": func(r plugin.Resource, v *llx.RawData) (ok bool) {
@@ -17095,6 +17129,14 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 	},
 	"gcp.project.gkeService.cluster.nodepool.management": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlGcpProjectGkeServiceClusterNodepool).Management, ok = plugin.RawToTValue[any](v.Value, v.Error)
+		return
+	},
+	"gcp.project.gkeService.cluster.nodepool.autoUpgrade": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlGcpProjectGkeServiceClusterNodepool).AutoUpgrade, ok = plugin.RawToTValue[bool](v.Value, v.Error)
+		return
+	},
+	"gcp.project.gkeService.cluster.nodepool.autoRepair": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlGcpProjectGkeServiceClusterNodepool).AutoRepair, ok = plugin.RawToTValue[bool](v.Value, v.Error)
 		return
 	},
 	"gcp.project.gkeService.cluster.nodepool.autoscaling": func(r plugin.Resource, v *llx.RawData) (ok bool) {
@@ -37803,10 +37845,13 @@ type mqlGcpProjectGkeServiceCluster struct {
 	ExpirationTime                  plugin.TValue[*time.Time]
 	AddonsConfig                    plugin.TValue[*mqlGcpProjectGkeServiceClusterAddonsConfig]
 	WorkloadIdentityConfig          plugin.TValue[any]
+	WorkloadIdentityEnabled         plugin.TValue[bool]
 	IpAllocationPolicy              plugin.TValue[*mqlGcpProjectGkeServiceClusterIpAllocationPolicy]
 	NetworkConfig                   plugin.TValue[*mqlGcpProjectGkeServiceClusterNetworkConfig]
 	BinaryAuthorization             plugin.TValue[any]
+	BinaryAuthorizationEnabled      plugin.TValue[bool]
 	LegacyAbac                      plugin.TValue[any]
+	LegacyAbacEnabled               plugin.TValue[bool]
 	MasterAuth                      plugin.TValue[any]
 	MasterAuthorizedNetworksConfig  plugin.TValue[any]
 	MasterAuthorizedNetworksEnabled plugin.TValue[bool]
@@ -37818,6 +37863,7 @@ type mqlGcpProjectGkeServiceCluster struct {
 	DatabaseEncryptionState         plugin.TValue[string]
 	DatabaseEncryptionKey           plugin.TValue[*mqlGcpProjectKmsServiceKeyringCryptokey]
 	ShieldedNodesConfig             plugin.TValue[any]
+	ShieldedNodesEnabled            plugin.TValue[bool]
 	CostManagementConfig            plugin.TValue[any]
 	ConfidentialNodesConfig         plugin.TValue[any]
 	IdentityServiceConfig           plugin.TValue[any]
@@ -37967,6 +38013,10 @@ func (c *mqlGcpProjectGkeServiceCluster) GetWorkloadIdentityConfig() *plugin.TVa
 	return &c.WorkloadIdentityConfig
 }
 
+func (c *mqlGcpProjectGkeServiceCluster) GetWorkloadIdentityEnabled() *plugin.TValue[bool] {
+	return &c.WorkloadIdentityEnabled
+}
+
 func (c *mqlGcpProjectGkeServiceCluster) GetIpAllocationPolicy() *plugin.TValue[*mqlGcpProjectGkeServiceClusterIpAllocationPolicy] {
 	return &c.IpAllocationPolicy
 }
@@ -37979,8 +38029,16 @@ func (c *mqlGcpProjectGkeServiceCluster) GetBinaryAuthorization() *plugin.TValue
 	return &c.BinaryAuthorization
 }
 
+func (c *mqlGcpProjectGkeServiceCluster) GetBinaryAuthorizationEnabled() *plugin.TValue[bool] {
+	return &c.BinaryAuthorizationEnabled
+}
+
 func (c *mqlGcpProjectGkeServiceCluster) GetLegacyAbac() *plugin.TValue[any] {
 	return &c.LegacyAbac
+}
+
+func (c *mqlGcpProjectGkeServiceCluster) GetLegacyAbacEnabled() *plugin.TValue[bool] {
+	return &c.LegacyAbacEnabled
 }
 
 func (c *mqlGcpProjectGkeServiceCluster) GetMasterAuth() *plugin.TValue[any] {
@@ -38037,6 +38095,10 @@ func (c *mqlGcpProjectGkeServiceCluster) GetDatabaseEncryptionKey() *plugin.TVal
 
 func (c *mqlGcpProjectGkeServiceCluster) GetShieldedNodesConfig() *plugin.TValue[any] {
 	return &c.ShieldedNodesConfig
+}
+
+func (c *mqlGcpProjectGkeServiceCluster) GetShieldedNodesEnabled() *plugin.TValue[bool] {
+	return &c.ShieldedNodesEnabled
 }
 
 func (c *mqlGcpProjectGkeServiceCluster) GetCostManagementConfig() *plugin.TValue[any] {
@@ -38778,6 +38840,8 @@ type mqlGcpProjectGkeServiceClusterNodepool struct {
 	InstanceGroupManagers plugin.TValue[[]any]
 	Status                plugin.TValue[string]
 	Management            plugin.TValue[any]
+	AutoUpgrade           plugin.TValue[bool]
+	AutoRepair            plugin.TValue[bool]
 	Autoscaling           plugin.TValue[*mqlGcpProjectGkeServiceClusterNodepoolAutoscaling]
 	StatusMessage         plugin.TValue[string]
 	PodIpv4CidrSize       plugin.TValue[int64]
@@ -38876,6 +38940,14 @@ func (c *mqlGcpProjectGkeServiceClusterNodepool) GetStatus() *plugin.TValue[stri
 
 func (c *mqlGcpProjectGkeServiceClusterNodepool) GetManagement() *plugin.TValue[any] {
 	return &c.Management
+}
+
+func (c *mqlGcpProjectGkeServiceClusterNodepool) GetAutoUpgrade() *plugin.TValue[bool] {
+	return &c.AutoUpgrade
+}
+
+func (c *mqlGcpProjectGkeServiceClusterNodepool) GetAutoRepair() *plugin.TValue[bool] {
+	return &c.AutoRepair
 }
 
 func (c *mqlGcpProjectGkeServiceClusterNodepool) GetAutoscaling() *plugin.TValue[*mqlGcpProjectGkeServiceClusterNodepoolAutoscaling] {
