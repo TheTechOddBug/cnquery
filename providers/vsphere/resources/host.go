@@ -8,8 +8,10 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/vim25/mo"
 	vimtypes "github.com/vmware/govmomi/vim25/types"
 
@@ -22,7 +24,18 @@ import (
 )
 
 type mqlVsphereHostInternal struct {
-	host *mo.HostSystem
+	host     *mo.HostSystem
+	hostOnce sync.Once
+}
+
+// setHost stores the cached *mo.HostSystem if not already set. Multiple
+// discovery paths (datacenter.hosts, cluster.hosts) can populate the same
+// host resource concurrently; sync.Once ensures first-write-wins semantics
+// rather than racing on the field.
+func (v *mqlVsphereHost) setHost(h *mo.HostSystem) {
+	v.hostOnce.Do(func() {
+		v.host = h
+	})
 }
 
 func (v *mqlVsphereHost) id() (string, error) {
@@ -99,6 +112,38 @@ func (v *mqlVsphereHost) esxiClient() (*resourceclient.Esxi, error) {
 	path := v.InventoryPath.Data
 
 	return esxiClient(conn, path)
+}
+
+// hostObject returns an *object.HostSystem for this host. Skips the
+// `HostByInventoryPath` SOAP round-trip when the cached *mo.HostSystem is
+// available (the common path — host resources hydrated by datacenter
+// discovery), and falls back to the inventory-path lookup only when the
+// resource was created via initVsphereHost without a cached handle.
+func (v *mqlVsphereHost) hostObject() (*object.HostSystem, error) {
+	conn := v.MqlRuntime.Connection.(*connection.VsphereConnection)
+	if v.host != nil {
+		return object.NewHostSystem(conn.Client().Client, v.host.Reference()), nil
+	}
+	if v.InventoryPath.Error != nil {
+		return nil, v.InventoryPath.Error
+	}
+	return getClientInstance(conn).HostByInventoryPath(v.InventoryPath.Data)
+}
+
+// pathAndHost returns the host's inventory path string (for stable __id
+// construction in lazy accessors) plus a govmomi *object.HostSystem handle
+// (for ESXCli / ConfigManager calls), propagating any InventoryPath error.
+// Pulls together the common boilerplate of services / timezone / ntp /
+// certificate.
+func (v *mqlVsphereHost) pathAndHost() (string, *object.HostSystem, error) {
+	if v.InventoryPath.Error != nil {
+		return "", nil, v.InventoryPath.Error
+	}
+	host, err := v.hostObject()
+	if err != nil {
+		return "", nil, err
+	}
+	return v.InventoryPath.Data, host, nil
 }
 
 func (v *mqlVsphereHost) standardSwitch() ([]any, error) {
@@ -393,7 +438,7 @@ func (v *mqlVsphereHost) vmknics() ([]any, error) {
 			mtu             int64
 			dhcp            bool
 			pgName, pgMoid  string
-			services        []any
+			services        = []any{}
 		)
 		if vn, ok := vnicByDevice[nicName]; ok {
 			mac = vn.Spec.Mac
@@ -406,8 +451,11 @@ func (v *mqlVsphereHost) vmknics() ([]any, error) {
 			if vn.Spec.Ip != nil {
 				dhcp = vn.Spec.Ip.Dhcp
 			}
-			// Map host-internal vnic key to service names.
-			services = servicesByVnicKey[vn.Key]
+			// Map host-internal vnic key to service names. Default to []any{}
+			// rather than nil so the MQL output is `[]` instead of `null`.
+			if mapped := servicesByVnicKey[vn.Key]; mapped != nil {
+				services = mapped
+			}
 		}
 
 		mqlVmknic, err := CreateResource(v.MqlRuntime, "vsphere.vmknic", map[string]*llx.RawData{
@@ -527,32 +575,15 @@ func (v *mqlVsphereHost) kernelModules() ([]any, error) {
 }
 
 func (v *mqlVsphereHost) advancedSettings() (map[string]any, error) {
-	conn := v.MqlRuntime.Connection.(*connection.VsphereConnection)
-	vClient := getClientInstance(conn)
-
-	if v.InventoryPath.Error != nil {
-		return nil, v.InventoryPath.Error
-	}
-	path := v.InventoryPath.Data
-
-	host, err := vClient.HostByInventoryPath(path)
+	host, err := v.hostObject()
 	if err != nil {
 		return nil, err
 	}
-
 	return resourceclient.HostOptions(host)
 }
 
 func (v *mqlVsphereHost) services() ([]any, error) {
-	conn := v.MqlRuntime.Connection.(*connection.VsphereConnection)
-	vClient := getClientInstance(conn)
-
-	if v.InventoryPath.Error != nil {
-		return nil, v.InventoryPath.Error
-	}
-	path := v.InventoryPath.Data
-
-	host, err := vClient.HostByInventoryPath(path)
+	path, host, err := v.pathAndHost()
 	if err != nil {
 		return nil, err
 	}
@@ -581,15 +612,7 @@ func (v *mqlVsphereHost) services() ([]any, error) {
 }
 
 func (v *mqlVsphereHost) timezone() (*mqlVsphereHostTimezone, error) {
-	conn := v.MqlRuntime.Connection.(*connection.VsphereConnection)
-	vClient := getClientInstance(conn)
-
-	if v.InventoryPath.Error != nil {
-		return nil, v.InventoryPath.Error
-	}
-	path := v.InventoryPath.Data
-
-	host, err := vClient.HostByInventoryPath(path)
+	path, host, err := v.pathAndHost()
 	if err != nil {
 		return nil, err
 	}
@@ -617,15 +640,7 @@ func (v *mqlVsphereHost) timezone() (*mqlVsphereHostTimezone, error) {
 }
 
 func (v *mqlVsphereHost) ntp() (*mqlVsphereHostNtpConfig, error) {
-	conn := v.MqlRuntime.Connection.(*connection.VsphereConnection)
-	vClient := getClientInstance(conn)
-
-	if v.InventoryPath.Error != nil {
-		return nil, v.InventoryPath.Error
-	}
-	path := v.InventoryPath.Data
-
-	host, err := vClient.HostByInventoryPath(path)
+	path, host, err := v.pathAndHost()
 	if err != nil {
 		return nil, err
 	}
@@ -644,7 +659,7 @@ func (v *mqlVsphereHost) ntp() (*mqlVsphereHostNtpConfig, error) {
 	}
 
 	mqlNtpConfig, err := CreateResource(v.MqlRuntime, "vsphere.host.ntpConfig", map[string]*llx.RawData{
-		"id":     llx.StringData("ntp/" + host.InventoryPath),
+		"id":     llx.StringData("ntp/" + path),
 		"server": llx.ArrayData(server, types.String),
 		"config": llx.ArrayData(config, types.String),
 	})
@@ -699,7 +714,16 @@ func (v *mqlVsphereHost) firewallRulesets() ([]any, error) {
 
 		mqlRules := make([]any, len(rs.Rule))
 		for i, r := range rs.Rule {
-			ruleId := rsId + "/" + strconv.Itoa(i)
+			// Build a stable key from the rule's natural fields rather than
+			// the slice index — vCenter doesn't guarantee Config.Firewall.Ruleset[].Rule
+			// ordering across calls, and an index-based __id would
+			// re-create resources on every refetch. Two rules with an
+			// identical (port, endPort, protocol, direction, portType) tuple
+			// describe the same firewall opening — collapsing them onto a
+			// single cached resource is the desired behavior, not a bug.
+			ruleKey := strconv.Itoa(int(r.Port)) + "-" + strconv.Itoa(int(r.EndPort)) +
+				"-" + r.Protocol + "-" + string(r.Direction) + "-" + string(r.PortType)
+			ruleId := rsId + "/" + ruleKey
 			mqlRule, err := CreateResource(v.MqlRuntime, "vsphere.host.firewallRule", map[string]*llx.RawData{
 				"__id":      llx.StringData(ruleId),
 				"id":        llx.StringData(ruleId),
@@ -778,15 +802,7 @@ func (v *mqlVsphereHost) iscsiAdapters() ([]any, error) {
 }
 
 func (v *mqlVsphereHost) certificate() (*mqlVsphereHostCertificate, error) {
-	conn := v.MqlRuntime.Connection.(*connection.VsphereConnection)
-	vClient := getClientInstance(conn)
-
-	if v.InventoryPath.Error != nil {
-		return nil, v.InventoryPath.Error
-	}
-	path := v.InventoryPath.Data
-
-	host, err := vClient.HostByInventoryPath(path)
+	path, host, err := v.pathAndHost()
 	if err != nil {
 		return nil, err
 	}
