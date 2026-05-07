@@ -202,6 +202,7 @@ gcs
 gelf
 GENEVE
 geomatchstatement
+GHSA
 gistfile
 githubactions
 godo
