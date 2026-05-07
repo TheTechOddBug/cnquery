@@ -76,16 +76,14 @@ func (v *mqlVsphereVswitchStandard) uplinks() ([]any, error) {
 		return nil, errors.New("unexpected properties structure for vsphere switch")
 	}
 
-	// if no properties are set, we have no uplinks for dvs
+	// if no properties are set, we have no uplinks for the switch
 	if properties == nil {
-		return nil, nil
+		return []any{}, nil
 	}
 
 	uplinksRaw := properties["Uplinks"]
-
-	// no uplinks for dvs
-	if properties == nil {
-		return nil, nil
+	if uplinksRaw == nil {
+		return []any{}, nil
 	}
 
 	uplinkNames, ok := uplinksRaw.([]any)
@@ -119,8 +117,10 @@ func findHostAdapter(host *mqlVsphereHost, uplinkNames []any) ([]any, error) {
 		name := adapter.Name.Data
 
 		for i := range uplinkNames {
-			uplinkName := uplinkNames[i].(string)
-
+			uplinkName, ok := uplinkNames[i].(string)
+			if !ok {
+				continue
+			}
 			if name == uplinkName {
 				mqlUplinks = append(mqlUplinks, adapter)
 			}
@@ -150,20 +150,14 @@ func (v *mqlVsphereVswitchDvs) uplinks() ([]any, error) {
 		return nil, errors.New("unexpected properties structure for vsphere switch")
 	}
 
-	// if no properties are set, we have no uplinks for dvs
+	// if no properties are set, we have no uplinks for the dvs
 	if properties == nil {
-		return nil, nil
+		return []any{}, nil
 	}
 
 	uplinksRaw, ok := properties["Uplinks"]
-	if !ok {
-		// no uplinks for dvs
-		return nil, nil
-	}
-
-	// empty uplinks for dvs
-	if uplinksRaw == nil {
-		return nil, nil
+	if !ok || uplinksRaw == nil {
+		return []any{}, nil
 	}
 
 	uplinkNames, ok := uplinksRaw.([]any)
