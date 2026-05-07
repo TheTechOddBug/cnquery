@@ -1,7 +1,7 @@
 {
   "provider": "azure",
-  "version": "13.9.2",
-  "generated_at": "2026-05-07T09:42:13-07:00",
+  "version": "13.10.0",
+  "generated_at": "2026-05-07T10:16:50-07:00",
   "permissions": [
     "Microsoft.Advisor/recommendations/read",
     "Microsoft.Authorization/classicAdministrators/read",
@@ -60,6 +60,8 @@
     "Microsoft.EventHub/namespaces/eventhubs/consumergroups/read",
     "Microsoft.EventHub/namespaces/eventhubs/read",
     "Microsoft.EventHub/namespaces/read",
+    "Microsoft.HybridCompute/machines/extensions/read",
+    "Microsoft.HybridCompute/machines/read",
     "Microsoft.Insights/activityLogAlerts/read",
     "Microsoft.Insights/components/read",
     "Microsoft.Insights/diagnosticSettings/read",
@@ -387,7 +389,7 @@
     {
       "permission": "Microsoft.DBforMySQL/servers/configurations/read",
       "service": "Microsoft.DBforMySQL",
-      "action": "NewListByServerPager",
+      "action": "Get",
       "source_file": "mysql.go"
     },
     {
@@ -499,6 +501,18 @@
       "source_file": "eventhub.go"
     },
     {
+      "permission": "Microsoft.HybridCompute/machines/extensions/read",
+      "service": "Microsoft.HybridCompute",
+      "action": "NewListPager",
+      "source_file": "hybridcompute.go"
+    },
+    {
+      "permission": "Microsoft.HybridCompute/machines/read",
+      "service": "Microsoft.HybridCompute",
+      "action": "NewListBySubscriptionPager",
+      "source_file": "hybridcompute.go"
+    },
+    {
       "permission": "Microsoft.Insights/activityLogAlerts/read",
       "service": "Microsoft.Insights",
       "action": "NewListBySubscriptionIDPager",
@@ -531,7 +545,7 @@
     {
       "permission": "Microsoft.KeyVault/vaults/read",
       "service": "Microsoft.KeyVault",
-      "action": "Get",
+      "action": "NewListPager",
       "source_file": "keyvault.go"
     },
     {
@@ -543,13 +557,13 @@
     {
       "permission": "Microsoft.Network/ApplicationGatewayWebApplicationFirewallPolicies/read",
       "service": "Microsoft.Network",
-      "action": "NewListAllPager",
+      "action": "Get",
       "source_file": "network.go"
     },
     {
       "permission": "Microsoft.Network/applicationGateways/read",
       "service": "Microsoft.Network",
-      "action": "Get",
+      "action": "NewListAllPager",
       "source_file": "network.go"
     },
     {
@@ -597,7 +611,7 @@
     {
       "permission": "Microsoft.Network/firewallPolicies/read",
       "service": "Microsoft.Network",
-      "action": "Get",
+      "action": "NewListAllPager",
       "source_file": "network.go"
     },
     {
@@ -669,7 +683,7 @@
     {
       "permission": "Microsoft.Network/privateLinkServices/read",
       "service": "Microsoft.Network",
-      "action": "NewListBySubscriptionPager",
+      "action": "NewListPrivateEndpointConnectionsPager",
       "source_file": "network.go"
     },
     {
