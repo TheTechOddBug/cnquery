@@ -61,6 +61,7 @@ bfc
 bigquery
 bigtable
 BINPACK
+bitmask
 blackhole
 BMC
 breakglass
