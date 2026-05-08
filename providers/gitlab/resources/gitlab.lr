@@ -32,6 +32,17 @@ gitlab.settings @defaults("requireTwoFactorAuthentication") {
 }
 
 // GitLab user
+//
+// Examine a single GitLab user account by id. Surfaces basic identity
+// (username, name, email, avatar), account state (locked, bot,
+// twoFactorEnabled), profile metadata (jobTitle, organization, location),
+// linked SSO identities and SSH keys, and admin-scoped fields (isAdmin,
+// isAuditor, external, lastSignInAt, currentSignInAt, lastActivityOn,
+// confirmedAt, note, usingLicenseSeat, canCreateGroup, canCreateProject,
+// privateProfile). The admin-scoped fields require the calling token to
+// be able to read `/users/:id` — with a non-admin token they return zero
+// values rather than failing the resource graph; a one-time warning is
+// emitted at runtime when this fallback is hit.
 gitlab.user @defaults("username name state") {
   // User ID
   id int
@@ -61,6 +72,33 @@ gitlab.user @defaults("username name state") {
   bot bool
   // Whether two-factor authentication is enabled
   twoFactorEnabled bool
+  // Whether the user has the instance Administrator role
+  isAdmin() bool
+  // Whether the user has the Auditor role (read-only access across the instance)
+  isAuditor() bool
+  // Whether the user is marked as external (read-only access by default,
+  // with no permission to create groups, projects, or namespaces)
+  external() bool
+  // Whether the user's profile is private
+  privateProfile() bool
+  // Whether the user is currently consuming a paid license seat
+  usingLicenseSeat() bool
+  // Whether the user can create top-level groups
+  canCreateGroup() bool
+  // Whether the user can create personal projects
+  canCreateProject() bool
+  // Time of the user's most recent prior sign-in
+  lastSignInAt() time
+  // Time of the user's current sign-in
+  currentSignInAt() time
+  // Date of the user's most recent activity (commit, comment, etc.). The API
+  // returns this as a date (no time-of-day component).
+  lastActivityOn() time
+  // Time when the user's email was confirmed
+  confirmedAt() time
+  // Administrator note attached to the user account, often used to record
+  // the reason an account is restricted, banned, or kept under review
+  note() string
   // External SSO identities linked to this user (SAML, LDAP, OAuth providers, etc.)
   externalIdentities() []gitlab.user.externalIdentity
   // SSH keys registered for this user (requires admin or self-access)

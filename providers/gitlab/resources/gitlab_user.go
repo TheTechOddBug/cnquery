@@ -8,11 +8,18 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rs/zerolog/log"
 	gitlab "gitlab.com/gitlab-org/api/client-go"
 	"go.mondoo.com/mql/v13/llx"
 	"go.mondoo.com/mql/v13/providers-sdk/v1/plugin"
 	"go.mondoo.com/mql/v13/providers/gitlab/connection"
 )
+
+// gitlabUserScopeWarn logs once per session when fetching /users/:id is
+// denied, so operators running with a non-admin token are alerted that the
+// admin-scoped accessors (isAdmin, isAuditor, lastSignInAt, ...) are silently
+// returning zero values rather than reflecting actual user state.
+var gitlabUserScopeWarn sync.Once
 
 // mqlGitlabUserInternal caches a fetched *gitlab.User so that multiple computed
 // methods (externalIdentities, etc.) only trigger a single GetUser API call.
@@ -72,13 +79,26 @@ func initGitlabUser(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[
 	args["bot"] = llx.BoolData(user.Bot)
 	args["twoFactorEnabled"] = llx.BoolData(user.TwoFactorEnabled)
 
-	return args, nil, nil
+	// Seed the Internal cache from the GetUser response we already have so
+	// the lazy accessors (isAdmin, isAuditor, lastSignInAt, ...) reuse it
+	// instead of issuing another GetUser per access.
+	res, err := CreateResource(runtime, "gitlab.user", args)
+	if err != nil {
+		return nil, nil, err
+	}
+	mqlUser := res.(*mqlGitlabUser)
+	mqlUser.user = user
+	mqlUser.fetched = true
+	return args, mqlUser, nil
 }
 
 // fetchUser loads the full user record by ID (with double-checked locking).
 // Used as a fallback when no creator seeded the user data. Returns (nil, nil)
 // on 403/404 - non-admin tokens lack permission to read /users/:id but should
-// not fail the whole resource graph.
+// not fail the whole resource graph. The first such denial in a session emits
+// a warning so the operator knows admin-scoped accessors (isAdmin, isAuditor,
+// lastSignInAt, ...) are returning zero values rather than reflecting actual
+// state.
 func (u *mqlGitlabUser) fetchUser() (*gitlab.User, error) {
 	if u.fetched {
 		return u.user, nil
@@ -92,6 +112,10 @@ func (u *mqlGitlabUser) fetchUser() (*gitlab.User, error) {
 	user, resp, err := conn.Client().Users.GetUser(u.Id.Data, gitlab.GetUsersOptions{})
 	if err != nil {
 		if resp != nil && (resp.StatusCode == 403 || resp.StatusCode == 404) {
+			gitlabUserScopeWarn.Do(func() {
+				log.Warn().Int("status", resp.StatusCode).
+					Msg("gitlab token cannot read /users/:id; admin-scoped user fields (isAdmin, isAuditor, lastSignInAt, ...) will return zero values")
+			})
 			u.fetched = true
 			return nil, nil
 		}
@@ -100,6 +124,108 @@ func (u *mqlGitlabUser) fetchUser() (*gitlab.User, error) {
 	u.user = user
 	u.fetched = true
 	return u.user, nil
+}
+
+// The accessors below all defer to fetchUser, which is gated by the user's
+// access scope. fetchUser() returns (nil, nil) on 403/404 so non-admin tokens
+// don't fail the whole resource graph — in that case the accessor returns the
+// type's zero value.
+
+func (u *mqlGitlabUser) isAdmin() (bool, error) {
+	user, err := u.fetchUser()
+	if err != nil || user == nil {
+		return false, err
+	}
+	return user.IsAdmin, nil
+}
+
+func (u *mqlGitlabUser) isAuditor() (bool, error) {
+	user, err := u.fetchUser()
+	if err != nil || user == nil {
+		return false, err
+	}
+	return user.IsAuditor, nil
+}
+
+func (u *mqlGitlabUser) external() (bool, error) {
+	user, err := u.fetchUser()
+	if err != nil || user == nil {
+		return false, err
+	}
+	return user.External, nil
+}
+
+func (u *mqlGitlabUser) privateProfile() (bool, error) {
+	user, err := u.fetchUser()
+	if err != nil || user == nil {
+		return false, err
+	}
+	return user.PrivateProfile, nil
+}
+
+func (u *mqlGitlabUser) usingLicenseSeat() (bool, error) {
+	user, err := u.fetchUser()
+	if err != nil || user == nil {
+		return false, err
+	}
+	return user.UsingLicenseSeat, nil
+}
+
+func (u *mqlGitlabUser) canCreateGroup() (bool, error) {
+	user, err := u.fetchUser()
+	if err != nil || user == nil {
+		return false, err
+	}
+	return user.CanCreateGroup, nil
+}
+
+func (u *mqlGitlabUser) canCreateProject() (bool, error) {
+	user, err := u.fetchUser()
+	if err != nil || user == nil {
+		return false, err
+	}
+	return user.CanCreateProject, nil
+}
+
+func (u *mqlGitlabUser) lastSignInAt() (*time.Time, error) {
+	user, err := u.fetchUser()
+	if err != nil || user == nil {
+		return nil, err
+	}
+	return user.LastSignInAt, nil
+}
+
+func (u *mqlGitlabUser) currentSignInAt() (*time.Time, error) {
+	user, err := u.fetchUser()
+	if err != nil || user == nil {
+		return nil, err
+	}
+	return user.CurrentSignInAt, nil
+}
+
+func (u *mqlGitlabUser) lastActivityOn() (*time.Time, error) {
+	user, err := u.fetchUser()
+	if err != nil || user == nil || user.LastActivityOn == nil {
+		return nil, err
+	}
+	t := time.Time(*user.LastActivityOn)
+	return &t, nil
+}
+
+func (u *mqlGitlabUser) confirmedAt() (*time.Time, error) {
+	user, err := u.fetchUser()
+	if err != nil || user == nil {
+		return nil, err
+	}
+	return user.ConfirmedAt, nil
+}
+
+func (u *mqlGitlabUser) note() (string, error) {
+	user, err := u.fetchUser()
+	if err != nil || user == nil {
+		return "", err
+	}
+	return user.Note, nil
 }
 
 // id function for gitlab.user.externalIdentity
