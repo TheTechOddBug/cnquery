@@ -399,6 +399,7 @@ type mqlAwsRdsDbinstanceInternal struct {
 	cachePerformanceInsightsKmsKeyId *string
 	cacheActivityStreamKmsKeyId      *string
 	cacheAssociatedRoles             []rds_types.DBInstanceRole
+	cacheOptionGroupNames            []string
 	region                           string
 }
 
@@ -594,6 +595,13 @@ func newMqlAwsRdsInstance(runtime *plugin.Runtime, region string, accountID stri
 	mqlDBInstance.cachePerformanceInsightsKmsKeyId = dbInstance.PerformanceInsightsKMSKeyId
 	mqlDBInstance.cacheActivityStreamKmsKeyId = dbInstance.ActivityStreamKmsKeyId
 	mqlDBInstance.cacheAssociatedRoles = dbInstance.AssociatedRoles
+	optionGroupNames := make([]string, 0, len(dbInstance.OptionGroupMemberships))
+	for _, og := range dbInstance.OptionGroupMemberships {
+		if og.OptionGroupName != nil && *og.OptionGroupName != "" {
+			optionGroupNames = append(optionGroupNames, *og.OptionGroupName)
+		}
+	}
+	mqlDBInstance.cacheOptionGroupNames = optionGroupNames
 	mqlDBInstance.setSecurityGroupArns(sgsArn)
 	return mqlDBInstance, nil
 }
@@ -1576,4 +1584,261 @@ func (a *mqlAwsRdsProxy) tags() (map[string]any, error) {
 		return nil, err
 	}
 	return rdsTagsToMap(resp.TagList), nil
+}
+
+// ---------- aws.rds.optionGroup ----------
+
+func (a *mqlAwsRds) optionGroups() ([]any, error) {
+	conn := a.MqlRuntime.Connection.(*connection.AwsConnection)
+	res := []any{}
+	poolOfJobs := jobpool.CreatePool(a.getOptionGroups(conn), 5)
+	poolOfJobs.Run()
+	if poolOfJobs.HasErrors() {
+		return nil, poolOfJobs.GetErrors()
+	}
+	for i := range poolOfJobs.Jobs {
+		res = append(res, poolOfJobs.Jobs[i].Result.([]any)...)
+	}
+	return res, nil
+}
+
+func (a *mqlAwsRds) getOptionGroups(conn *connection.AwsConnection) []*jobpool.Job {
+	tasks := make([]*jobpool.Job, 0)
+	regions, err := conn.Regions()
+	if err != nil {
+		return []*jobpool.Job{{Err: err}}
+	}
+	for _, region := range regions {
+		region := region
+		f := func() (jobpool.JobResult, error) {
+			res := []any{}
+			svc := conn.Rds(region)
+			ctx := context.Background()
+			paginator := rds.NewDescribeOptionGroupsPaginator(svc, &rds.DescribeOptionGroupsInput{})
+			for paginator.HasMorePages() {
+				page, err := paginator.NextPage(ctx)
+				if err != nil {
+					if Is400AccessDeniedError(err) {
+						return res, nil
+					}
+					return nil, err
+				}
+				for _, og := range page.OptionGroupsList {
+					mqlOG, err := newMqlAwsRdsOptionGroup(a.MqlRuntime, region, og)
+					if err != nil {
+						return nil, err
+					}
+					res = append(res, mqlOG)
+				}
+			}
+			return jobpool.JobResult(res), nil
+		}
+		tasks = append(tasks, jobpool.NewJob(f))
+	}
+	return tasks
+}
+
+type mqlAwsRdsOptionGroupInternal struct {
+	cacheVpcId string
+}
+
+func newMqlAwsRdsOptionGroup(runtime *plugin.Runtime, region string, og rds_types.OptionGroup) (*mqlAwsRdsOptionGroup, error) {
+	options, err := convert.JsonToDictSlice(og.Options)
+	if err != nil {
+		return nil, err
+	}
+	res, err := CreateResource(runtime, "aws.rds.optionGroup", map[string]*llx.RawData{
+		"__id":                                  llx.StringDataPtr(og.OptionGroupArn),
+		"arn":                                   llx.StringDataPtr(og.OptionGroupArn),
+		"optionGroupName":                       llx.StringDataPtr(og.OptionGroupName),
+		"description":                           llx.StringDataPtr(og.OptionGroupDescription),
+		"engineName":                            llx.StringDataPtr(og.EngineName),
+		"majorEngineVersion":                    llx.StringDataPtr(og.MajorEngineVersion),
+		"region":                                llx.StringData(region),
+		"allowsVpcAndNonVpcInstanceMemberships": llx.BoolDataPtr(og.AllowsVpcAndNonVpcInstanceMemberships),
+		"sourceAccountId":                       llx.StringDataPtr(og.SourceAccountId),
+		"sourceOptionGroup":                     llx.StringDataPtr(og.SourceOptionGroup),
+		"copyTimestamp":                         llx.TimeDataPtr(og.CopyTimestamp),
+		"options":                               llx.ArrayData(options, types.Dict),
+	})
+	if err != nil {
+		return nil, err
+	}
+	mqlOG := res.(*mqlAwsRdsOptionGroup)
+	if og.VpcId != nil {
+		mqlOG.cacheVpcId = *og.VpcId
+	}
+	return mqlOG, nil
+}
+
+func (a *mqlAwsRdsOptionGroup) vpc() (*mqlAwsVpc, error) {
+	if a.cacheVpcId == "" {
+		a.Vpc.State = plugin.StateIsSet | plugin.StateIsNull
+		return nil, nil
+	}
+	mqlVpc, err := NewResource(a.MqlRuntime, "aws.vpc",
+		map[string]*llx.RawData{"id": llx.StringData(a.cacheVpcId)})
+	if err != nil {
+		return nil, err
+	}
+	return mqlVpc.(*mqlAwsVpc), nil
+}
+
+// optionGroups resolves the option groups attached to this DB instance by
+// looking them up in the parent aws.rds.optionGroups listing (cached after
+// the first call). This avoids issuing a fresh DescribeOptionGroups per
+// membership when both the top-level list and per-instance accessors are
+// queried in the same session, and keeps every returned resource
+// fully populated (ARN, region, options) rather than carrying just a name.
+func (a *mqlAwsRdsDbinstance) optionGroups() ([]any, error) {
+	if len(a.cacheOptionGroupNames) == 0 {
+		return []any{}, nil
+	}
+
+	obj, err := CreateResource(a.MqlRuntime, "aws.rds", map[string]*llx.RawData{})
+	if err != nil {
+		return nil, err
+	}
+	rdsRes := obj.(*mqlAwsRds)
+	rawResources := rdsRes.GetOptionGroups()
+	if rawResources.Error != nil {
+		return nil, rawResources.Error
+	}
+
+	wanted := make(map[string]bool, len(a.cacheOptionGroupNames))
+	for _, n := range a.cacheOptionGroupNames {
+		wanted[n] = true
+	}
+
+	res := []any{}
+	for _, raw := range rawResources.Data {
+		og := raw.(*mqlAwsRdsOptionGroup)
+		if wanted[og.OptionGroupName.Data] {
+			res = append(res, og)
+		}
+	}
+	return res, nil
+}
+
+// ---------- aws.rds.globalCluster ----------
+
+func (a *mqlAwsRds) globalClusters() ([]any, error) {
+	conn := a.MqlRuntime.Connection.(*connection.AwsConnection)
+	pool := jobpool.CreatePool(a.getGlobalClusters(conn), 5)
+	pool.Run()
+	if pool.HasErrors() {
+		return nil, pool.GetErrors()
+	}
+
+	// Aurora global clusters surface from any member region's regional
+	// endpoint, so deduplicate by ARN across the parallel region jobs.
+	seen := map[string]bool{}
+	res := []any{}
+	for i := range pool.Jobs {
+		for _, r := range pool.Jobs[i].Result.([]any) {
+			gc := r.(*mqlAwsRdsGlobalCluster)
+			arn := gc.Arn.Data
+			if arn == "" || seen[arn] {
+				continue
+			}
+			seen[arn] = true
+			res = append(res, gc)
+		}
+	}
+	return res, nil
+}
+
+func (a *mqlAwsRds) getGlobalClusters(conn *connection.AwsConnection) []*jobpool.Job {
+	tasks := make([]*jobpool.Job, 0)
+	regions, err := conn.Regions()
+	if err != nil {
+		return []*jobpool.Job{{Err: err}}
+	}
+	for _, region := range regions {
+		region := region
+		f := func() (jobpool.JobResult, error) {
+			res := []any{}
+			svc := conn.Rds(region)
+			ctx := context.Background()
+			paginator := rds.NewDescribeGlobalClustersPaginator(svc, &rds.DescribeGlobalClustersInput{})
+			for paginator.HasMorePages() {
+				page, err := paginator.NextPage(ctx)
+				if err != nil {
+					if Is400AccessDeniedError(err) {
+						log.Warn().Str("region", region).Msg("access denied describing RDS global clusters")
+						return res, nil
+					}
+					return nil, err
+				}
+				for _, gc := range page.GlobalClusters {
+					mqlGc, err := newMqlAwsRdsGlobalCluster(a.MqlRuntime, gc)
+					if err != nil {
+						return nil, err
+					}
+					res = append(res, mqlGc)
+				}
+			}
+			return jobpool.JobResult(res), nil
+		}
+		tasks = append(tasks, jobpool.NewJob(f))
+	}
+	return tasks
+}
+
+func newMqlAwsRdsGlobalCluster(runtime *plugin.Runtime, gc rds_types.GlobalCluster) (*mqlAwsRdsGlobalCluster, error) {
+	failoverState, err := convert.JsonToDict(gc.FailoverState)
+	if err != nil {
+		return nil, err
+	}
+	members, err := convert.JsonToDictSlice(gc.GlobalClusterMembers)
+	if err != nil {
+		return nil, err
+	}
+	res, err := CreateResource(runtime, "aws.rds.globalCluster", map[string]*llx.RawData{
+		"__id":                    llx.StringDataPtr(gc.GlobalClusterArn),
+		"arn":                     llx.StringDataPtr(gc.GlobalClusterArn),
+		"globalClusterIdentifier": llx.StringDataPtr(gc.GlobalClusterIdentifier),
+		"globalClusterResourceId": llx.StringDataPtr(gc.GlobalClusterResourceId),
+		"databaseName":            llx.StringDataPtr(gc.DatabaseName),
+		"deletionProtection":      llx.BoolDataPtr(gc.DeletionProtection),
+		"endpoint":                llx.StringDataPtr(gc.Endpoint),
+		"engine":                  llx.StringDataPtr(gc.Engine),
+		"engineLifecycleSupport":  llx.StringDataPtr(gc.EngineLifecycleSupport),
+		"engineVersion":           llx.StringDataPtr(gc.EngineVersion),
+		"status":                  llx.StringDataPtr(gc.Status),
+		"storageEncrypted":        llx.BoolDataPtr(gc.StorageEncrypted),
+		"storageEncryptionType":   llx.StringData(string(gc.StorageEncryptionType)),
+		"failoverState":           llx.DictData(failoverState),
+		"members":                 llx.ArrayData(members, types.Dict),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return res.(*mqlAwsRdsGlobalCluster), nil
+}
+
+func (a *mqlAwsRdsDbcluster) globalCluster() (*mqlAwsRdsGlobalCluster, error) {
+	identifier := a.GlobalClusterIdentifier.Data
+	if identifier == "" {
+		a.GlobalCluster.State = plugin.StateIsSet | plugin.StateIsNull
+		return nil, nil
+	}
+	conn := a.MqlRuntime.Connection.(*connection.AwsConnection)
+	svc := conn.Rds(a.Region.Data)
+	ctx := context.Background()
+	resp, err := svc.DescribeGlobalClusters(ctx, &rds.DescribeGlobalClustersInput{
+		GlobalClusterIdentifier: &identifier,
+	})
+	if err != nil {
+		if Is400AccessDeniedError(err) {
+			a.GlobalCluster.State = plugin.StateIsSet | plugin.StateIsNull
+			return nil, nil
+		}
+		return nil, err
+	}
+	if len(resp.GlobalClusters) == 0 {
+		a.GlobalCluster.State = plugin.StateIsSet | plugin.StateIsNull
+		return nil, nil
+	}
+	return newMqlAwsRdsGlobalCluster(a.MqlRuntime, resp.GlobalClusters[0])
 }
