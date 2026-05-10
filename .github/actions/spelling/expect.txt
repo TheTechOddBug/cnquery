@@ -204,6 +204,7 @@ gelf
 GENEVE
 geocode
 geomatchstatement
+Geopair
 GHSA
 gistfile
 githubactions
