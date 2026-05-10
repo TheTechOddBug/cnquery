@@ -139,6 +139,8 @@
     "Microsoft.Sql/failoverGroups/read",
     "Microsoft.Sql/geoBackupPolicies/read",
     "Microsoft.Sql/ledgerDigestUploads/read",
+    "Microsoft.Sql/managedDatabases/read",
+    "Microsoft.Sql/managedInstances/read",
     "Microsoft.Sql/outboundFirewallRules/read",
     "Microsoft.Sql/privateEndpointConnections/read",
     "Microsoft.Sql/replicationLinks/read",
@@ -422,7 +424,7 @@
     {
       "permission": "Microsoft.ContainerRegistry/registries/credentialSets/read",
       "service": "Microsoft.ContainerRegistry",
-      "action": "Get",
+      "action": "NewListPager",
       "source_file": "containerregistry.go"
     },
     {
@@ -848,7 +850,7 @@
     {
       "permission": "Microsoft.Network/virtualNetworks/read",
       "service": "Microsoft.Network",
-      "action": "NewListAllPager",
+      "action": "Get",
       "source_file": "network.go"
     },
     {
@@ -920,7 +922,7 @@
     {
       "permission": "Microsoft.RecoveryServices/vaults/read",
       "service": "Microsoft.RecoveryServices",
-      "action": "NewListBySubscriptionIDPager",
+      "action": "Get",
       "source_file": "recoveryservices.go"
     },
     {
@@ -1024,6 +1026,18 @@
       "service": "Microsoft.Sql",
       "action": "Get",
       "source_file": "sql.go"
+    },
+    {
+      "permission": "Microsoft.Sql/managedDatabases/read",
+      "service": "Microsoft.Sql",
+      "action": "NewListByInstancePager",
+      "source_file": "sql_managedinstance.go"
+    },
+    {
+      "permission": "Microsoft.Sql/managedInstances/read",
+      "service": "Microsoft.Sql",
+      "action": "NewListPager",
+      "source_file": "sql_managedinstance.go"
     },
     {
       "permission": "Microsoft.Sql/outboundFirewallRules/read",
