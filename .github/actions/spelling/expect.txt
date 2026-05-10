@@ -150,6 +150,7 @@ dlp
 dlq
 dlv
 dnskey
+Dnsnames
 documentdb
 dpd
 dport
@@ -209,6 +210,7 @@ fumadocs
 functionapp
 FWaa
 gcfs
+gclb
 gcs
 gelf
 GENEVE
@@ -544,6 +546,7 @@ SNYK
 softdep
 spdx
 sph
+SPIFFE
 splunk
 spo
 sqli
