@@ -366,6 +366,7 @@
     "kafka:ListNodes",
     "kafka:ListReplicators",
     "kafka:ListScramSecrets",
+    "keyspaces:GetKeyspace",
     "keyspaces:GetTable",
     "keyspaces:ListKeyspaces",
     "keyspaces:ListTables",
@@ -2941,6 +2942,12 @@
       "service": "kafka",
       "action": "ListScramSecrets",
       "source_file": "aws_msk.go"
+    },
+    {
+      "permission": "keyspaces:GetKeyspace",
+      "service": "keyspaces",
+      "action": "GetKeyspace",
+      "source_file": "aws_keyspaces.go"
     },
     {
       "permission": "keyspaces:GetTable",
