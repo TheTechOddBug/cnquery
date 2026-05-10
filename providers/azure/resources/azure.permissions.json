@@ -173,7 +173,9 @@
     "Microsoft.Storage/storageAccounts/managementPolicies/read",
     "Microsoft.Storage/storageAccounts/objectReplicationPolicies/read",
     "Microsoft.Storage/storageAccounts/privateEndpointConnections/read",
+    "Microsoft.Storage/storageAccounts/queueServices/queues/read",
     "Microsoft.Storage/storageAccounts/read",
+    "Microsoft.Storage/storageAccounts/tableServices/tables/read",
     "Microsoft.Synapse/workspaces/read",
     "Microsoft.Web/certificates/read",
     "Microsoft.Web/hostingEnvironments/read",
@@ -1232,10 +1234,22 @@
       "source_file": "storage_extras.go"
     },
     {
+      "permission": "Microsoft.Storage/storageAccounts/queueServices/queues/read",
+      "service": "Microsoft.Storage",
+      "action": "NewListPager",
+      "source_file": "storage_extras.go"
+    },
+    {
       "permission": "Microsoft.Storage/storageAccounts/read",
       "service": "Microsoft.Storage",
       "action": "NewListPager",
       "source_file": "storage.go"
+    },
+    {
+      "permission": "Microsoft.Storage/storageAccounts/tableServices/tables/read",
+      "service": "Microsoft.Storage",
+      "action": "NewListPager",
+      "source_file": "storage_extras.go"
     },
     {
       "permission": "Microsoft.Synapse/workspaces/read",
