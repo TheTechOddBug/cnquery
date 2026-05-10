@@ -538,6 +538,7 @@ stepfunctions
 streamable
 stringx
 Stus
+subfolders
 subkeys
 subnetted
 subscriptionfilter

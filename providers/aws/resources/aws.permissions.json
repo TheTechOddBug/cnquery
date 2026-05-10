@@ -686,7 +686,9 @@
     "wafv2:ListResourcesForWebACL",
     "wafv2:ListRuleGroups",
     "wafv2:ListWebACLs",
+    "workdocs:DescribeFolderContents",
     "workdocs:DescribeUsers",
+    "workdocs:GetFolder",
     "workspaces-web:GetIpAccessSettings",
     "workspaces-web:GetPortal",
     "workspaces-web:GetTrustStore",
@@ -4966,9 +4968,21 @@
       "source_file": "aws_waf.go"
     },
     {
+      "permission": "workdocs:DescribeFolderContents",
+      "service": "workdocs",
+      "action": "DescribeFolderContents",
+      "source_file": "aws_workdocs.go"
+    },
+    {
       "permission": "workdocs:DescribeUsers",
       "service": "workdocs",
       "action": "DescribeUsers",
+      "source_file": "aws_workdocs.go"
+    },
+    {
+      "permission": "workdocs:GetFolder",
+      "service": "workdocs",
+      "action": "GetFolder",
       "source_file": "aws_workdocs.go"
     },
     {
