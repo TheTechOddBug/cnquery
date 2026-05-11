@@ -41,6 +41,61 @@ type KernelVersion struct {
 	Running bool   `json:"running"`
 }
 
+// stripRPMEpoch removes a leading "<epoch>:" prefix from an RPM package
+// version string. /proc/version (and the rest of kernel.info) never carries
+// the epoch, so it must be stripped before comparing a package version to
+// the running kernel version. providers/os/resources/packages/rpm_packages.go
+// concatenates a non-zero / non-"(none)" epoch into pkg.Version, so this
+// matters whenever the underlying kernel rpm declares an Epoch.
+func stripRPMEpoch(version string) string {
+	if idx := strings.IndexByte(version, ':'); idx >= 0 {
+		return version[idx+1:]
+	}
+	return version
+}
+
+// rpmKernelMatchesRunning reports whether the given RPM kernel package
+// describes the currently running kernel, identified by the value
+// /proc/version reports (e.g. "6.1.170-210.320.amzn2023.x86_64").
+//
+// AL2023's `kernel` package has epoch 1, so without stripRPMEpoch the bug
+// is reproducible there for every installed kernel image (the entire list
+// reports running:false). Same shape would hit any future RHEL / Oracle
+// kernel that gains an epoch.
+func rpmKernelMatchesRunning(pkgVersion, pkgArch, runningKernelVersion string) bool {
+	return stripRPMEpoch(pkgVersion)+"."+pkgArch == runningKernelVersion
+}
+
+// photonKernelMatchesRunning reports whether the given Photon kernel
+// package describes the currently running kernel. Photon's flavor lives
+// in the package name suffix (e.g. "linux" → bare kernel, "linux-esx" →
+// VMware-targeted) and the running-kernel string from /proc/version is
+// version + "-flavor" — e.g. "4.19.97-1.ph3-esx". Mirrors
+// rpmKernelMatchesRunning by stripping any leading epoch from the package
+// version before joining.
+func photonKernelMatchesRunning(pkgVersion, pkgName, runningKernelVersion string) bool {
+	return stripRPMEpoch(pkgVersion)+strings.TrimPrefix(pkgName, "linux") == runningKernelVersion
+}
+
+// suseKernelMatchesRunning reports whether the given SUSE kernel package
+// describes the currently running kernel.
+//
+// SUSE's running-kernel string from /proc/version looks like
+// "4.12.14-122.23-default" — version + "-flavor". The package version is a
+// slightly longer "4.12.14-122.23.1-default" (one extra dpkg-release
+// segment), so the match uses HasSuffix on the flavor + HasPrefix on the
+// trimmed running version against the package version. stripRPMEpoch
+// keeps the HasPrefix check working if a SUSE kernel rpm ever declares an
+// epoch (none do today, but the algebra is identical).
+func suseKernelMatchesRunning(pkgVersion, pkgName, runningKernelVersion string) bool {
+	kernelType := strings.TrimPrefix(pkgName, "kernel")
+	if !strings.HasSuffix(runningKernelVersion, kernelType) {
+		return false
+	}
+	versionPrefix := strings.TrimSuffix(runningKernelVersion, kernelType)
+	return strings.HasPrefix(stripRPMEpoch(pkgVersion), versionPrefix)
+}
+
 func (k *mqlKernel) installed() ([]any, error) {
 	res := []KernelVersion{}
 
@@ -113,18 +168,10 @@ func (k *mqlKernel) installed() ([]any, error) {
 			filterKernel = func(pkg *mqlPackage) {
 				if pkg.Name.Data == "kernel" || pkg.Name.Data == "kernel-uek" {
 					version := pkg.Version.Data
-					arch := pkg.Arch.Data
-
-					kernelName := version + "." + arch
-					running := false
-					if kernelName == runningKernelVersion {
-						running = true
-					}
-
 					res = append(res, KernelVersion{
 						Name:    pkg.Name.Data,
 						Version: version,
-						Running: running,
+						Running: rpmKernelMatchesRunning(version, pkg.Arch.Data, runningKernelVersion),
 					})
 				}
 			}
@@ -145,18 +192,10 @@ func (k *mqlKernel) installed() ([]any, error) {
 			filterKernel = func(pkg *mqlPackage) {
 				if pkg.Name.Data == "kernel" {
 					version := pkg.Version.Data
-					arch := pkg.Arch.Data
-
-					kernelName := version + "." + arch
-					running := false
-					if kernelName == runningKernelVersion {
-						running = true
-					}
-
 					res = append(res, KernelVersion{
 						Name:    pkg.Name.Data,
 						Version: version,
-						Running: running,
+						Running: rpmKernelMatchesRunning(version, pkg.Arch.Data, runningKernelVersion),
 					})
 				}
 			}
@@ -166,16 +205,10 @@ func (k *mqlKernel) installed() ([]any, error) {
 				if strings.HasPrefix(name, "linux") {
 					version := pkg.Version.Data
 
-					kernelName := version + strings.TrimPrefix(name, "linux")
-					running := false
-					if kernelName == runningKernelVersion {
-						running = true
-					}
-
 					res = append(res, KernelVersion{
 						Name:    name,
 						Version: version + strings.TrimPrefix(name, "linux"),
-						Running: running,
+						Running: photonKernelMatchesRunning(version, name, runningKernelVersion),
 					})
 				}
 			}
@@ -191,19 +224,10 @@ func (k *mqlKernel) installed() ([]any, error) {
 				name := pkg.Name.Data
 				if strings.HasPrefix(name, "kernel-") {
 					version := pkg.Version.Data
-
-					kernelType := strings.TrimPrefix(name, "kernel")
-					running := false
-
-					// NOTE: pkg version is 4.12.14-122.23.1 while the kernel version is 4.12.14-122.23
-					if strings.HasSuffix(runningKernelVersion, kernelType) && strings.HasPrefix(version, strings.TrimSuffix(runningKernelVersion, kernelType)) {
-						running = true
-					}
-
 					res = append(res, KernelVersion{
 						Name:    name,
 						Version: version + strings.TrimPrefix(name, "kernel"),
-						Running: running,
+						Running: suseKernelMatchesRunning(version, name, runningKernelVersion),
 					})
 				}
 			}
