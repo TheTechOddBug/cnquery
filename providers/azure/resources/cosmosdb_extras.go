@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -204,6 +205,11 @@ func fetchSqlDatabaseThroughput(ctx context.Context, dbClient *cosmos.SQLResourc
 		if isCosmosNotFoundError(err) {
 			return 0, 0, false, true
 		}
+		if isCosmosServerlessThroughputError(err) {
+			// Serverless accounts have no throughput offer — quietly return
+			// zeros rather than logging on every query.
+			return 0, 0, false, false
+		}
 		// Real failures (rate limits, network timeouts, 5xx) shouldn't read as
 		// "no offer" — log so operators can correlate empty-throughput rows
 		// with API errors. The default zero-value return is preserved so the
@@ -220,6 +226,9 @@ func fetchSqlContainerThroughput(ctx context.Context, dbClient *cosmos.SQLResour
 	if err != nil {
 		if isCosmosNotFoundError(err) {
 			return 0, 0, false, true
+		}
+		if isCosmosServerlessThroughputError(err) {
+			return 0, 0, false, false
 		}
 		log.Warn().Err(err).Str("account", accountName).Str("database", dbName).Str("container", containerName).
 			Msg("failed to fetch Cosmos DB SQL container throughput")
@@ -436,6 +445,31 @@ func isCosmosNotFoundError(err error) bool {
 		return rerr.StatusCode == http.StatusNotFound
 	}
 	return false
+}
+
+// isCosmosServerlessThroughputError reports whether err is the 400 BadRequest
+// Cosmos returns when you call the throughput endpoint on a serverless
+// account. Serverless accounts have no offer concept at all, so the
+// throughput row should render as zero/false rather than logging a warning
+// for every database and container on every query.
+//
+// Cosmos returns the generic ErrorCode "BadRequest" for this case, so the
+// distinguishing signal is the substring "serverless" in the response body
+// message. We inspect rerr.Error() (not the wrapping err.Error()) so the
+// match is scoped to the SDK response message rather than any outer
+// "failed to fetch ..." wrapper that callers may add.
+func isCosmosServerlessThroughputError(err error) bool {
+	var rerr *azcore.ResponseError
+	if !errors.As(err, &rerr) || rerr.StatusCode != http.StatusBadRequest {
+		return false
+	}
+	// ErrorCode, when present, is "BadRequest" — match it to confirm this is
+	// a structured ARM error rather than a generic transport 400, but don't
+	// require it (older SDK responses may leave ErrorCode empty).
+	if rerr.ErrorCode != "" && rerr.ErrorCode != "BadRequest" {
+		return false
+	}
+	return strings.Contains(rerr.Error(), "serverless")
 }
 
 // isCosmosForbiddenError mirrors the convention used elsewhere in this
