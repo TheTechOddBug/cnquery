@@ -29,6 +29,7 @@
     "appmesh:ListMeshes",
     "appmesh:ListRoutes",
     "appmesh:ListTagsForResource",
+    "appmesh:ListVirtualGateways",
     "appmesh:ListVirtualNodes",
     "appmesh:ListVirtualRouters",
     "appmesh:ListVirtualServices",
@@ -881,6 +882,12 @@
       "permission": "appmesh:ListTagsForResource",
       "service": "appmesh",
       "action": "ListTagsForResource",
+      "source_file": "aws_appmesh.go"
+    },
+    {
+      "permission": "appmesh:ListVirtualGateways",
+      "service": "appmesh",
+      "action": "ListVirtualGateways",
       "source_file": "aws_appmesh.go"
     },
     {
