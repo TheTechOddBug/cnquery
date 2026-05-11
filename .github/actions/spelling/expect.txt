@@ -171,6 +171,7 @@ ekm
 eku
 elbv
 embeddings
+encryptor
 endpointslice
 eni
 ENIId
@@ -308,6 +309,7 @@ kts
 kty
 kubenet
 kustomization
+KVM
 labelmatchstatement
 Laravel
 lastname
@@ -490,11 +492,13 @@ rdm
 Rdp
 readlines
 recaptcha
+recordsets
 regexmatchstatement
 regexpatternsetreferencestatement
 renv
 replicators
 reshard
+RESKEY
 resourcegroup
 resourcepolicy
 resourcequota
@@ -557,6 +561,7 @@ sqlimatchstatement
 sqlserver
 sriov
 srp
+SSHFP
 ssis
 sslv
 Sspr
@@ -674,6 +679,7 @@ writeback
 Xff
 xlarge
 xssmatchstatement
+xts
 xxxxx
 yara
 zerolog
