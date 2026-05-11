@@ -91,7 +91,9 @@
     "cloudwatch:GetMetricStatistics",
     "cloudwatch:ListMetrics",
     "codebuild:BatchGetProjects",
+    "codebuild:BatchGetReportGroups",
     "codebuild:ListProjects",
+    "codebuild:ListReportGroups",
     "codedeploy:BatchGetApplications",
     "codedeploy:BatchGetDeploymentGroups",
     "codedeploy:BatchGetDeployments",
@@ -1253,9 +1255,21 @@
       "source_file": "aws_codebuild.go"
     },
     {
+      "permission": "codebuild:BatchGetReportGroups",
+      "service": "codebuild",
+      "action": "BatchGetReportGroups",
+      "source_file": "aws_codebuild.go"
+    },
+    {
       "permission": "codebuild:ListProjects",
       "service": "codebuild",
       "action": "ListProjects",
+      "source_file": "aws_codebuild.go"
+    },
+    {
+      "permission": "codebuild:ListReportGroups",
+      "service": "codebuild",
+      "action": "ListReportGroups",
       "source_file": "aws_codebuild.go"
     },
     {
