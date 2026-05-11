@@ -137,6 +137,8 @@
     "docdbelastic:ListClusterSnapshots",
     "docdbelastic:ListClusters",
     "drs:DescribeJobs",
+    "drs:DescribeRecoveryInstances",
+    "drs:DescribeReplicationConfigurationTemplates",
     "drs:DescribeSourceServers",
     "drs:GetLaunchConfiguration",
     "drs:GetReplicationConfiguration",
@@ -1521,6 +1523,18 @@
       "permission": "drs:DescribeJobs",
       "service": "drs",
       "action": "DescribeJobs",
+      "source_file": "aws_drs.go"
+    },
+    {
+      "permission": "drs:DescribeRecoveryInstances",
+      "service": "drs",
+      "action": "DescribeRecoveryInstances",
+      "source_file": "aws_drs.go"
+    },
+    {
+      "permission": "drs:DescribeReplicationConfigurationTemplates",
+      "service": "drs",
+      "action": "DescribeReplicationConfigurationTemplates",
       "source_file": "aws_drs.go"
     },
     {
