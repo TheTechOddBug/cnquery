@@ -274,6 +274,38 @@ func (g *mqlGcpProjectComputeServiceFirewallPolicy) rules() ([]any, error) {
 	for _, r := range g.cacheRules {
 		match, _ := convert.JsonToDict(r.Match)
 
+		var srcIpRanges, destIpRanges, srcAddressGroups, destAddressGroups []any
+		var layer4Configs []any
+		srcSecureTags := map[string]any{}
+		if r.Match != nil {
+			srcIpRanges = convert.SliceAnyToInterface(r.Match.SrcIpRanges)
+			destIpRanges = convert.SliceAnyToInterface(r.Match.DestIpRanges)
+			srcAddressGroups = convert.SliceAnyToInterface(r.Match.SrcAddressGroups)
+			destAddressGroups = convert.SliceAnyToInterface(r.Match.DestAddressGroups)
+			for _, l4 := range r.Match.Layer4Configs {
+				if l4 == nil {
+					continue
+				}
+				layer4Configs = append(layer4Configs, map[string]any{
+					"ipProtocol": l4.IpProtocol,
+					"ports":      convert.SliceAnyToInterface(l4.Ports),
+				})
+			}
+			for _, t := range r.Match.SrcSecureTags {
+				if t == nil || t.Name == "" {
+					continue
+				}
+				srcSecureTags[t.Name] = t.State
+			}
+		}
+		targetSecureTags := map[string]any{}
+		for _, t := range r.TargetSecureTags {
+			if t == nil || t.Name == "" {
+				continue
+			}
+			targetSecureTags[t.Name] = t.State
+		}
+
 		mqlRule, err := CreateResource(g.MqlRuntime, "gcp.project.computeService.firewallPolicy.rule", map[string]*llx.RawData{
 			"id":                    llx.StringData(fmt.Sprintf("%s/rule/%d", policyId, r.Priority)),
 			"priority":              llx.IntData(int64(r.Priority)),
@@ -287,6 +319,13 @@ func (g *mqlGcpProjectComputeServiceFirewallPolicy) rules() ([]any, error) {
 			"targetServiceAccounts": llx.ArrayData(convert.SliceAnyToInterface(r.TargetServiceAccounts), types.String),
 			"ruleName":              llx.StringData(r.RuleName),
 			"securityProfileGroup":  llx.StringData(r.SecurityProfileGroup),
+			"srcIpRanges":           llx.ArrayData(srcIpRanges, types.String),
+			"destIpRanges":          llx.ArrayData(destIpRanges, types.String),
+			"layer4Configs":         llx.ArrayData(layer4Configs, types.Any),
+			"srcSecureTags":         llx.MapData(srcSecureTags, types.String),
+			"srcAddressGroups":      llx.ArrayData(srcAddressGroups, types.String),
+			"destAddressGroups":     llx.ArrayData(destAddressGroups, types.String),
+			"targetSecureTags":      llx.MapData(targetSecureTags, types.String),
 		})
 		if err != nil {
 			return nil, err

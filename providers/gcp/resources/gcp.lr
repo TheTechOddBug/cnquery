@@ -6211,6 +6211,20 @@ private gcp.project.computeService.firewallPolicy.rule @defaults("priority actio
   ruleName string
   // Security profile group URL
   securityProfileGroup string
+  // Source IPv4/IPv6 CIDR ranges the rule matches
+  srcIpRanges []string
+  // Destination IPv4/IPv6 CIDR ranges the rule matches
+  destIpRanges []string
+  // Protocol/port combinations the rule matches (each entry: {ipProtocol, ports[]})
+  layer4Configs []dict
+  // Source secure tag values the rule matches (tag name -> state, e.g. EFFECTIVE / INEFFECTIVE)
+  srcSecureTags map[string]string
+  // Source address groups the rule matches
+  srcAddressGroups []string
+  // Destination address groups the rule matches
+  destAddressGroups []string
+  // Target secure tag values (tag name -> state); the modern replacement for instance targetTags on hierarchical policies
+  targetSecureTags map[string]string
 }
 
 // Google Cloud (GCP) retry configuration (shared across Cloud Tasks and Cloud Scheduler)
