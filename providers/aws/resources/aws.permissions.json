@@ -434,13 +434,23 @@
     "logs:DescribeResourcePolicies",
     "logs:DescribeSubscriptionFilters",
     "logs:ListTagsForResource",
+    "macie2:DescribeBuckets",
     "macie2:DescribeClassificationJob",
+    "macie2:GetAdministratorAccount",
+    "macie2:GetAllowList",
+    "macie2:GetAutomatedDiscoveryConfiguration",
     "macie2:GetBucketStatistics",
+    "macie2:GetClassificationExportConfiguration",
     "macie2:GetCustomDataIdentifier",
+    "macie2:GetFindingsFilter",
     "macie2:GetMacieSession",
+    "macie2:ListAllowLists",
     "macie2:ListClassificationJobs",
     "macie2:ListCustomDataIdentifiers",
     "macie2:ListFindings",
+    "macie2:ListFindingsFilters",
+    "macie2:ListInvitations",
+    "macie2:ListMembers",
     "memorydb:DescribeACLs",
     "memorydb:DescribeClusters",
     "memorydb:DescribeSnapshots",
@@ -3389,9 +3399,33 @@
       "source_file": "aws_cloudwatch.go"
     },
     {
+      "permission": "macie2:DescribeBuckets",
+      "service": "macie2",
+      "action": "DescribeBuckets",
+      "source_file": "aws_macie.go"
+    },
+    {
       "permission": "macie2:DescribeClassificationJob",
       "service": "macie2",
       "action": "DescribeClassificationJob",
+      "source_file": "aws_macie.go"
+    },
+    {
+      "permission": "macie2:GetAdministratorAccount",
+      "service": "macie2",
+      "action": "GetAdministratorAccount",
+      "source_file": "aws_macie.go"
+    },
+    {
+      "permission": "macie2:GetAllowList",
+      "service": "macie2",
+      "action": "GetAllowList",
+      "source_file": "aws_macie.go"
+    },
+    {
+      "permission": "macie2:GetAutomatedDiscoveryConfiguration",
+      "service": "macie2",
+      "action": "GetAutomatedDiscoveryConfiguration",
       "source_file": "aws_macie.go"
     },
     {
@@ -3401,15 +3435,33 @@
       "source_file": "aws_macie.go"
     },
     {
+      "permission": "macie2:GetClassificationExportConfiguration",
+      "service": "macie2",
+      "action": "GetClassificationExportConfiguration",
+      "source_file": "aws_macie.go"
+    },
+    {
       "permission": "macie2:GetCustomDataIdentifier",
       "service": "macie2",
       "action": "GetCustomDataIdentifier",
       "source_file": "aws_macie.go"
     },
     {
+      "permission": "macie2:GetFindingsFilter",
+      "service": "macie2",
+      "action": "GetFindingsFilter",
+      "source_file": "aws_macie.go"
+    },
+    {
       "permission": "macie2:GetMacieSession",
       "service": "macie2",
       "action": "GetMacieSession",
+      "source_file": "aws_macie.go"
+    },
+    {
+      "permission": "macie2:ListAllowLists",
+      "service": "macie2",
+      "action": "ListAllowLists",
       "source_file": "aws_macie.go"
     },
     {
@@ -3428,6 +3480,24 @@
       "permission": "macie2:ListFindings",
       "service": "macie2",
       "action": "ListFindings",
+      "source_file": "aws_macie.go"
+    },
+    {
+      "permission": "macie2:ListFindingsFilters",
+      "service": "macie2",
+      "action": "ListFindingsFilters",
+      "source_file": "aws_macie.go"
+    },
+    {
+      "permission": "macie2:ListInvitations",
+      "service": "macie2",
+      "action": "ListInvitations",
+      "source_file": "aws_macie.go"
+    },
+    {
+      "permission": "macie2:ListMembers",
+      "service": "macie2",
+      "action": "ListMembers",
       "source_file": "aws_macie.go"
     },
     {
