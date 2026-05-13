@@ -1,7 +1,7 @@
 {
   "provider": "gcp",
-  "version": "13.13.3",
-  "generated_at": "2026-05-09T21:46:56-07:00",
+  "version": "13.14.1",
+  "generated_at": "2026-05-13T05:55:34+01:00",
   "permissions": [
     "accessapproval.settings.get",
     "aiplatform.customJobs.list",
@@ -120,10 +120,17 @@
     "datastream.privateConnections.list",
     "datastream.routes.list",
     "datastream.streams.list",
+    "dlp.columnDataProfiles.list",
+    "dlp.connections.list",
     "dlp.deidentifyTemplates.list",
+    "dlp.discoveryConfigs.list",
+    "dlp.fileStoreDataProfiles.list",
     "dlp.inspectTemplates.list",
     "dlp.jobTriggers.list",
+    "dlp.jobs.list",
+    "dlp.projectDataProfiles.list",
     "dlp.storedInfoTypes.list",
+    "dlp.tableDataProfiles.list",
     "dns.managedZones.getIamPolicy",
     "dns.managedZones.list",
     "dns.policies.list",
@@ -926,9 +933,33 @@
       "source_file": "datastream.go"
     },
     {
+      "permission": "dlp.columnDataProfiles.list",
+      "service": "dlp",
+      "action": "ListColumnDataProfiles",
+      "source_file": "dlp.go"
+    },
+    {
+      "permission": "dlp.connections.list",
+      "service": "dlp",
+      "action": "ListConnections",
+      "source_file": "dlp.go"
+    },
+    {
       "permission": "dlp.deidentifyTemplates.list",
       "service": "dlp",
       "action": "ListDeidentifyTemplates",
+      "source_file": "dlp.go"
+    },
+    {
+      "permission": "dlp.discoveryConfigs.list",
+      "service": "dlp",
+      "action": "ListDiscoveryConfigs",
+      "source_file": "dlp.go"
+    },
+    {
+      "permission": "dlp.fileStoreDataProfiles.list",
+      "service": "dlp",
+      "action": "ListFileStoreDataProfiles",
       "source_file": "dlp.go"
     },
     {
@@ -944,9 +975,27 @@
       "source_file": "dlp.go"
     },
     {
+      "permission": "dlp.jobs.list",
+      "service": "dlp",
+      "action": "ListDlpJobs",
+      "source_file": "dlp.go"
+    },
+    {
+      "permission": "dlp.projectDataProfiles.list",
+      "service": "dlp",
+      "action": "ListProjectDataProfiles",
+      "source_file": "dlp.go"
+    },
+    {
       "permission": "dlp.storedInfoTypes.list",
       "service": "dlp",
       "action": "ListStoredInfoTypes",
+      "source_file": "dlp.go"
+    },
+    {
+      "permission": "dlp.tableDataProfiles.list",
+      "service": "dlp",
+      "action": "ListTableDataProfiles",
       "source_file": "dlp.go"
     },
     {
@@ -1281,7 +1330,7 @@
     {
       "permission": "resourcemanager.projects.list",
       "service": "resourcemanager",
-      "action": "Projects.Search",
+      "action": "Projects.List",
       "source_file": "project.go",
       "scope": "org"
     },
