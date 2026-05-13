@@ -121,6 +121,8 @@ azure.subscription @defaults ("name") {
   eventGrid() azure.subscription.eventGridService
   // API Management resources in the subscription
   apiManagement() azure.subscription.apiManagementService
+  // Microsoft Purview resources in the subscription — the data-governance and sensitive-data-discovery service (the Azure analog of AWS Macie / GCP Cloud DLP)
+  purview() azure.subscription.purviewService
 }
 
 // Azure function
@@ -2551,6 +2553,8 @@ private azure.subscription.storageService.account @defaults("id name location") 
   objectReplicationPolicies() []azure.subscription.storageService.account.objectReplicationPolicy
   // Blob inventory policy configured on the storage account, if any
   blobInventoryPolicy() azure.subscription.storageService.account.blobInventoryPolicy
+  // Microsoft Defender for Storage configuration for this account — including the Microsoft Purview-backed Sensitive Data Discovery feature that classifies blob containers for sensitive data (credit cards, credentials, etc.) and surfaces findings as security alerts
+  defenderForStorage() azure.subscription.storageService.account.defenderForStorageSetting
 }
 
 // Azure Storage account queue
@@ -2947,6 +2951,35 @@ private azure.subscription.storageService.account.blobInventoryPolicy @defaults(
   lastModifiedTime time
   // Inventory rules. Each entry has {name, enabled, destination, definition: {format, schedule, objectType, schemaFields, filters}}.
   rules []dict
+}
+
+// Microsoft Defender for Storage configuration for a single storage account
+//
+// Examine the per-account Defender for Storage settings. `isEnabled` reports
+// whether Defender for Storage is on for this account, and
+// `sensitiveDataDiscoveryEnabled` reflects whether the Microsoft Purview-backed
+// sensitive data classification engine scans blob containers and surfaces
+// findings as security alerts. `overrideSubscriptionLevelSettings` distinguishes
+// account-level overrides from inherited subscription-level configuration.
+private azure.subscription.storageService.account.defenderForStorageSetting @defaults("isEnabled sensitiveDataDiscoveryEnabled malwareScanningOnUploadEnabled") {
+  // ARM resource ID of the Defender for Storage setting (`.../storageAccounts/{name}/providers/Microsoft.Security/defenderForStorageSettings/current`)
+  id string
+  // Whether Defender for Storage is enabled on this storage account
+  isEnabled bool
+  // Whether the per-account configuration overrides the subscription-level Defender for Storage settings
+  overrideSubscriptionLevelSettings bool
+  // Whether the Microsoft Purview-backed Sensitive Data Discovery sub-feature is enabled — scans blob containers for sensitive data (credit cards, credentials, etc.) and emits security alerts
+  sensitiveDataDiscoveryEnabled bool
+  // Status of the most recent Sensitive Data Discovery enable/disable operation, with keys `code` and `message` (populated only on failure or partial success)
+  sensitiveDataDiscoveryStatus dict
+  // Whether on-upload malware scanning is enabled — every new blob is scanned for malware before becoming readable
+  malwareScanningOnUploadEnabled bool
+  // Monthly per-storage-account cap on the GB scanned for on-upload malware scanning. Negative values mean no cap
+  malwareScanningCapGBPerMonth int
+  // Resource ID of the Event Grid Topic that receives malware scan results, empty when no topic is configured
+  malwareScanningResultsEventGridTopicId string
+  // Status of the most recent Malware Scanning enable/disable operation, with keys `code` and `message` (populated only on failure or partial success)
+  malwareScanningStatus dict
 }
 
 // Azure Web
@@ -8484,4 +8517,71 @@ azure.subscription.apiManagementService.service @defaults("name location skuName
   publicIpAddress() azure.subscription.networkService.ipAddress
   // Service creation time
   createdAt time
+}
+
+// Microsoft Purview
+//
+// Use the Purview namespace to enumerate the Microsoft Purview accounts
+// in the subscription. Each account is a tenant-scoped data-governance
+// and sensitive-data-discovery hub that catalogs data assets across
+// Azure (Storage, SQL, Synapse, Cosmos DB, Power BI) and external clouds.
+// Iterate `accounts()` for the per-region Purview accounts and inspect
+// their public-network-access posture, managed-resource-group bindings,
+// SKU, and public endpoints.
+private azure.subscription.purviewService {
+  // Subscription identifier
+  subscriptionId string
+  // Microsoft Purview accounts in the subscription
+  accounts() []azure.subscription.purviewService.account
+}
+
+// Microsoft Purview account
+//
+// Examine a single Purview account — the tenant-scoped governance hub
+// that hosts the data catalog, scanning, classification, and lineage
+// surfaces. Use `publicNetworkAccess` to confirm whether the account is
+// reachable from the public internet; `managedResourceGroupName` and
+// `managedResources` to find the Purview-managed Storage and Event Hub
+// resources backing the account; `endpoints` for the catalog/scan/guardian
+// URIs; and `privateEndpointConnections` for the approved private-link
+// bindings.
+private azure.subscription.purviewService.account @defaults("name location publicNetworkAccess provisioningState") {
+  // Full resource ID
+  id string
+  // Name of the Purview account
+  name string
+  // Location of the account
+  location string
+  // Resource type
+  type string
+  // Tags on the account
+  tags map[string]string
+  // Account SKU (name, capacity)
+  sku dict
+  // Identity configuration (SystemAssigned, UserAssigned, principalId, tenantId)
+  identity dict
+  // Friendly display name for the account
+  friendlyName string
+  // Provisioning state: Succeeded, Failed, Creating, Deleting, Moving, Unknown
+  provisioningState string
+  // Whether the account is reachable from the public internet: Enabled, NotConfigured, or Disabled
+  publicNetworkAccess string
+  // Name of the Purview-managed resource group that backs this account
+  managedResourceGroupName string
+  // Resource identifiers of the managed resources (storage account, event hub namespace, resource group ID)
+  managedResources dict
+  // Public endpoints of the account, with keys `catalog`, `guardian`, `scan`
+  endpoints dict
+  // Approved private-endpoint connections for the account
+  privateEndpointConnections []dict
+  // Cloud connectors for external (AWS) scanning, with the externally surfaced AWS external ID
+  cloudConnectors dict
+  // When the account was created
+  createdAt time
+  // Object ID of the principal that created the account
+  createdByObjectId string
+  // Principal name that created the account
+  createdBy string
+  // Unmodeled raw properties returned by the Azure API
+  properties dict
 }
