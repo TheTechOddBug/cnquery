@@ -24,7 +24,19 @@ import (
 	"go.mondoo.com/mql/v13/providers/os/connection/tar"
 )
 
-// This test has an external dependency on the gcr.io registry
+// The two TestAssetNameForRemoteImages* tests below use a tag reference
+// (mirror.gcr.io/library/busybox:1.36.1) rather than a digest reference, on
+// purpose: the goal is to exercise the tag→digest resolution path in
+// NewContainerImageConnection. The expected digest is hardcoded in the
+// assertions so a helper regression (wrong short-hash length, stray "sha256:"
+// prefix, etc.) would still be caught. If mirror.gcr.io ever rebuilds the
+// tag, update the hardcoded digest to match — this is preferable to a
+// dynamic lookup, which would make the assertions tautological against the
+// production helpers.
+// mirror.gcr.io is Google's anonymous pull-through cache for Docker Hub and
+// is not bound to docker-credential-gcloud, which made the previous gcr.io
+// fixture flake on CI.
+
 // To test this specific case, we cannot use a stored image, we need to call remote.Get
 func TestAssetNameForRemoteImages(t *testing.T) {
 	var err error
@@ -35,7 +47,7 @@ func TestAssetNameForRemoteImages(t *testing.T) {
 
 	config := &inventory.Config{
 		Type: "docker-image",
-		Host: "gcr.io/google-containers/busybox:1.27.2",
+		Host: "mirror.gcr.io/library/busybox:1.36.1",
 	}
 	asset = &inventory.Asset{
 		Connections: []*inventory.Config{config},
@@ -52,11 +64,10 @@ func TestAssetNameForRemoteImages(t *testing.T) {
 	require.NotNil(t, conn)
 
 	assert.True(t, config.DelayDiscovery)
-	assert.Equal(t, "gcr.io/google-containers/busybox@545e6a6310a2", asset.Name)
-	assert.Contains(t, asset.PlatformIds, "//platformid.api.mondoo.app/runtime/docker/images/545e6a6310a27636260920bc07b994a299b6708a1b26910cfefd335fdfb60d2b")
+	assert.Equal(t, "mirror.gcr.io/library/busybox@73aaf090f3d8", asset.Name)
+	assert.Contains(t, asset.PlatformIds, "//platformid.api.mondoo.app/runtime/docker/images/73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662")
 }
 
-// This test has an external dependency on the gcr.io registry
 // To test this specific case, we cannot use a stored image, we need to call remote.Get
 func TestAssetNameForRemoteImages_DisableDelayedDiscovery(t *testing.T) {
 	var err error
@@ -67,7 +78,7 @@ func TestAssetNameForRemoteImages_DisableDelayedDiscovery(t *testing.T) {
 
 	config := &inventory.Config{
 		Type: "docker-image",
-		Host: "gcr.io/google-containers/busybox:1.27.2",
+		Host: "mirror.gcr.io/library/busybox:1.36.1",
 		Options: map[string]string{
 			plugin.DISABLE_DELAYED_DISCOVERY_OPTION: "true",
 		},
@@ -87,8 +98,8 @@ func TestAssetNameForRemoteImages_DisableDelayedDiscovery(t *testing.T) {
 	require.NotNil(t, conn)
 
 	assert.False(t, config.DelayDiscovery)
-	assert.Equal(t, "gcr.io/google-containers/busybox@545e6a6310a2", asset.Name)
-	assert.Contains(t, asset.PlatformIds, "//platformid.api.mondoo.app/runtime/docker/images/545e6a6310a27636260920bc07b994a299b6708a1b26910cfefd335fdfb60d2b")
+	assert.Equal(t, "mirror.gcr.io/library/busybox@73aaf090f3d8", asset.Name)
+	assert.Contains(t, asset.PlatformIds, "//platformid.api.mondoo.app/runtime/docker/images/73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662")
 }
 
 func fetchAndCreateImage(t *testing.T, ctx context.Context, dClient *client.Client, img string) container.CreateResponse {
