@@ -2,15 +2,15 @@ module go.mondoo.com/mql/v13/providers/vsphere
 
 replace go.mondoo.com/mql/v13 => ../..
 
-go 1.26.2
+go 1.26.3
 
 require (
 	github.com/facebookincubator/nvdtools v0.1.5
 	github.com/rs/zerolog v1.35.1
 	github.com/stretchr/testify v1.11.1
 	github.com/vmware/govmomi v0.54.0
-	go.mondoo.com/mondoo-go v0.0.0-20260514123334-0a6920e9c757
-	go.mondoo.com/mql/v13 v13.9.0
+	go.mondoo.com/mondoo-go v0.0.0-20260519003141-d14a54773a44
+	go.mondoo.com/mql/v13 v13.10.0
 	golang.org/x/sync v0.20.0
 )
 
@@ -72,7 +72,7 @@ require (
 	github.com/getsentry/sentry-go v0.46.2 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.9.0 // indirect
-	github.com/go-git/go-git/v5 v5.19.0 // indirect
+	github.com/go-git/go-git/v5 v5.19.1 // indirect
 	github.com/go-jose/go-jose/v3 v3.0.5 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
@@ -159,7 +159,7 @@ require (
 	google.golang.org/api v0.248.0 // indirect
 	google.golang.org/genproto v0.0.0-20250826171959-ef028d996bc1 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260226221140-a57be14db171 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260511170946-3700d4141b60 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260519071638-aa98bba5eb94 // indirect
 	google.golang.org/grpc v1.81.1 // indirect
 	google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
