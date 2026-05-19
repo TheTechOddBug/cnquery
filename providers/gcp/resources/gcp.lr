@@ -48,6 +48,8 @@ alias gcp.memorystore = gcp.project.memorystoreService
 gcp.organization @defaults("name") {
   // Organization ID
   id string
+  // Google Workspace / Cloud Identity customer ID associated with the organization
+  customerId string
   // Organization name
   name() string
   // Organization state
@@ -86,6 +88,124 @@ gcp.organization @defaults("name") {
   accessPolicies() []gcp.accesscontextmanager.accessPolicy
   // Custom Organization Policy constraints defined on the organization
   customConstraints() []gcp.orgPolicy.customConstraint
+  // Cloud Identity groups in the associated Google Workspace / Cloud Identity account
+  cloudIdentityGroups() []gcp.cloudIdentity.group
+  // Network Security profiles defined for the organization
+  networkSecurityProfiles() []gcp.organization.networkSecurityProfile
+  // Network Security profile groups defined for the organization
+  networkSecurityProfileGroups() []gcp.organization.networkSecurityProfileGroup
+}
+
+// Network Security profile for an organization
+//
+// Examine a Network Security profile that defines a reusable set of
+// threat-detection and traffic-handling behavior referenced by
+// firewall policy rules: `threatPreventionProfile` configures
+// intrusion prevention severity overrides, `urlFilteringProfile`
+// configures URL filtering, and the intercept and mirroring profiles
+// configure packet handling. The `type` field records which behavior
+// the profile carries. Selected by the full resource name.
+private gcp.organization.networkSecurityProfile @defaults("name type") {
+  // Full resource name of the security profile
+  name string
+  // Optional human-readable description
+  description string
+  // Profile type (THREAT_PREVENTION, CUSTOM_MIRRORING, CUSTOM_INTERCEPT, URL_FILTERING)
+  type string
+  // Threat prevention configuration, including per-severity and per-threat overrides
+  threatPreventionProfile dict
+  // URL filtering configuration applied by the profile
+  urlFilteringProfile dict
+  // Custom packet-mirroring configuration applied by the profile
+  customMirroringProfile dict
+  // Custom packet-intercept configuration applied by the profile
+  customInterceptProfile dict
+  // User-defined key/value labels for organizing the resource
+  labels map[string]string
+  // Entity tag for optimistic concurrency control
+  etag string
+  // Time the security profile was created
+  created time
+  // Time the security profile was last updated
+  updated time
+}
+
+// Network Security profile group for an organization
+//
+// Examine a Network Security profile group, which bundles individual
+// security profiles so that a single firewall policy rule can apply
+// threat prevention, URL filtering, mirroring, and intercept behavior
+// together. Each field references the full resource name of the
+// security profile that supplies that behavior. Selected by the full
+// resource name.
+private gcp.organization.networkSecurityProfileGroup @defaults("name") {
+  // Full resource name of the security profile group
+  name string
+  // Optional human-readable description
+  description string
+  // Resource name of the threat prevention profile in the group
+  threatPreventionProfile string
+  // Resource name of the custom mirroring profile in the group
+  customMirroringProfile string
+  // Resource name of the custom intercept profile in the group
+  customInterceptProfile string
+  // User-defined key/value labels for organizing the resource
+  labels map[string]string
+  // Entity tag for optimistic concurrency control
+  etag string
+  // Time the security profile group was created
+  created time
+  // Time the security profile group was last updated
+  updated time
+}
+
+// Google Cloud Identity group
+//
+// Examine a Cloud Identity or Google Workspace group: the `email`
+// that identifies it, its `displayName` and `description`, the
+// `labels` that classify it as a security group or discussion forum,
+// and its `memberships` — the users, service accounts, and nested
+// groups that belong to it. Use it to expand an IAM binding granted
+// to a group into the concrete principals the binding reaches.
+private gcp.cloudIdentity.group @defaults("displayName email") {
+  // Resource name of the group (groups/{groupId})
+  name string
+  // Group ID
+  id string
+  // Email address that identifies the group
+  email string
+  // Human-friendly name displayed for the group
+  displayName string
+  // Human-readable description of the group
+  description string
+  // Labels classifying the group, such as security group or discussion forum
+  labels map[string]string
+  // Time the group was created
+  created time
+  // Members of the group
+  memberships() []gcp.cloudIdentity.membership
+}
+
+// Google Cloud Identity group membership
+//
+// Examine a single membership in a Cloud Identity group: `memberKey`
+// identifies the member, `type` distinguishes a user from a service
+// account or a nested group, `roles` lists the roles the member holds
+// in the group (MEMBER, MANAGER, OWNER), and `deliverySetting`
+// records how group mail reaches the member.
+private gcp.cloudIdentity.membership @defaults("memberKey type") {
+  // Resource name of the membership (groups/{groupId}/memberships/{membershipId})
+  name string
+  // Email address or identifier of the member
+  memberKey string
+  // Member type (USER, SERVICE_ACCOUNT, GROUP, SHARED_DRIVE, OTHER)
+  type string
+  // Roles the member holds in the group (MEMBER, MANAGER, OWNER)
+  roles []string
+  // Mail delivery setting for the member (ALL_MAIL, DIGEST, DAILY, NONE, DISABLED)
+  deliverySetting string
+  // Time the membership was created
+  created time
 }
 
 // Google Cloud (GCP) folders
@@ -623,6 +743,10 @@ gcp.project @defaults("name number") {
   composer() gcp.project.composerService
   // GCP Cloud Healthcare resources
   healthcare() gcp.project.healthcareService
+  // GCP VM Manager (OS Config) resources
+  osConfig() gcp.project.osConfigService
+  // GCP Network Security resources
+  networkSecurity() gcp.project.networkSecurityService
 }
 
 // Google Cloud service API
@@ -1085,6 +1209,48 @@ gcp.project.computeService.instance @defaults("name id") {
   satisfiesPzs bool
   // Workload identity configuration for the instance
   workloadIdentityConfig dict
+  // VM Manager OS inventory of installed packages and operating system details
+  inventory() gcp.project.computeService.instance.osInventory
+  // VM Manager vulnerability report for the instance
+  vulnerabilityReport() gcp.project.computeService.instance.vulnerabilityReport
+}
+
+// VM Manager OS inventory for a Compute Engine instance
+//
+// Examine the operating system and software state that the VM Manager
+// OS Config agent reports for a single instance: `osInfo` carries the
+// detected OS name, version, and architecture, while `items` lists
+// every installed package and every available package update. Use it
+// to audit patch level and installed software without logging in to
+// the VM.
+private gcp.project.computeService.instance.osInventory @defaults("name updateTime") {
+  // Full resource name of the inventory
+  name string
+  // Operating system details reported by the OS Config agent
+  osInfo dict
+  // Installed packages and available package updates, each keyed by its item id
+  items []dict
+  // Time the inventory was last refreshed
+  updateTime time
+}
+
+// VM Manager vulnerability report for a Compute Engine instance
+//
+// Examine the vulnerabilities that VM Manager detects on a single
+// instance by correlating its OS inventory against vulnerability
+// feeds. Each entry in `vulnerabilities` records the affected
+// packages and the CVE details, and `highestUpgradableCveSeverity`
+// summarizes the most severe issue that an available package update
+// would fix.
+private gcp.project.computeService.instance.vulnerabilityReport @defaults("name highestUpgradableCveSeverity updateTime") {
+  // Full resource name of the vulnerability report
+  name string
+  // Vulnerabilities affecting installed packages on the instance
+  vulnerabilities []dict
+  // Highest severity among upgradable vulnerabilities with an attached CVE (NONE, MINIMAL, LOW, MEDIUM, HIGH, CRITICAL)
+  highestUpgradableCveSeverity string
+  // Time the report was last refreshed
+  updateTime time
 }
 
 // Google Cloud (GCP) Compute Shielded Instance configuration
@@ -9071,6 +9237,281 @@ private gcp.project.idsService.endpoint @defaults("name severity state") {
   // Creation time
   created time
   // Last update time
+  updated time
+}
+
+// ============================================================
+// VM Manager (OS Config)
+// ============================================================
+
+// VM Manager (OS Config) service for a project
+//
+// Use this resource to reach Google Cloud VM Manager resources for a
+// project: `patchDeployments` lists scheduled OS patch rollouts and
+// `osPolicyAssignments` lists the OS policy assignments applied to
+// instances across every zone. Per-instance patch and vulnerability
+// state is exposed on `gcp.project.computeService.instance` through
+// its `inventory` and `vulnerabilityReport` fields.
+private gcp.project.osConfigService {
+  // Project ID
+  projectId string
+  // Scheduled OS patch deployments in the project
+  patchDeployments() []gcp.project.osConfigService.patchDeployment
+  // OS policy assignments across all zones in the project
+  osPolicyAssignments() []gcp.project.osConfigService.osPolicyAssignment
+}
+
+// VM Manager OS patch deployment
+//
+// Examine a scheduled patch rollout managed by VM Manager: the
+// `instanceFilter` selecting which VM instances are patched, the
+// per-package-manager behavior and reboot policy in `patchConfig`,
+// the `oneTimeSchedule` or `recurringSchedule` that triggers it, the
+// `rollout` strategy and disruption budget, and the `state` that
+// audits whether the deployment is ACTIVE or PAUSED. Selected by the
+// full resource name.
+private gcp.project.osConfigService.patchDeployment @defaults("name state lastExecuteTime") {
+  // Full resource name of the patch deployment
+  name string
+  // Optional human-readable description
+  description string
+  // Filter selecting which VM instances receive the patch
+  instanceFilter dict
+  // Per-package-manager patch behavior and reboot configuration
+  patchConfig dict
+  // Length of time the patch is allowed to run, in seconds
+  duration int
+  // One-time schedule that triggers this patch deployment
+  oneTimeSchedule dict
+  // Recurring schedule that triggers this patch deployment
+  recurringSchedule dict
+  // Rollout strategy and disruption budget for the patch
+  rollout dict
+  // Deployment state (ACTIVE, PAUSED)
+  state string
+  // Time the patch deployment was created
+  created time
+  // Time the patch deployment was last updated
+  updated time
+  // Time the patch deployment last ran
+  lastExecuteTime time
+}
+
+// VM Manager OS policy assignment
+//
+// Examine an OS policy assignment that applies a set of OS policies
+// (`osPolicies`) to the VM instances selected by `instanceFilter`.
+// Each assignment tracks its `rollout` strategy, its progress through
+// `rolloutState`, the immutable `revisionId` of the applied
+// configuration, and whether the revision is a `baseline` or has been
+// `deleted`. Selected by the full resource name.
+private gcp.project.osConfigService.osPolicyAssignment @defaults("name rolloutState") {
+  // Full resource name of the OS policy assignment
+  name string
+  // Optional human-readable description
+  description string
+  // OS policies applied to the selected instances
+  osPolicies []dict
+  // Filter selecting which VM instances the policies apply to
+  instanceFilter dict
+  // Rollout strategy and disruption budget for the assignment
+  rollout dict
+  // Immutable identifier of this revision of the assignment
+  revisionId string
+  // Time this revision was created
+  revisionCreateTime time
+  // Rollout state of the assignment (IN_PROGRESS, CANCELLING, CANCELLED, SUCCEEDED)
+  rolloutState string
+  // Whether this is the baseline revision used to roll back the rollout
+  baseline bool
+  // Whether the assignment has been deleted
+  deleted bool
+  // Whether the assignment is currently being reconciled
+  reconciling bool
+}
+
+// ============================================================
+// Network Security
+// ============================================================
+
+// Network Security service for a project
+//
+// Use this resource to reach Google Cloud Network Security resources
+// for a project: service-mesh `authorizationPolicies`, the
+// `serverTlsPolicies` and `clientTlsPolicies` that govern TLS
+// behavior, the `tlsInspectionPolicies` used to decrypt and inspect
+// traffic, the `addressGroups` referenced by firewall policy rules,
+// and the `urlLists` used for URL-based filtering.
+private gcp.project.networkSecurityService {
+  // Project ID
+  projectId string
+  // Authorization policies governing service-to-service access
+  authorizationPolicies() []gcp.project.networkSecurityService.authorizationPolicy
+  // Server-side TLS policies
+  serverTlsPolicies() []gcp.project.networkSecurityService.serverTlsPolicy
+  // Client-side TLS policies
+  clientTlsPolicies() []gcp.project.networkSecurityService.clientTlsPolicy
+  // TLS inspection policies used to decrypt and inspect traffic
+  tlsInspectionPolicies() []gcp.project.networkSecurityService.tlsInspectionPolicy
+  // Address groups referenced by firewall policy rules
+  addressGroups() []gcp.project.networkSecurityService.addressGroup
+  // URL lists used for URL-based filtering
+  urlLists() []gcp.project.networkSecurityService.urlList
+}
+
+// Network Security authorization policy
+//
+// Examine an authorization policy that allows or denies traffic
+// between workloads in a service mesh or load-balanced application:
+// `action` records the default ALLOW or DENY decision and `rules`
+// lists the source and destination matchers that select which
+// requests the policy applies to. Selected by the full resource name.
+private gcp.project.networkSecurityService.authorizationPolicy @defaults("name action") {
+  // Full resource name of the authorization policy
+  name string
+  // Optional human-readable description
+  description string
+  // Default action applied to matching traffic (ALLOW, DENY)
+  action string
+  // Source and destination matchers selecting which requests the policy applies to
+  rules []dict
+  // User-defined key/value labels for organizing the resource
+  labels map[string]string
+  // Time the policy was created
+  created time
+  // Time the policy was last updated
+  updated time
+}
+
+// Network Security server TLS policy
+//
+// Examine a server-side TLS policy attached to inbound traffic: the
+// `allowOpen` predicate audits whether plaintext connections are
+// permitted, `mtlsPolicy` configures mutual TLS client validation,
+// and `serverCertificate` configures the certificate the server
+// presents. Selected by the full resource name.
+private gcp.project.networkSecurityService.serverTlsPolicy @defaults("name allowOpen") {
+  // Full resource name of the server TLS policy
+  name string
+  // Optional human-readable description
+  description string
+  // Whether plaintext (non-TLS) connections are permitted
+  allowOpen bool
+  // Mutual TLS configuration for validating client certificates
+  mtlsPolicy dict
+  // Certificate provider configuration for the certificate the server presents
+  serverCertificate dict
+  // User-defined key/value labels for organizing the resource
+  labels map[string]string
+  // Time the policy was created
+  created time
+  // Time the policy was last updated
+  updated time
+}
+
+// Network Security client TLS policy
+//
+// Examine a client-side TLS policy used for outbound connections:
+// `sni` records the server name indication sent during the
+// handshake, `clientCertificate` configures the certificate the
+// client presents for mutual TLS, and `serverValidationCa` lists the
+// certificate authorities trusted to validate the server. Selected by
+// the full resource name.
+private gcp.project.networkSecurityService.clientTlsPolicy @defaults("name sni") {
+  // Full resource name of the client TLS policy
+  name string
+  // Optional human-readable description
+  description string
+  // Server name indication sent during the TLS handshake
+  sni string
+  // Certificate provider configuration for the certificate the client presents
+  clientCertificate dict
+  // Certificate authorities trusted to validate the server certificate
+  serverValidationCa []dict
+  // User-defined key/value labels for organizing the resource
+  labels map[string]string
+  // Time the policy was created
+  created time
+  // Time the policy was last updated
+  updated time
+}
+
+// Network Security TLS inspection policy
+//
+// Examine a TLS inspection policy that lets firewall rules decrypt,
+// inspect, and re-encrypt TLS traffic: `caPool` references the
+// Certificate Authority Service pool used to mint intercept
+// certificates, `minTlsVersion` and `tlsFeatureProfile` constrain the
+// negotiated TLS parameters, and `trustConfig` supplies additional
+// trusted certificates. Selected by the full resource name.
+private gcp.project.networkSecurityService.tlsInspectionPolicy @defaults("name minTlsVersion") {
+  // Full resource name of the TLS inspection policy
+  name string
+  // Optional human-readable description
+  description string
+  // Certificate Authority Service CA pool used to mint intercept certificates
+  caPool string
+  // Minimum accepted TLS version (TLS_VERSION_UNSPECIFIED, TLS_1_0, TLS_1_1, TLS_1_2, TLS_1_3)
+  minTlsVersion string
+  // TLS feature profile constraining the negotiated cipher suites (PROFILE_UNSPECIFIED, PROFILE_COMPATIBLE, PROFILE_MODERN, PROFILE_RESTRICTED, PROFILE_CUSTOM)
+  tlsFeatureProfile string
+  // Custom TLS features negotiated when tlsFeatureProfile is PROFILE_CUSTOM
+  customTlsFeatures []string
+  // Whether the set of public certificate authorities is excluded from the trust store
+  excludePublicCaSet bool
+  // Resource name of the trust config supplying additional trusted certificates
+  trustConfig string
+  // Time the policy was created
+  created time
+  // Time the policy was last updated
+  updated time
+}
+
+// Network Security address group
+//
+// Examine an address group: a named, reusable collection of IP
+// addresses or ranges in `items` that firewall policy rules reference
+// instead of inline address lists. `type` records whether the group
+// holds IPv4 or IPv6 addresses, `capacity` is the maximum number of
+// items, and `purpose` records where the group may be used. Selected
+// by the full resource name.
+private gcp.project.networkSecurityService.addressGroup @defaults("name type") {
+  // Full resource name of the address group
+  name string
+  // Optional human-readable description
+  description string
+  // Address family held by the group (IPV4, IPV6)
+  type string
+  // IP addresses or CIDR ranges in the group
+  items []string
+  // Maximum number of items the group can hold
+  capacity int
+  // Where the address group may be used (DEFAULT, CLOUD_ARMOR)
+  purpose []string
+  // User-defined key/value labels for organizing the resource
+  labels map[string]string
+  // Time the address group was created
+  created time
+  // Time the address group was last updated
+  updated time
+}
+
+// Network Security URL list
+//
+// Examine a URL list: a named collection of URL patterns in `values`
+// that secure web proxy and firewall rules reference to allow or
+// block web traffic by destination. Selected by the full resource
+// name.
+private gcp.project.networkSecurityService.urlList @defaults("name") {
+  // Full resource name of the URL list
+  name string
+  // Optional human-readable description
+  description string
+  // URL patterns in the list
+  values []string
+  // Time the URL list was created
+  created time
+  // Time the URL list was last updated
   updated time
 }
 
