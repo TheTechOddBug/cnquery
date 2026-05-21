@@ -6,7 +6,6 @@ package resources
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"go.mondoo.com/mql/v13/llx"
 	"go.mondoo.com/mql/v13/providers-sdk/v1/plugin"
@@ -17,7 +16,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	cosmosdb "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cosmos/armcosmos/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cosmosforpostgresql/armcosmosforpostgresql"
-	armresources "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources/v3"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mongocluster/armmongocluster"
 )
 
 func (a *mqlAzureSubscriptionCosmosDbService) id() (string, error) {
@@ -86,28 +85,23 @@ func (a *mqlAzureSubscriptionCosmosDbService) accounts() ([]any, error) {
 	ctx := context.Background()
 	subId := a.SubscriptionId.Data
 
-	res := []any{}
+	return fetchCosmosDBAccounts(ctx, a.MqlRuntime, conn, subId)
+}
 
-	// Fetch resources of different types - other than MongoDB and PostgreSQL
-	cosmosAccounts, err := fetchCosmosDBAccounts(ctx, a.MqlRuntime, conn, subId)
-	if err != nil {
-		return nil, err
-	}
-	res = append(res, cosmosAccounts...)
+func (a *mqlAzureSubscriptionCosmosDbService) mongoClusters() ([]any, error) {
+	conn := a.MqlRuntime.Connection.(*connection.AzureConnection)
+	ctx := context.Background()
+	subId := a.SubscriptionId.Data
 
-	mongoAccounts, err := fetchDbAccountsByType(ctx, a.MqlRuntime, conn, subId, "Microsoft.DocumentDB/mongoClusters")
-	if err != nil {
-		return nil, err
-	}
-	res = append(res, mongoAccounts...)
+	return fetchMongoClusters(ctx, a.MqlRuntime, conn, subId)
+}
 
-	postgresAccounts, err := fetchCosmosForPostgres(ctx, a.MqlRuntime, conn, subId)
-	if err != nil {
-		return nil, err
-	}
-	res = append(res, postgresAccounts...)
+func (a *mqlAzureSubscriptionCosmosDbService) postgresqlClusters() ([]any, error) {
+	conn := a.MqlRuntime.Connection.(*connection.AzureConnection)
+	ctx := context.Background()
+	subId := a.SubscriptionId.Data
 
-	return res, nil
+	return fetchCosmosForPostgres(ctx, a.MqlRuntime, conn, subId)
 }
 
 type mqlAzureSubscriptionCosmosDbServiceAccountInternal struct {
@@ -254,8 +248,21 @@ func fetchCosmosDBAccounts(ctx context.Context, runtime *plugin.Runtime, conn *c
 	return res, nil
 }
 
-func fetchDbAccountsByType(ctx context.Context, runtime *plugin.Runtime, conn *connection.AzureConnection, subId string, resourceType string) ([]any, error) {
-	resClient, err := armresources.NewClient(subId, conn.Token(), &arm.ClientOptions{
+// cosmosEnumStrPtr converts a pointer to a string-based SDK enum into a *string,
+// preserving nil so absent values stay null rather than becoming an empty string.
+func cosmosEnumStrPtr[T ~string](v *T) *string {
+	if v == nil {
+		return nil
+	}
+	s := string(*v)
+	return &s
+}
+
+// fetchMongoClusters lists the Cosmos DB for MongoDB (vCore) clusters
+// (Microsoft.DocumentDB/mongoClusters) in the subscription. These are
+// distinct Azure resources from classic Cosmos DB database accounts.
+func fetchMongoClusters(ctx context.Context, runtime *plugin.Runtime, conn *connection.AzureConnection, subId string) ([]any, error) {
+	client, err := armmongocluster.NewMongoClustersClient(subId, conn.Token(), &arm.ClientOptions{
 		ClientOptions: conn.ClientOptions(),
 	})
 	if err != nil {
@@ -263,56 +270,113 @@ func fetchDbAccountsByType(ctx context.Context, runtime *plugin.Runtime, conn *c
 	}
 
 	res := []any{}
-	filter := fmt.Sprintf("resourceType eq '%s'", resourceType)
-	pager := resClient.NewListPager(&armresources.ClientListOptions{
-		Filter: &filter,
-	})
+	pager := client.NewListPager(&armmongocluster.MongoClustersClientListOptions{})
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			return nil, err
 		}
-		for _, account := range page.Value {
-			properties, err := convert.JsonToDict(account.Properties)
+		for _, cluster := range page.Value {
+			if cluster == nil {
+				continue
+			}
+			mqlCluster, err := newMongoClusterResource(runtime, cluster)
 			if err != nil {
 				return nil, err
 			}
-
-			mqlResource, err := CreateResource(runtime, "azure.subscription.cosmosDbService.account",
-				map[string]*llx.RawData{
-					"__id":                               llx.StringDataPtr(account.ID),
-					"id":                                 llx.StringDataPtr(account.ID),
-					"name":                               llx.StringDataPtr(account.Name),
-					"tags":                               llx.MapData(convert.PtrMapStrToInterface(account.Tags), types.String),
-					"location":                           llx.StringDataPtr(account.Location),
-					"kind":                               llx.StringDataPtr(account.Kind),
-					"type":                               llx.StringDataPtr(account.Type),
-					"properties":                         llx.DictData(properties),
-					"publicNetworkAccess":                llx.StringData(""),
-					"disableLocalAuth":                   llx.BoolData(false),
-					"isVirtualNetworkFilterEnabled":      llx.BoolData(false),
-					"disableKeyBasedMetadataWriteAccess": llx.BoolData(false),
-					"enableAutomaticFailover":            llx.BoolData(false),
-					"enableMultipleWriteLocations":       llx.BoolData(false),
-					"ipRangeFilter":                      llx.ArrayData([]any{}, types.String),
-					"minimalTlsVersion":                  llx.StringData(""),
-					"defaultIdentity":                    llx.StringData(""),
-					"backupType":                         llx.StringData(""),
-					"backupIntervalInMinutes":            llx.IntData(0),
-					"backupRetentionIntervalInHours":     llx.IntData(0),
-					"backupStorageRedundancy":            llx.StringData(""),
-					"virtualNetworkRules":                llx.ArrayData([]any{}, types.Resource("azure.subscription.cosmosDbService.account.virtualNetworkRule")),
-				})
-			if err != nil {
-				return nil, err
-			}
-			res = append(res, mqlResource)
+			res = append(res, mqlCluster)
 		}
 	}
 	return res, nil
 }
 
-// fetches resources of type "Microsoft.DBforPostgreSQL/serverGroupsv2"
+func newMongoClusterResource(runtime *plugin.Runtime, cluster *armmongocluster.MongoCluster) (*mqlAzureSubscriptionCosmosDbServiceMongoCluster, error) {
+	args := map[string]*llx.RawData{
+		"__id":                  llx.StringDataPtr(cluster.ID),
+		"id":                    llx.StringDataPtr(cluster.ID),
+		"name":                  llx.StringDataPtr(cluster.Name),
+		"location":              llx.StringDataPtr(cluster.Location),
+		"tags":                  llx.MapData(convert.PtrMapStrToInterface(cluster.Tags), types.String),
+		"provisioningState":     llx.NilData,
+		"clusterStatus":         llx.NilData,
+		"serverVersion":         llx.NilData,
+		"infrastructureVersion": llx.NilData,
+		"publicNetworkAccess":   llx.NilData,
+		"computeTier":           llx.NilData,
+		"storageSizeGb":         llx.NilData,
+		"storageType":           llx.NilData,
+		"shardCount":            llx.NilData,
+		"highAvailabilityMode":  llx.NilData,
+		"administratorLogin":    llx.NilData,
+		"authModes":             llx.NilData,
+		"dataApiMode":           llx.NilData,
+		"earliestRestoreTime":   llx.NilData,
+		"replicationRole":       llx.NilData,
+		"replicationState":      llx.NilData,
+		"replicationSourceId":   llx.NilData,
+	}
+
+	var keyVaultKeyUri string
+	if p := cluster.Properties; p != nil {
+		args["provisioningState"] = llx.StringDataPtr(cosmosEnumStrPtr(p.ProvisioningState))
+		args["clusterStatus"] = llx.StringDataPtr(cosmosEnumStrPtr(p.ClusterStatus))
+		args["serverVersion"] = llx.StringDataPtr(p.ServerVersion)
+		args["infrastructureVersion"] = llx.StringDataPtr(p.InfrastructureVersion)
+		args["publicNetworkAccess"] = llx.StringDataPtr(cosmosEnumStrPtr(p.PublicNetworkAccess))
+		if p.Compute != nil {
+			args["computeTier"] = llx.StringDataPtr(p.Compute.Tier)
+		}
+		if p.Storage != nil {
+			args["storageSizeGb"] = llx.IntDataPtr(p.Storage.SizeGb)
+			args["storageType"] = llx.StringDataPtr(cosmosEnumStrPtr(p.Storage.Type))
+		}
+		if p.Sharding != nil {
+			args["shardCount"] = llx.IntDataPtr(p.Sharding.ShardCount)
+		}
+		if p.HighAvailability != nil {
+			args["highAvailabilityMode"] = llx.StringDataPtr(cosmosEnumStrPtr(p.HighAvailability.TargetMode))
+		}
+		if p.Administrator != nil {
+			args["administratorLogin"] = llx.StringDataPtr(p.Administrator.UserName)
+		}
+		if p.AuthConfig != nil {
+			modes := []any{}
+			for _, m := range p.AuthConfig.AllowedModes {
+				if m != nil {
+					modes = append(modes, string(*m))
+				}
+			}
+			args["authModes"] = llx.ArrayData(modes, types.String)
+		}
+		if p.DataAPI != nil {
+			args["dataApiMode"] = llx.StringDataPtr(cosmosEnumStrPtr(p.DataAPI.Mode))
+		}
+		if p.Backup != nil {
+			args["earliestRestoreTime"] = parseAzureDateString(p.Backup.EarliestRestoreTime)
+		}
+		if p.Replica != nil {
+			args["replicationRole"] = llx.StringDataPtr(cosmosEnumStrPtr(p.Replica.Role))
+			args["replicationState"] = llx.StringDataPtr(cosmosEnumStrPtr(p.Replica.ReplicationState))
+			args["replicationSourceId"] = llx.StringDataPtr(p.Replica.SourceResourceID)
+		}
+		if p.Encryption != nil && p.Encryption.CustomerManagedKeyEncryption != nil &&
+			p.Encryption.CustomerManagedKeyEncryption.KeyEncryptionKeyURL != nil {
+			keyVaultKeyUri = *p.Encryption.CustomerManagedKeyEncryption.KeyEncryptionKeyURL
+		}
+	}
+
+	resource, err := CreateResource(runtime, "azure.subscription.cosmosDbService.mongoCluster", args)
+	if err != nil {
+		return nil, err
+	}
+	mqlCluster := resource.(*mqlAzureSubscriptionCosmosDbServiceMongoCluster)
+	mqlCluster.cacheKeyVaultKeyUri = keyVaultKeyUri
+	return mqlCluster, nil
+}
+
+// fetchCosmosForPostgres lists the Cosmos DB for PostgreSQL clusters
+// (Microsoft.DBforPostgreSQL/serverGroupsv2) in the subscription. These
+// are distinct Azure resources from classic Cosmos DB database accounts.
 func fetchCosmosForPostgres(ctx context.Context, runtime *plugin.Runtime, conn *connection.AzureConnection, subId string) ([]any, error) {
 	resClient, err := armcosmosforpostgresql.NewClustersClient(subId, conn.Token(), &arm.ClientOptions{
 		ClientOptions: conn.ClientOptions(),
@@ -328,47 +392,126 @@ func fetchCosmosForPostgres(ctx context.Context, runtime *plugin.Runtime, conn *
 		if err != nil {
 			return nil, err
 		}
-		for _, account := range page.Value {
-			properties, err := convert.JsonToDict(account.Properties)
+		for _, cluster := range page.Value {
+			if cluster == nil {
+				continue
+			}
+			mqlCluster, err := newPostgresClusterResource(runtime, cluster)
 			if err != nil {
 				return nil, err
 			}
-
-			mqlResource, err := CreateResource(runtime, "azure.subscription.cosmosDbService.account",
-				map[string]*llx.RawData{
-					"__id":                               llx.StringDataPtr(account.ID),
-					"id":                                 llx.StringDataPtr(account.ID),
-					"name":                               llx.StringDataPtr(account.Name),
-					"tags":                               llx.MapData(convert.PtrMapStrToInterface(account.Tags), types.String),
-					"location":                           llx.StringDataPtr(account.Location),
-					"kind":                               llx.StringDataPtr(nil),
-					"type":                               llx.StringDataPtr(account.Type),
-					"properties":                         llx.DictData(properties),
-					"publicNetworkAccess":                llx.StringData(""),
-					"disableLocalAuth":                   llx.BoolData(false),
-					"isVirtualNetworkFilterEnabled":      llx.BoolData(false),
-					"disableKeyBasedMetadataWriteAccess": llx.BoolData(false),
-					"enableAutomaticFailover":            llx.BoolData(false),
-					"enableMultipleWriteLocations":       llx.BoolData(false),
-					"ipRangeFilter":                      llx.ArrayData([]any{}, types.String),
-					"minimalTlsVersion":                  llx.StringData(""),
-					"defaultIdentity":                    llx.StringData(""),
-					"backupType":                         llx.StringData(""),
-					"backupIntervalInMinutes":            llx.IntData(0),
-					"backupRetentionIntervalInHours":     llx.IntData(0),
-					"backupStorageRedundancy":            llx.StringData(""),
-					"virtualNetworkRules":                llx.ArrayData([]any{}, types.Resource("azure.subscription.cosmosDbService.account.virtualNetworkRule")),
-				})
-			if err != nil {
-				return nil, err
-			}
-			res = append(res, mqlResource)
+			res = append(res, mqlCluster)
 		}
 	}
 	return res, nil
 }
 
+func newPostgresClusterResource(runtime *plugin.Runtime, cluster *armcosmosforpostgresql.Cluster) (*mqlAzureSubscriptionCosmosDbServicePostgresqlCluster, error) {
+	args := map[string]*llx.RawData{
+		"__id":                            llx.StringDataPtr(cluster.ID),
+		"id":                              llx.StringDataPtr(cluster.ID),
+		"name":                            llx.StringDataPtr(cluster.Name),
+		"location":                        llx.StringDataPtr(cluster.Location),
+		"tags":                            llx.MapData(convert.PtrMapStrToInterface(cluster.Tags), types.String),
+		"provisioningState":               llx.NilData,
+		"state":                           llx.NilData,
+		"postgresqlVersion":               llx.NilData,
+		"citusVersion":                    llx.NilData,
+		"administratorLogin":              llx.NilData,
+		"enableHa":                        llx.NilData,
+		"enableShardsOnCoordinator":       llx.NilData,
+		"coordinatorEnablePublicIpAccess": llx.NilData,
+		"coordinatorServerEdition":        llx.NilData,
+		"coordinatorStorageQuotaInMb":     llx.NilData,
+		"coordinatorVCores":               llx.NilData,
+		"nodeCount":                       llx.NilData,
+		"nodeEnablePublicIpAccess":        llx.NilData,
+		"nodeServerEdition":               llx.NilData,
+		"nodeStorageQuotaInMb":            llx.NilData,
+		"nodeVCores":                      llx.NilData,
+		"preferredPrimaryZone":            llx.NilData,
+		"earliestRestoreTime":             llx.NilData,
+		"sourceLocation":                  llx.NilData,
+		"sourceResourceId":                llx.NilData,
+		"readReplicas":                    llx.NilData,
+		"maintenanceWindow":               llx.NilData,
+		"serverNames":                     llx.NilData,
+	}
+
+	if p := cluster.Properties; p != nil {
+		args["provisioningState"] = llx.StringDataPtr(p.ProvisioningState)
+		args["state"] = llx.StringDataPtr(p.State)
+		args["postgresqlVersion"] = llx.StringDataPtr(p.PostgresqlVersion)
+		args["citusVersion"] = llx.StringDataPtr(p.CitusVersion)
+		args["administratorLogin"] = llx.StringDataPtr(p.AdministratorLogin)
+		args["enableHa"] = llx.BoolDataPtr(p.EnableHa)
+		args["enableShardsOnCoordinator"] = llx.BoolDataPtr(p.EnableShardsOnCoordinator)
+		args["coordinatorEnablePublicIpAccess"] = llx.BoolDataPtr(p.CoordinatorEnablePublicIPAccess)
+		args["coordinatorServerEdition"] = llx.StringDataPtr(p.CoordinatorServerEdition)
+		args["coordinatorStorageQuotaInMb"] = llx.IntDataPtr(p.CoordinatorStorageQuotaInMb)
+		args["coordinatorVCores"] = llx.IntDataPtr(p.CoordinatorVCores)
+		args["nodeCount"] = llx.IntDataPtr(p.NodeCount)
+		args["nodeEnablePublicIpAccess"] = llx.BoolDataPtr(p.NodeEnablePublicIPAccess)
+		args["nodeServerEdition"] = llx.StringDataPtr(p.NodeServerEdition)
+		args["nodeStorageQuotaInMb"] = llx.IntDataPtr(p.NodeStorageQuotaInMb)
+		args["nodeVCores"] = llx.IntDataPtr(p.NodeVCores)
+		args["preferredPrimaryZone"] = llx.StringDataPtr(p.PreferredPrimaryZone)
+		args["earliestRestoreTime"] = llx.TimeDataPtr(p.EarliestRestoreTime)
+		args["sourceLocation"] = llx.StringDataPtr(p.SourceLocation)
+		args["sourceResourceId"] = llx.StringDataPtr(p.SourceResourceID)
+
+		if p.ReadReplicas != nil {
+			replicas := []any{}
+			for _, r := range p.ReadReplicas {
+				if r != nil {
+					replicas = append(replicas, *r)
+				}
+			}
+			args["readReplicas"] = llx.ArrayData(replicas, types.String)
+		}
+		if p.MaintenanceWindow != nil {
+			mw, err := convert.JsonToDict(p.MaintenanceWindow)
+			if err != nil {
+				return nil, err
+			}
+			args["maintenanceWindow"] = llx.DictData(mw)
+		}
+		if p.ServerNames != nil {
+			names := []any{}
+			for _, s := range p.ServerNames {
+				if s == nil {
+					continue
+				}
+				d, err := convert.JsonToDict(s)
+				if err != nil {
+					return nil, err
+				}
+				names = append(names, d)
+			}
+			args["serverNames"] = llx.ArrayData(names, types.Dict)
+		}
+	}
+
+	resource, err := CreateResource(runtime, "azure.subscription.cosmosDbService.postgresqlCluster", args)
+	if err != nil {
+		return nil, err
+	}
+	return resource.(*mqlAzureSubscriptionCosmosDbServicePostgresqlCluster), nil
+}
+
 func (a *mqlAzureSubscriptionCosmosDbServiceAccount) encryptionKey() (*mqlAzureSubscriptionKeyVaultServiceKey, error) {
+	if a.cacheKeyVaultKeyUri == "" {
+		a.EncryptionKey.State = plugin.StateIsNull | plugin.StateIsSet
+		return nil, nil
+	}
+	return newKeyVaultKeyResource(a.MqlRuntime, a.cacheKeyVaultKeyUri)
+}
+
+type mqlAzureSubscriptionCosmosDbServiceMongoClusterInternal struct {
+	cacheKeyVaultKeyUri string
+}
+
+func (a *mqlAzureSubscriptionCosmosDbServiceMongoCluster) encryptionKey() (*mqlAzureSubscriptionKeyVaultServiceKey, error) {
 	if a.cacheKeyVaultKeyUri == "" {
 		a.EncryptionKey.State = plugin.StateIsNull | plugin.StateIsSet
 		return nil, nil
