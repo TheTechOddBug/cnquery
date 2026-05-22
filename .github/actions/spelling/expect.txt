@@ -514,6 +514,7 @@ RESKEY
 resourcegroup
 resourcepolicy
 resourcequota
+revalidates
 richrule
 roku
 rootdir

@@ -133,8 +133,10 @@
     "codedeploy:ListDeployments",
     "codedeploy:ListTagsForResource",
     "cognito-identity:DescribeIdentityPool",
+    "cognito-identity:GetIdentityPoolRoles",
     "cognito-identity:ListIdentityPools",
     "cognito-idp:DescribeIdentityProvider",
+    "cognito-idp:DescribeRiskConfiguration",
     "cognito-idp:DescribeUserPool",
     "cognito-idp:DescribeUserPoolClient",
     "cognito-idp:DescribeUserPoolDomain",
@@ -1579,6 +1581,12 @@
       "source_file": "aws_cognito.go"
     },
     {
+      "permission": "cognito-identity:GetIdentityPoolRoles",
+      "service": "cognito-identity",
+      "action": "GetIdentityPoolRoles",
+      "source_file": "aws_cognito.go"
+    },
+    {
       "permission": "cognito-identity:ListIdentityPools",
       "service": "cognito-identity",
       "action": "ListIdentityPools",
@@ -1588,6 +1596,12 @@
       "permission": "cognito-idp:DescribeIdentityProvider",
       "service": "cognito-idp",
       "action": "DescribeIdentityProvider",
+      "source_file": "aws_cognito.go"
+    },
+    {
+      "permission": "cognito-idp:DescribeRiskConfiguration",
+      "service": "cognito-idp",
+      "action": "DescribeRiskConfiguration",
       "source_file": "aws_cognito.go"
     },
     {

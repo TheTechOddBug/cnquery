@@ -5,6 +5,7 @@ package resources
 
 import (
 	"context"
+	"errors"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -196,6 +197,127 @@ func (a *mqlAwsCognitoUserPool) tags() (map[string]any, error) {
 	return convert.MapToInterfaceMap(resp.UserPool.UserPoolTags), nil
 }
 
+func (a *mqlAwsCognitoUserPool) userPoolTier() (string, error) {
+	resp, err := a.fetchDescribeUserPool()
+	if err != nil || resp == nil || resp.UserPool == nil {
+		return "", err
+	}
+	return string(resp.UserPool.UserPoolTier), nil
+}
+
+func (a *mqlAwsCognitoUserPool) accountRecoverySetting() (any, error) {
+	resp, err := a.fetchDescribeUserPool()
+	if err != nil || resp == nil || resp.UserPool == nil {
+		return nil, err
+	}
+	return convert.JsonToDict(resp.UserPool.AccountRecoverySetting)
+}
+
+func (a *mqlAwsCognitoUserPool) deviceConfiguration() (any, error) {
+	resp, err := a.fetchDescribeUserPool()
+	if err != nil || resp == nil || resp.UserPool == nil {
+		return nil, err
+	}
+	return convert.JsonToDict(resp.UserPool.DeviceConfiguration)
+}
+
+func (a *mqlAwsCognitoUserPool) usernameConfiguration() (any, error) {
+	resp, err := a.fetchDescribeUserPool()
+	if err != nil || resp == nil || resp.UserPool == nil {
+		return nil, err
+	}
+	return convert.JsonToDict(resp.UserPool.UsernameConfiguration)
+}
+
+func (a *mqlAwsCognitoUserPool) schema() ([]any, error) {
+	resp, err := a.fetchDescribeUserPool()
+	if err != nil || resp == nil || resp.UserPool == nil {
+		return nil, err
+	}
+	out := make([]any, 0, len(resp.UserPool.SchemaAttributes))
+	for i := range resp.UserPool.SchemaAttributes {
+		entry, err := convert.JsonToDict(resp.UserPool.SchemaAttributes[i])
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, entry)
+	}
+	return out, nil
+}
+
+func (a *mqlAwsCognitoUserPool) verificationMessageTemplate() (any, error) {
+	resp, err := a.fetchDescribeUserPool()
+	if err != nil || resp == nil || resp.UserPool == nil {
+		return nil, err
+	}
+	return convert.JsonToDict(resp.UserPool.VerificationMessageTemplate)
+}
+
+func (a *mqlAwsCognitoUserPool) emailConfiguration() (any, error) {
+	resp, err := a.fetchDescribeUserPool()
+	if err != nil || resp == nil || resp.UserPool == nil {
+		return nil, err
+	}
+	return convert.JsonToDict(resp.UserPool.EmailConfiguration)
+}
+
+func (a *mqlAwsCognitoUserPool) smsConfiguration() (any, error) {
+	resp, err := a.fetchDescribeUserPool()
+	if err != nil || resp == nil || resp.UserPool == nil {
+		return nil, err
+	}
+	return convert.JsonToDict(resp.UserPool.SmsConfiguration)
+}
+
+// lambdaConfig returns the user pool's Lambda trigger map. We project the SDK
+// struct into a flat map of trigger name -> ARN (for simple scalar triggers)
+// or nested struct (for the v2 pre-token-generation / custom sender configs).
+// This matches the JSON shape AWS publishes in its DescribeUserPool response.
+func (a *mqlAwsCognitoUserPool) lambdaConfig() (any, error) {
+	resp, err := a.fetchDescribeUserPool()
+	if err != nil || resp == nil || resp.UserPool == nil {
+		return nil, err
+	}
+	return convert.JsonToDict(resp.UserPool.LambdaConfig)
+}
+
+// riskConfiguration lazily fetches the pool-level threat-protection
+// configuration via DescribeRiskConfiguration. The call is only meaningful
+// when the user pool has advanced security enabled — for pools without it
+// the API returns a ResourceNotFoundException, which we surface as null.
+func (a *mqlAwsCognitoUserPool) riskConfiguration() (any, error) {
+	poolId := a.Id.Data
+	region := a.Region.Data
+
+	conn := a.MqlRuntime.Connection.(*connection.AwsConnection)
+	svc := conn.CognitoIdentityProvider(region)
+	ctx := context.Background()
+
+	resp, err := svc.DescribeRiskConfiguration(ctx, &cognitoidentityprovider.DescribeRiskConfigurationInput{
+		UserPoolId: &poolId,
+	})
+	if err != nil {
+		if Is400AccessDeniedError(err) {
+			return nil, nil
+		}
+		// Pools without advanced security return ResourceNotFoundException
+		// or UserPoolAddOnNotEnabledException — surface as null. Any other
+		// error (rate limit, transient 5xx, etc.) propagates so the runtime
+		// can retry or report it.
+		var rnf *cognitoidentityprovidertypes.ResourceNotFoundException
+		var uae *cognitoidentityprovidertypes.UserPoolAddOnNotEnabledException
+		if errors.As(err, &rnf) || errors.As(err, &uae) {
+			log.Debug().Str("userPoolId", poolId).Err(err).Msg("cognito risk configuration not available for user pool")
+			return nil, nil
+		}
+		return nil, err
+	}
+	if resp == nil || resp.RiskConfiguration == nil {
+		return nil, nil
+	}
+	return convert.JsonToDict(resp.RiskConfiguration)
+}
+
 // Identity Pools (Federated Identities)
 
 func (a *mqlAwsCognito) identityPools() ([]any, error) {
@@ -380,6 +502,65 @@ func (a *mqlAwsCognitoIdentityPool) tags() (map[string]any, error) {
 		return nil, err
 	}
 	return convert.MapToInterfaceMap(resp.IdentityPoolTags), nil
+}
+
+func (a *mqlAwsCognitoIdentityPool) cognitoIdentityProviders() ([]any, error) {
+	resp, err := a.describe()
+	if err != nil || resp == nil {
+		return nil, err
+	}
+	out := make([]any, 0, len(resp.CognitoIdentityProviders))
+	for i := range resp.CognitoIdentityProviders {
+		entry, err := convert.JsonToDict(resp.CognitoIdentityProviders[i])
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, entry)
+	}
+	return out, nil
+}
+
+// roles lazily fetches the authenticated and unauthenticated role bindings
+// for the identity pool. The Roles key holds a map with `authenticated` and
+// `unauthenticated` role ARNs; RoleMappings holds the per-provider
+// rule/token mapping when configured.
+func (a *mqlAwsCognitoIdentityPool) roles() (any, error) {
+	conn := a.MqlRuntime.Connection.(*connection.AwsConnection)
+	svc := conn.CognitoIdentity(a.Region.Data)
+	ctx := context.Background()
+	poolId := a.Id.Data
+
+	resp, err := svc.GetIdentityPoolRoles(ctx, &cognitoidentity.GetIdentityPoolRolesInput{
+		IdentityPoolId: &poolId,
+	})
+	if err != nil {
+		if Is400AccessDeniedError(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if resp == nil {
+		return nil, nil
+	}
+	if len(resp.Roles) == 0 && len(resp.RoleMappings) == 0 {
+		return nil, nil
+	}
+	out := map[string]any{}
+	if len(resp.Roles) > 0 {
+		out["Roles"] = convert.MapToInterfaceMap(resp.Roles)
+	}
+	if len(resp.RoleMappings) > 0 {
+		mappings := map[string]any{}
+		for k, v := range resp.RoleMappings {
+			entry, err := convert.JsonToDict(v)
+			if err != nil {
+				return nil, err
+			}
+			mappings[k] = entry
+		}
+		out["RoleMappings"] = mappings
+	}
+	return out, nil
 }
 
 // User pool app clients
