@@ -515,9 +515,11 @@
     "network-firewall:DescribeFirewallPolicy",
     "network-firewall:DescribeLoggingConfiguration",
     "network-firewall:DescribeRuleGroup",
+    "network-firewall:DescribeTLSInspectionConfiguration",
     "network-firewall:ListFirewallPolicies",
     "network-firewall:ListFirewalls",
     "network-firewall:ListRuleGroups",
+    "network-firewall:ListTLSInspectionConfigurations",
     "organizations:DescribeAccount",
     "organizations:DescribeOrganization",
     "organizations:ListAccounts",
@@ -3936,6 +3938,12 @@
       "source_file": "aws_networkfirewall.go"
     },
     {
+      "permission": "network-firewall:DescribeTLSInspectionConfiguration",
+      "service": "network-firewall",
+      "action": "DescribeTLSInspectionConfiguration",
+      "source_file": "aws_networkfirewall.go"
+    },
+    {
       "permission": "network-firewall:ListFirewallPolicies",
       "service": "network-firewall",
       "action": "ListFirewallPolicies",
@@ -3951,6 +3959,12 @@
       "permission": "network-firewall:ListRuleGroups",
       "service": "network-firewall",
       "action": "ListRuleGroups",
+      "source_file": "aws_networkfirewall.go"
+    },
+    {
+      "permission": "network-firewall:ListTLSInspectionConfigurations",
+      "service": "network-firewall",
+      "action": "ListTLSInspectionConfigurations",
       "source_file": "aws_networkfirewall.go"
     },
     {
