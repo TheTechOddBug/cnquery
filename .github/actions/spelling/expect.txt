@@ -72,6 +72,7 @@ bigtable
 BINPACK
 bitmask
 blackhole
+blr
 breakglass
 broadwell
 bumpable
@@ -576,6 +577,8 @@ serviceprincipals
 SEV
 Sflags
 sfn
+sfo
+sgp
 signin
 Signout
 singlequeryargument
@@ -618,6 +621,7 @@ subscriptionfilter
 superusers
 SVI
 swi
+syd
 SYMANTEC
 symfony
 tacacs
