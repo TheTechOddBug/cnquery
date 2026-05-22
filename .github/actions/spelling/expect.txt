@@ -308,6 +308,7 @@ jkl
 jpi
 JQL
 jre
+jsd
 jsonbody
 julia
 junie
