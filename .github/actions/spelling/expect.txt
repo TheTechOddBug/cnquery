@@ -131,6 +131,8 @@ crowdstrike
 cryptokey
 Csec
 ctx
+customfield
+customfieldtypes
 customresources
 cwes
 cyclonedx
@@ -300,6 +302,7 @@ JFi
 jira
 jkl
 jpi
+JQL
 jre
 jsonbody
 julia
