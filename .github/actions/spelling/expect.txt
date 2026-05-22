@@ -162,6 +162,7 @@ Dnsnames
 documentdb
 dpd
 dport
+dpu
 draid
 DRdf
 dscp
@@ -229,6 +230,8 @@ Geopair
 GHSA
 gistfile
 githubactions
+glueetl
+gluestreaming
 godo
 gophercloud
 gopls
@@ -257,6 +260,7 @@ hostedzone
 hostkeyalgorithms
 hpi
 hsts
+Hudi
 hvm
 Iaa
 iana
@@ -490,6 +494,7 @@ pve
 PVEAPI
 pveproxy
 pyspark
+pythonshell
 pzi
 pzs
 QAwr
@@ -508,6 +513,7 @@ rdm
 Rdp
 readlines
 recordsets
+recrawl
 regexmatchstatement
 regexpatternsetreferencestatement
 renv
