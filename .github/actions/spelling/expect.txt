@@ -75,7 +75,7 @@ blackhole
 blr
 breakglass
 broadwell
-brotli
+Buildkit
 bumpable
 bwawxf
 BXdl
@@ -379,7 +379,6 @@ mcr
 mde
 mebibytes
 mediapackagev
-mediastore
 memorydb
 memorystore
 messagestoragepolicy
@@ -438,7 +437,6 @@ nokeys
 NONSHARDED
 noreply
 Noreuse
-nosniff
 notebookinstancedetails
 notif
 npmjs
@@ -462,6 +460,7 @@ oid
 oidc
 OMA
 onboarded
+onbuild
 ondemand
 oneof
 ontap
@@ -623,6 +622,7 @@ startswith
 stdio
 stdlib
 stepfunctions
+stopsignal
 streamable
 stringx
 stu
@@ -724,7 +724,6 @@ Wasi
 webauthn
 webide
 webservers
-WEBSERVERS
 websockets
 Webstore
 wifi
