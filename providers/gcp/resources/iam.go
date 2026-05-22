@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -37,6 +39,20 @@ func (g *mqlGcpProjectIamService) id() (string, error) {
 
 type mqlGcpProjectIamServiceInternal struct {
 	serviceEnabled bool
+}
+
+type mqlGcpProjectIamServiceServiceAccountInternal struct {
+	keyLastAuthOnce sync.Once
+	keyLastAuthMap  map[string]*time.Time
+	keyLastAuthErr  error
+}
+
+type mqlGcpProjectIamServiceServiceAccountKeyInternal struct {
+	// Back-reference set when the key is loaded via the parent SA's keys()
+	// accessor. Nil when the key is constructed in isolation (e.g., from a
+	// platform-ID asset import), in which case lastAuthenticatedTime() falls
+	// back to a per-key Policy Analyzer query.
+	parentSA *mqlGcpProjectIamServiceServiceAccount
 }
 
 func (g *mqlGcpProject) iam() (*mqlGcpProjectIamService, error) {
@@ -296,6 +312,10 @@ func (g *mqlGcpProjectIamServiceServiceAccount) keys() ([]any, error) {
 		if err != nil {
 			return nil, err
 		}
+		// Back-reference the parent SA so key.lastAuthenticatedTime() can
+		// reuse a single batched Policy Analyzer query per SA instead of
+		// querying once per key.
+		mqlKey.(*mqlGcpProjectIamServiceServiceAccountKey).parentSA = g
 		mqlKeys = append(mqlKeys, mqlKey)
 	}
 	return mqlKeys, nil
@@ -417,6 +437,201 @@ func (g *mqlGcpProjectIamServiceServiceAccount) lastAuthenticatedTime() (*time.T
 		}
 	}
 
+	if latest == nil {
+		g.LastAuthenticatedTime.State = plugin.StateIsSet | plugin.StateIsNull
+		return nil, nil
+	}
+	return latest, nil
+}
+
+// lastAuthKeyActivity matches the JSON shape returned by the Policy Analyzer
+// serviceAccountKeyLastAuthentication activity type.
+type lastAuthKeyActivity struct {
+	ServiceAccountKey struct {
+		ProjectNumber    string `json:"projectNumber"`
+		FullResourceName string `json:"fullResourceName"`
+	} `json:"serviceAccountKey"`
+	LastAuthenticatedTime string `json:"lastAuthenticatedTime"`
+}
+
+// fetchKeyLastAuthTimes batch-queries Policy Analyzer for the last-auth
+// timestamp of every key on this service account in a single Activities.Query
+// call. Returns a map keyed by full key resource name
+// (projects/{p}/serviceAccounts/{email}/keys/{keyId}) to the latest auth time
+// observed for that key. Subsequent calls return the cached result.
+func (g *mqlGcpProjectIamServiceServiceAccount) fetchKeyLastAuthTimes() (map[string]*time.Time, error) {
+	g.keyLastAuthOnce.Do(func() {
+		g.keyLastAuthMap = map[string]*time.Time{}
+
+		if g.ProjectId.Error != nil {
+			g.keyLastAuthErr = g.ProjectId.Error
+			return
+		}
+		if g.Email.Error != nil {
+			g.keyLastAuthErr = g.Email.Error
+			return
+		}
+		projectId := g.ProjectId.Data
+		email := g.Email.Data
+		if email == "" {
+			return
+		}
+
+		conn := g.MqlRuntime.Connection.(*connection.GcpConnection)
+		client, err := conn.Client(policyanalyzer.CloudPlatformScope)
+		if err != nil {
+			g.keyLastAuthErr = err
+			return
+		}
+
+		ctx := context.Background()
+		paSvc, err := policyanalyzer.NewService(ctx, option.WithHTTPClient(client))
+		if err != nil {
+			g.keyLastAuthErr = err
+			return
+		}
+
+		// The Policy Analyzer key-last-auth filter only supports equality on a
+		// single key's full_resource_name, not a service-account-prefix match.
+		// To batch the lookup we fetch every key-last-auth activity in the
+		// project and filter to this SA's keys client-side; the SA-level
+		// sync.Once ensures we only pay for one API call per SA even when many
+		// keys' lastAuthenticatedTime is requested.
+		parent := fmt.Sprintf("projects/%s/locations/global/activityTypes/serviceAccountKeyLastAuthentication", projectId)
+		saPrefix := fmt.Sprintf("//iam.googleapis.com/projects/%s/serviceAccounts/%s/keys/", projectId, email)
+
+		call := paSvc.Projects.Locations.ActivityTypes.Activities.Query(parent).Context(ctx)
+		err = call.Pages(ctx, func(resp *policyanalyzer.GoogleCloudPolicyanalyzerV1QueryActivityResponse) error {
+			for _, a := range resp.Activities {
+				if a == nil || len(a.Activity) == 0 {
+					continue
+				}
+				var parsed lastAuthKeyActivity
+				if err := json.Unmarshal(a.Activity, &parsed); err != nil {
+					log.Debug().Err(err).Msg("failed to parse key lastAuthenticatedTime activity")
+					continue
+				}
+				if !strings.HasPrefix(parsed.ServiceAccountKey.FullResourceName, saPrefix) {
+					continue
+				}
+				if parsed.LastAuthenticatedTime == "" {
+					continue
+				}
+				t, err := time.Parse(time.RFC3339, parsed.LastAuthenticatedTime)
+				if err != nil {
+					log.Debug().Err(err).Str("value", parsed.LastAuthenticatedTime).Msg("failed to parse key lastAuthenticatedTime timestamp")
+					continue
+				}
+				// The FRN is "//iam.googleapis.com/{name}" — strip the prefix to
+				// match the key resource's `name` field.
+				keyName := strings.TrimPrefix(parsed.ServiceAccountKey.FullResourceName, "//iam.googleapis.com/")
+				if existing, ok := g.keyLastAuthMap[keyName]; !ok || t.After(*existing) {
+					tc := t
+					g.keyLastAuthMap[keyName] = &tc
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			if gerr, ok := err.(*googleapi.Error); ok && (gerr.Code == 403 || gerr.Code == 404) {
+				log.Debug().Str("email", email).Int("code", gerr.Code).Msg("policyanalyzer key lastAuthenticatedTime unavailable")
+				return
+			}
+			g.keyLastAuthErr = err
+		}
+	})
+	return g.keyLastAuthMap, g.keyLastAuthErr
+}
+
+// keyLastAuthFallback queries Policy Analyzer for a single key when the
+// batched path through the parent SA is unavailable (typically because the
+// key was constructed from a platform-ID asset import and has no back-ref).
+func (g *mqlGcpProjectIamServiceServiceAccountKey) keyLastAuthFallback(projectId, keyName string) (*time.Time, error) {
+	conn := g.MqlRuntime.Connection.(*connection.GcpConnection)
+	client, err := conn.Client(policyanalyzer.CloudPlatformScope)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx := context.Background()
+	paSvc, err := policyanalyzer.NewService(ctx, option.WithHTTPClient(client))
+	if err != nil {
+		return nil, err
+	}
+
+	parent := fmt.Sprintf("projects/%s/locations/global/activityTypes/serviceAccountKeyLastAuthentication", projectId)
+	filter := fmt.Sprintf("activities.full_resource_name=\"//iam.googleapis.com/%s\"", keyName)
+	resp, err := paSvc.Projects.Locations.ActivityTypes.Activities.Query(parent).Filter(filter).Context(ctx).Do()
+	if err != nil {
+		if gerr, ok := err.(*googleapi.Error); ok && (gerr.Code == 403 || gerr.Code == 404) {
+			log.Debug().Str("key", keyName).Int("code", gerr.Code).Msg("policyanalyzer key lastAuthenticatedTime unavailable")
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	var latest *time.Time
+	for _, a := range resp.Activities {
+		if a == nil || len(a.Activity) == 0 {
+			continue
+		}
+		var parsed lastAuthKeyActivity
+		if err := json.Unmarshal(a.Activity, &parsed); err != nil {
+			log.Debug().Err(err).Msg("failed to parse key lastAuthenticatedTime activity")
+			continue
+		}
+		if parsed.LastAuthenticatedTime == "" {
+			continue
+		}
+		t, err := time.Parse(time.RFC3339, parsed.LastAuthenticatedTime)
+		if err != nil {
+			log.Debug().Err(err).Str("value", parsed.LastAuthenticatedTime).Msg("failed to parse key lastAuthenticatedTime timestamp")
+			continue
+		}
+		if latest == nil || t.After(*latest) {
+			latest = &t
+		}
+	}
+	return latest, nil
+}
+
+func (g *mqlGcpProjectIamServiceServiceAccountKey) lastAuthenticatedTime() (*time.Time, error) {
+	if g.Name.Error != nil {
+		return nil, g.Name.Error
+	}
+	keyName := g.Name.Data
+	if keyName == "" {
+		g.LastAuthenticatedTime.State = plugin.StateIsSet | plugin.StateIsNull
+		return nil, nil
+	}
+
+	// Parse projects/{project}/serviceAccounts/{email}/keys/{keyId}.
+	parts := strings.Split(keyName, "/")
+	if len(parts) != 6 || parts[0] != "projects" || parts[2] != "serviceAccounts" || parts[4] != "keys" {
+		g.LastAuthenticatedTime.State = plugin.StateIsSet | plugin.StateIsNull
+		return nil, nil
+	}
+	projectId := parts[1]
+
+	// Preferred path: reuse the SA's batched Policy Analyzer query.
+	if g.parentSA != nil {
+		times, err := g.parentSA.fetchKeyLastAuthTimes()
+		if err != nil {
+			return nil, err
+		}
+		if t, ok := times[keyName]; ok {
+			return t, nil
+		}
+		g.LastAuthenticatedTime.State = plugin.StateIsSet | plugin.StateIsNull
+		return nil, nil
+	}
+
+	// Fallback for keys constructed without a parent SA back-reference (e.g.,
+	// from a platform-ID asset import).
+	latest, err := g.keyLastAuthFallback(projectId, keyName)
+	if err != nil {
+		return nil, err
+	}
 	if latest == nil {
 		g.LastAuthenticatedTime.State = plugin.StateIsSet | plugin.StateIsNull
 		return nil, nil
