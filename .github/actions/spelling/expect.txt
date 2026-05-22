@@ -517,6 +517,7 @@ QAwr
 qcow
 QGA
 qlist
+qtype
 querypack
 quorate
 qwen
