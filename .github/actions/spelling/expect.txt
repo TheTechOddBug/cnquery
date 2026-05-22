@@ -1,6 +1,7 @@
 aad
 abortable
 accesscontextmanager
+accesskey
 ACCOUNTADMIN
 actioncable
 actionpack
@@ -125,6 +126,7 @@ cpe
 CPWn
 cpx
 CRDR
+cribl
 crowdstrike
 cryptokey
 Csec
@@ -234,6 +236,7 @@ githubactions
 glueetl
 gluestreaming
 godo
+googlechat
 gophercloud
 gopls
 GOSUMDB
@@ -338,6 +341,7 @@ localos
 loggingservice
 logpull
 logpush
+logstreams
 lon
 LONGTERM
 longtermretentionpolicy
@@ -352,6 +356,7 @@ MACSEC
 manageddevice
 managedrulegroupstatement
 managedzone
+mattermost
 maxcpu
 maxdisk
 maxmem
@@ -527,6 +532,7 @@ resourcequota
 revalidates
 richrule
 roku
+rolearn
 rootdir
 rpo
 RRULE
@@ -704,8 +710,8 @@ workspacesweb
 worktree
 writeback
 Xff
-xlarge
 xks
+xlarge
 xssmatchstatement
 xts
 xxxxx
