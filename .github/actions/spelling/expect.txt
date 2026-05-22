@@ -553,6 +553,7 @@ serde
 serviceconnection
 servicedesk
 serviceprincipals
+SEV
 Sflags
 sfn
 signin
@@ -605,6 +606,7 @@ tanium
 targetgroup
 tcpip
 tde
+TDX
 temurin
 tensorboard
 testutils
