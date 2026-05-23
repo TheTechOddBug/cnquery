@@ -242,6 +242,7 @@ gclb
 GCMAES
 gcs
 gelf
+Gemnasium
 GENEVE
 geocode
 geomatchstatement
@@ -694,6 +695,7 @@ trae
 trainingjob
 transitgateway
 transitives
+Trivy
 truststore
 TValue
 Twt
