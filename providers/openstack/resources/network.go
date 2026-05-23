@@ -177,12 +177,13 @@ func initOpenstackSubnet(runtime *plugin.Runtime, args map[string]*llx.RawData) 
 		return nil, nil, err
 	}
 	list := root.(*mqlOpenstack).GetSubnets()
-	if list.Error == nil {
-		for _, raw := range list.Data {
-			s := raw.(*mqlOpenstackSubnet)
-			if s.Id.Data == id {
-				return args, s, nil
-			}
+	if list.Error != nil {
+		return nil, nil, list.Error
+	}
+	for _, raw := range list.Data {
+		s := raw.(*mqlOpenstackSubnet)
+		if s.Id.Data == id {
+			return args, s, nil
 		}
 	}
 	initSyntheticID("openstack.subnet", "id", args)
@@ -311,12 +312,13 @@ func initOpenstackRouter(runtime *plugin.Runtime, args map[string]*llx.RawData) 
 		return nil, nil, err
 	}
 	list := root.(*mqlOpenstack).GetRouters()
-	if list.Error == nil {
-		for _, raw := range list.Data {
-			r := raw.(*mqlOpenstackRouter)
-			if r.Id.Data == id {
-				return args, r, nil
-			}
+	if list.Error != nil {
+		return nil, nil, list.Error
+	}
+	for _, raw := range list.Data {
+		r := raw.(*mqlOpenstackRouter)
+		if r.Id.Data == id {
+			return args, r, nil
 		}
 	}
 	initSyntheticID("openstack.router", "id", args)
@@ -438,12 +440,13 @@ func initOpenstackPort(runtime *plugin.Runtime, args map[string]*llx.RawData) (m
 		return nil, nil, err
 	}
 	list := root.(*mqlOpenstack).GetPorts()
-	if list.Error == nil {
-		for _, raw := range list.Data {
-			p := raw.(*mqlOpenstackPort)
-			if p.Id.Data == id {
-				return args, p, nil
-			}
+	if list.Error != nil {
+		return nil, nil, list.Error
+	}
+	for _, raw := range list.Data {
+		p := raw.(*mqlOpenstackPort)
+		if p.Id.Data == id {
+			return args, p, nil
 		}
 	}
 	initSyntheticID("openstack.port", "id", args)
@@ -568,12 +571,13 @@ func initOpenstackFloatingIp(runtime *plugin.Runtime, args map[string]*llx.RawDa
 		return nil, nil, err
 	}
 	list := root.(*mqlOpenstack).GetFloatingIps()
-	if list.Error == nil {
-		for _, raw := range list.Data {
-			f := raw.(*mqlOpenstackFloatingIp)
-			if f.Id.Data == id {
-				return args, f, nil
-			}
+	if list.Error != nil {
+		return nil, nil, list.Error
+	}
+	for _, raw := range list.Data {
+		f := raw.(*mqlOpenstackFloatingIp)
+		if f.Id.Data == id {
+			return args, f, nil
 		}
 	}
 	initSyntheticID("openstack.floatingIp", "id", args)
@@ -683,15 +687,47 @@ func initOpenstackSecurityGroup(runtime *plugin.Runtime, args map[string]*llx.Ra
 		return nil, nil, err
 	}
 	list := root.(*mqlOpenstack).GetSecurityGroups()
-	if list.Error == nil {
-		for _, raw := range list.Data {
-			sg := raw.(*mqlOpenstackSecurityGroup)
-			if sg.Id.Data == id {
-				return args, sg, nil
-			}
+	if list.Error != nil {
+		return nil, nil, list.Error
+	}
+	for _, raw := range list.Data {
+		sg := raw.(*mqlOpenstackSecurityGroup)
+		if sg.Id.Data == id {
+			return args, sg, nil
 		}
 	}
-	initSyntheticID("openstack.securityGroup", "id", args)
+
+	// Cross-project rule references may point at a security group outside
+	// the locally listed set. Fall back to a direct Neutron Get so the
+	// caller observes real fields instead of a synthetic stub.
+	c := conn(runtime)
+	client, err := c.NetworkClient()
+	if err != nil {
+		initSyntheticID("openstack.securityGroup", "id", args)
+		return args, nil, nil
+	}
+	sg, err := groups.Get(ctx(), client, id).Extract()
+	if err != nil {
+		if translateGetError(err) == nil {
+			initSyntheticID("openstack.securityGroup", "id", args)
+			return args, nil, nil
+		}
+		return nil, nil, err
+	}
+	args["__id"] = llx.StringData("openstack.securityGroup/" + sg.ID)
+	args["id"] = llx.StringData(sg.ID)
+	args["name"] = llx.StringData(sg.Name)
+	args["description"] = llx.StringData(sg.Description)
+	args["stateful"] = llx.BoolData(sg.Stateful)
+	args["projectId"] = llx.StringData(sg.ProjectID)
+	args["tags"] = stringSliceData(sg.Tags)
+	args["createdAt"] = llx.TimeDataPtr(timePtr(sg.CreatedAt))
+	args["updatedAt"] = llx.TimeDataPtr(timePtr(sg.UpdatedAt))
+	ruleResources, err := buildSecurityGroupRules(runtime, sg)
+	if err != nil {
+		return nil, nil, err
+	}
+	args["rules"] = llx.ArrayData(ruleResources, types.Resource("openstack.securityGroup.rule"))
 	return args, nil, nil
 }
 
@@ -712,6 +748,25 @@ func (o *mqlOpenstack) securityGroups() ([]any, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Prime the per-connection name->ID cache from this list call so that
+	// Nova security-group-by-name lookups (lookupSecurityGroupIDByName)
+	// reuse it instead of re-listing Neutron. First-writer-wins: whichever
+	// path populates the cache first (this accessor or
+	// lookupSecurityGroupIDByName) sets the canonical name->ID map for the
+	// connection's lifetime. Both paths list with default scope, so the
+	// result sets are equivalent; if scoping ever diverges, the second
+	// caller's data is silently ignored — at which point the cache should
+	// move into the lookup function itself.
+	c.SGNameCacheLock.Lock()
+	if c.SGNameCache == nil {
+		cache := make(map[string]string, len(items))
+		for _, sg := range items {
+			cache[sg.Name] = sg.ID
+		}
+		c.SGNameCache = cache
+	}
+	c.SGNameCacheLock.Unlock()
 
 	out := make([]any, 0, len(items))
 	for i := range items {
@@ -810,33 +865,33 @@ func (r *mqlOpenstackSecurityGroupRule) remoteGroup() (*mqlOpenstackSecurityGrou
 
 // lookupSecurityGroupIDByName resolves a security-group name to an ID using a
 // per-connection cache. Nova reports server security groups by name, but
-// Neutron is the source of truth for IDs, so each connection lists groups once
-// and consults its cache thereafter.
+// Neutron is the source of truth for IDs, so each connection lists groups
+// once and consults its cache thereafter. The lock single-flights the first
+// fetch; on success or auth-translated failure the cache map is non-nil and
+// subsequent callers fast-path. Real errors leave the cache nil so the next
+// call retries instead of inheriting a stale error.
 func lookupSecurityGroupIDByName(c *connection.OpenstackConnection, client *gophercloud.ServiceClient, name string) (string, error) {
 	c.SGNameCacheLock.Lock()
 	defer c.SGNameCacheLock.Unlock()
-
-	if !c.SGNameCacheDone {
-		pages, err := groups.List(client, groups.ListOpts{}).AllPages(ctx())
-		if err != nil {
-			if translateOpenstackError(err) == nil {
-				c.SGNameCacheDone = true
-				c.SGNameCache = map[string]string{}
-				return "", nil
-			}
-			return "", err
-		}
-		items, err := groups.ExtractGroups(pages)
-		if err != nil {
-			return "", err
-		}
-		c.SGNameCache = make(map[string]string, len(items))
-		for _, sg := range items {
-			c.SGNameCache[sg.Name] = sg.ID
-		}
-		c.SGNameCacheDone = true
+	if c.SGNameCache != nil {
+		return c.SGNameCache[name], nil
 	}
-
+	pages, err := groups.List(client, groups.ListOpts{}).AllPages(ctx())
+	if err != nil {
+		if translateOpenstackError(err) == nil {
+			c.SGNameCache = map[string]string{}
+			return "", nil
+		}
+		return "", err
+	}
+	items, err := groups.ExtractGroups(pages)
+	if err != nil {
+		return "", err
+	}
+	c.SGNameCache = make(map[string]string, len(items))
+	for _, sg := range items {
+		c.SGNameCache[sg.Name] = sg.ID
+	}
 	return c.SGNameCache[name], nil
 }
 
@@ -850,8 +905,11 @@ func (o *mqlOpenstack) networkQuotaSet() (*mqlOpenstackNetworkQuotaSet, error) {
 	c := conn(o.MqlRuntime)
 	client, err := c.NetworkClient()
 	if err != nil {
-		o.NetworkQuotaSet.State = plugin.StateIsSet | plugin.StateIsNull
-		return nil, nil
+		if serviceMissing(err) {
+			o.NetworkQuotaSet.State = plugin.StateIsSet | plugin.StateIsNull
+			return nil, nil
+		}
+		return nil, err
 	}
 	projectId := c.ProjectID()
 	q, err := neutronquotas.Get(ctx(), client, projectId).Extract()

@@ -47,13 +47,17 @@ type OpenstackConnection struct {
 	objectStorage *gophercloud.ServiceClient
 	dns           *gophercloud.ServiceClient
 
+	// Name->ID caches for Nova-reported references that Neutron/Compute
+	// expose only by ID. A non-nil map is the "ready" signal so we don't
+	// need a separate flag; the lock single-flights the first fetch and
+	// concurrent callers wait. Real (non-translated) errors leave the
+	// map nil so the next call retries — a transient blip can't poison
+	// the cache for the connection's lifetime.
 	SGNameCacheLock sync.Mutex
 	SGNameCache     map[string]string
-	SGNameCacheDone bool
 
 	FlavorNameCacheLock sync.Mutex
 	FlavorNameCache     map[string]string
-	FlavorNameCacheDone bool
 }
 
 func NewOpenstackConnection(id uint32, asset *inventory.Asset, conf *inventory.Config) (*OpenstackConnection, error) {
