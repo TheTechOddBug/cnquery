@@ -6,7 +6,6 @@ package resources
 import (
 	"go.mondoo.com/mql/v13/llx"
 	"go.mondoo.com/mql/v13/providers-sdk/v1/plugin"
-	"go.mondoo.com/mql/v13/providers-sdk/v1/util/convert"
 	"go.mondoo.com/mql/v13/types"
 )
 
@@ -61,12 +60,16 @@ func createMqlResources(runtime *plugin.Runtime, filePath string, resources []pa
 		dependsOn := sliceToAny(r.dependsOn)
 		decorators := sliceToAny(r.decorators)
 
-		// Parse body into a dict for properties
-		var properties any
+		// Surface the resource's `properties: { ... }` sub-block as a
+		// structured dict so audits can query individual keys directly
+		// (e.g., `bicepResource.properties["accessTier"]`). When the
+		// resource has no `properties` block the field is an empty
+		// map rather than nil so the shape stays consistent across
+		// resources.
+		var properties any = map[string]any{}
 		if r.body != "" {
-			dict, err := convert.JsonToDict(map[string]any{"raw": r.body})
-			if err == nil {
-				properties = dict
+			if raw := extractFieldBlock(r.body, "properties"); raw != "" {
+				properties = parseBicepObject(raw)
 			}
 		}
 
@@ -106,14 +109,13 @@ func createMqlResources(runtime *plugin.Runtime, filePath string, resources []pa
 func createMqlModules(runtime *plugin.Runtime, filePath string, modules []parsedModule) ([]any, error) {
 	var mqlModules []any
 	for _, m := range modules {
-		// Extract params block from body as a raw dict
-		var params any
+		// Same shape as bicep.resource.properties: parse the module's
+		// `params: { ... }` block as a structured dict so audits can
+		// pluck individual parameter values.
+		var params any = map[string]any{}
 		if m.body != "" {
 			if raw := extractFieldBlock(m.body, "params"); raw != "" {
-				dict, err := convert.JsonToDict(map[string]any{"raw": raw})
-				if err == nil {
-					params = dict
-				}
+				params = parseBicepObject(raw)
 			}
 		}
 

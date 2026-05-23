@@ -610,6 +610,283 @@ func splitLines(s string) []string {
 	return strings.Split(s, "\n")
 }
 
+// parseVariable used to read only the first source line, so a var
+// initializer that opened an object or array literal had its tail
+// truncated at the first newline. parseVariableDecl now reassembles
+// the continuation lines before regex matching.
+func TestParseVariable_MultiLine(t *testing.T) {
+	t.Run("object literal across lines", func(t *testing.T) {
+		input := `var settings = {
+  name: 'myService'
+  enabled: true
+}`
+		result := parseBicep(input)
+		require.Len(t, result.variables, 1)
+		v := result.variables[0]
+		assert.Equal(t, "settings", v.name)
+		assert.Contains(t, v.expression, "name: 'myService'")
+		assert.Contains(t, v.expression, "enabled: true")
+	})
+
+	t.Run("array literal across lines", func(t *testing.T) {
+		input := `var regions = [
+  'eastus'
+  'westus'
+]`
+		result := parseBicep(input)
+		require.Len(t, result.variables, 1)
+		v := result.variables[0]
+		assert.Equal(t, "regions", v.name)
+		assert.Contains(t, v.expression, "'eastus'")
+		assert.Contains(t, v.expression, "'westus'")
+	})
+
+	t.Run("single-line still works", func(t *testing.T) {
+		input := `var rgName = 'myRG'`
+		result := parseBicep(input)
+		require.Len(t, result.variables, 1)
+		assert.Equal(t, "rgName", result.variables[0].name)
+		assert.Equal(t, "'myRG'", result.variables[0].expression)
+	})
+}
+
+// extractFieldBlock used to require `{` on the same line as `name:`,
+// which doesn't match the Cuddle-Yaml-style layout people sometimes
+// reach for in Bicep. The opening brace is now picked up from the
+// next non-blank line.
+func TestExtractFieldBlock_NextLineBrace(t *testing.T) {
+	body := `{
+  params:
+  {
+    location: 'eastus'
+    enabled: true
+  }
+}`
+	result := extractFieldBlock(body, "params")
+	assert.Contains(t, result, "location: 'eastus'")
+	assert.Contains(t, result, "enabled: true")
+}
+
+// extractCondition used to receive only the resource's first source
+// line, dropping conditions that spanned multiple lines. joinDeclHeader
+// now reassembles the header up to the body's opening `{`.
+func TestExtractCondition_MultiLine(t *testing.T) {
+	input := `resource sa 'Microsoft.Storage/storageAccounts@2023-01-01' = if (
+  deployStorage &&
+  contains(env, 'prod')
+) {
+  name: 'mystorage'
+}`
+	result := parseBicep(input)
+	require.Len(t, result.resources, 1)
+	cond := result.resources[0].condition
+	assert.Contains(t, cond, "deployStorage")
+	assert.Contains(t, cond, "contains(env, 'prod')")
+}
+
+// extractDependsOn used a `\[([^\]]*)\]` regex that terminated on the
+// first inner `]`, so entries containing indexed expressions or any
+// inline array dropped half the list. The depth-tracking scanner walks
+// past nested brackets.
+func TestExtractDependsOn_NestedBrackets(t *testing.T) {
+	t.Run("indexed dependency expression", func(t *testing.T) {
+		body := `{
+  dependsOn: [
+    storageAccounts[0]
+    appPlan
+  ]
+}`
+		deps := extractDependsOn(body)
+		assert.Equal(t, []string{"storageAccounts[0]", "appPlan"}, deps)
+	})
+
+	t.Run("unclosed bracket returns nil", func(t *testing.T) {
+		body := `{
+  dependsOn: [
+    storageAccount`
+		deps := extractDependsOn(body)
+		assert.Nil(t, deps)
+	})
+}
+
+// parseBicepObject replaces the previous `{raw: <whole body>}` blob
+// for resource.properties and module.params; the dict now mirrors the
+// source structure so audits can query individual keys.
+func TestParseBicepObject(t *testing.T) {
+	t.Run("scalars and nesting", func(t *testing.T) {
+		body := `
+  accessTier: 'Hot'
+  supportsHttpsTrafficOnly: true
+  minimumTlsVersion: 'TLS1_2'
+  networkAcls: {
+    defaultAction: 'Deny'
+    bypass: 'AzureServices'
+  }
+  allowedIps: [
+    '10.0.0.0/8'
+    '192.168.0.0/16'
+  ]
+`
+		obj := parseBicepObject(body)
+		assert.Equal(t, "Hot", obj["accessTier"])
+		assert.Equal(t, "true", obj["supportsHttpsTrafficOnly"])
+		assert.Equal(t, "TLS1_2", obj["minimumTlsVersion"])
+
+		nested, ok := obj["networkAcls"].(map[string]any)
+		require.True(t, ok, "networkAcls should be a nested map")
+		assert.Equal(t, "Deny", nested["defaultAction"])
+		assert.Equal(t, "AzureServices", nested["bypass"])
+
+		ips, ok := obj["allowedIps"].([]any)
+		require.True(t, ok, "allowedIps should be an array")
+		assert.Equal(t, []any{"10.0.0.0/8", "192.168.0.0/16"}, ips)
+	})
+
+	t.Run("line comments are skipped", func(t *testing.T) {
+		body := `
+  // inline note
+  enabled: true
+  // another comment
+  count: 3
+`
+		obj := parseBicepObject(body)
+		assert.Equal(t, "true", obj["enabled"])
+		assert.Equal(t, "3", obj["count"])
+		_, present := obj["inline"]
+		assert.False(t, present)
+	})
+
+	t.Run("expressions and function calls stay raw", func(t *testing.T) {
+		body := `
+  name: resourceId('Microsoft.Storage/storageAccounts', sa.name)
+  location: resourceGroup().location
+`
+		obj := parseBicepObject(body)
+		assert.Equal(t, "resourceId('Microsoft.Storage/storageAccounts', sa.name)", obj["name"])
+		assert.Equal(t, "resourceGroup().location", obj["location"])
+	})
+
+	t.Run("strings containing colons and braces are preserved", func(t *testing.T) {
+		body := `
+  url: 'https://example.com/path:port'
+  json: '{"key": "value"}'
+`
+		obj := parseBicepObject(body)
+		assert.Equal(t, "https://example.com/path:port", obj["url"])
+		assert.Equal(t, `{"key": "value"}`, obj["json"])
+	})
+
+	t.Run("escaped quotes inside string literals", func(t *testing.T) {
+		// `'it\\'s here'` — the escaped `'` shouldn't terminate the
+		// string and split the entry early.
+		body := `
+  message: 'it\'s here'
+  other: 'plain'
+`
+		obj := parseBicepObject(body)
+		assert.Equal(t, `it\'s here`, obj["message"])
+		assert.Equal(t, "plain", obj["other"])
+	})
+}
+
+// A brace inside a string literal used to fool the naive
+// `parenBracketDepth + braceDepth` counter into thinking the var's
+// block had closed, so the reassembled expression dropped trailing
+// lines. The string-aware scanner ignores it.
+func TestParseVariable_BraceInsideStringLiteral(t *testing.T) {
+	input := `var settings = {
+  message: 'closing brace } not real'
+  enabled: true
+}`
+	result := parseBicep(input)
+	require.Len(t, result.variables, 1)
+	v := result.variables[0]
+	assert.Equal(t, "settings", v.name)
+	assert.Contains(t, v.expression, "message: 'closing brace } not real'")
+	assert.Contains(t, v.expression, "enabled: true")
+}
+
+// Same idea on the resource side: a `{` inside the `if (...)` clause's
+// string argument shouldn't be mistaken for the body opener and
+// truncate the condition prematurely.
+func TestExtractCondition_BraceInsideStringLiteral(t *testing.T) {
+	input := `resource sa 'Microsoft.Storage/storageAccounts@2023-01-01' = if (contains(env, 'prod{1}')) {
+  name: 'mystorage'
+}`
+	result := parseBicep(input)
+	require.Len(t, result.resources, 1)
+	assert.Equal(t, "contains(env, 'prod{1}')", result.resources[0].condition)
+}
+
+// Triple-quoted strings (`”'…”'`) are Bicep's multi-line string
+// syntax. The body can contain literal `{`/`[`/`}`/`]` that must not
+// touch the depth counter, so the scanner has to recognize the
+// opener as a single token rather than three single-quote flips.
+func TestParseBicep_TripleQuotedMultilineString(t *testing.T) {
+	t.Run("brackets inside triple-quoted var body don't break depth", func(t *testing.T) {
+		input := `var script = '''
+echo "{ not a real brace }"
+exit [0]
+'''
+
+resource sa 'Microsoft.Storage/storageAccounts@2023-01-01' = {
+  name: 'aftertripled'
+  location: 'eastus'
+}`
+		result := parseBicep(input)
+		require.Len(t, result.variables, 1)
+		assert.Equal(t, "script", result.variables[0].name)
+		// The trailing resource still has to be picked up — if the
+		// `'''` block's `{` leaked into the depth counter the rest of
+		// the file would have been swallowed. `name` keeps the
+		// quotes the source had — extractFieldValue returns the raw
+		// expression verbatim.
+		require.Len(t, result.resources, 1)
+		assert.Equal(t, "sa", result.resources[0].symbolicName)
+		assert.Equal(t, "'aftertripled'", result.resources[0].name)
+	})
+
+	t.Run("triple-quoted value in properties block parses cleanly", func(t *testing.T) {
+		body := `
+  script: '''
+hello { world }
+'''
+  enabled: true
+`
+		obj := parseBicepObject(body)
+		// We don't unquote `'''` strings (the surrounding quotes are
+		// part of the value form), but the scanner has to walk past
+		// them without splitting the entry — `enabled` must survive.
+		assert.Equal(t, "true", obj["enabled"])
+		_, present := obj["script"]
+		assert.True(t, present, "triple-quoted entry should still be captured")
+	})
+}
+
+// `extractDependsOn` previously walked raw bytes, so a `]` inside an
+// indexed expression or a string literal would drop the rest of the
+// list. Sharing the scanState lexer fixes both.
+func TestExtractDependsOn_BracketInsideStringAndIndex(t *testing.T) {
+	t.Run("indexed expression entry", func(t *testing.T) {
+		body := `{
+  dependsOn: [
+    storageAccounts['blobServices']
+    appPlan
+  ]
+}`
+		deps := extractDependsOn(body)
+		assert.Equal(t, []string{"storageAccounts['blobServices']", "appPlan"}, deps)
+	})
+
+	t.Run("string with closing bracket", func(t *testing.T) {
+		body := `{
+  dependsOn: [ 'literal]' , other ]
+}`
+		deps := extractDependsOn(body)
+		assert.Equal(t, []string{"'literal]'", "other"}, deps)
+	})
+}
+
 func TestParseParameterBounds(t *testing.T) {
 	t.Run("string length bounds", func(t *testing.T) {
 		input := `@minLength(8)

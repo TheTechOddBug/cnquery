@@ -5,6 +5,7 @@ package resources
 
 import (
 	"encoding/json"
+	"errors"
 	"strconv"
 
 	"github.com/rs/zerolog/log"
@@ -33,8 +34,23 @@ func newMqlBicepTemplate(runtime *plugin.Runtime, filePath string, tmpl *connect
 	return mqlT, nil
 }
 
+// id falls back to the connection's path when the Internal struct hasn't
+// been populated yet (e.g., the resource came back via StoreData and no
+// accessor has run getARMTemplate). If neither source yields a path we
+// surface an error rather than returning a "bicep.template:" sentinel —
+// a non-unique id would cause every such reconstruction to collide on
+// the same cache entry.
 func (t *mqlBicepTemplate) id() (string, error) {
-	return "bicep.template:" + t.cachePath, nil
+	path := t.cachePath
+	if path == "" {
+		if conn, ok := t.MqlRuntime.Connection.(*connection.BicepConnection); ok {
+			path = conn.Path()
+		}
+	}
+	if path == "" {
+		return "", errors.New("bicep.template: no path available to derive a stable cache id")
+	}
+	return "bicep.template:" + path, nil
 }
 
 func (t *mqlBicepTemplate) getARMTemplate() *connection.ARMTemplate {
@@ -68,10 +84,15 @@ func (t *mqlBicepTemplate) contentVersion() (string, error) {
 	return tmpl.ContentVersion, nil
 }
 
+// parameters/variables/outputs return an empty map (not nil) when the
+// ARM template is unavailable. Returning nil here used to surface as
+// `null` in MQL, which forced every audit to defensively check for
+// missing-vs-empty; the connection layer already distinguishes "no ARM
+// template at all" by returning a nil bicep.template resource.
 func (t *mqlBicepTemplate) parameters() (map[string]any, error) {
 	tmpl := t.getARMTemplate()
 	if tmpl == nil {
-		return nil, nil
+		return map[string]any{}, nil
 	}
 	return rawMessageMapToDict(tmpl.Parameters)
 }
@@ -79,7 +100,7 @@ func (t *mqlBicepTemplate) parameters() (map[string]any, error) {
 func (t *mqlBicepTemplate) variables() (map[string]any, error) {
 	tmpl := t.getARMTemplate()
 	if tmpl == nil {
-		return nil, nil
+		return map[string]any{}, nil
 	}
 	return rawMessageMapToDict(tmpl.Variables)
 }
@@ -87,7 +108,7 @@ func (t *mqlBicepTemplate) variables() (map[string]any, error) {
 func (t *mqlBicepTemplate) outputs() (map[string]any, error) {
 	tmpl := t.getARMTemplate()
 	if tmpl == nil {
-		return nil, nil
+		return map[string]any{}, nil
 	}
 	return rawMessageMapToDict(tmpl.Outputs)
 }
@@ -120,9 +141,6 @@ func newMqlBicepTemplateResource(runtime *plugin.Runtime, templatePath string, i
 	name, _ := obj["name"].(string)
 	location, _ := obj["location"].(string)
 
-	propsRaw, _ := obj["properties"].(map[string]any)
-	properties, _ := convert.JsonToDict(propsRaw)
-
 	var dependsOn []any
 	if deps, ok := obj["dependsOn"].([]any); ok {
 		for _, d := range deps {
@@ -132,7 +150,14 @@ func newMqlBicepTemplateResource(runtime *plugin.Runtime, templatePath string, i
 		}
 	}
 
+	// Convert the manifest once, then peel `properties` out of the
+	// already-converted dict. JsonToDict walks every nested value, so a
+	// separate pass over obj["properties"] was redoing the same work.
 	manifest, _ := convert.JsonToDict(obj)
+	var properties any
+	if manifest != nil {
+		properties = manifest["properties"]
+	}
 
 	id := "bicep.template.resource:" + templatePath + ":" + typ + ":" + name + ":" + strconv.Itoa(index)
 	res, err := CreateResource(runtime, "bicep.template.resource", map[string]*llx.RawData{
