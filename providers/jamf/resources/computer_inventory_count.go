@@ -3,14 +3,31 @@
 
 package resources
 
+import (
+	"go.mondoo.com/mql/v13/providers/jamf/connection"
+)
+
 func (r *mqlJamf) computerInventoryCount() (int64, error) {
-	// Derive the count from the cached inventory rather than issuing a
-	// second paginated fetch — the Jamf SDK paginates through every record
-	// regardless of the requested page-size, so a "count only" call would
-	// still load the full dataset.
-	inv := r.GetComputerInventory()
-	if inv.Error != nil {
-		return 0, inv.Error
+	// If the full inventory was already fetched in this session, reuse it
+	// instead of issuing another HTTP call.
+	if r.ComputerInventory.IsSet() && r.ComputerInventory.Error == nil {
+		return int64(len(r.ComputerInventory.Data)), nil
 	}
-	return int64(len(inv.Data)), nil
+
+	// Bypass the SDK's GetComputersInventory because it always paginates
+	// through every record. We only want the total, which the Jamf Pro API
+	// reports in the first page. Endpoint:
+	// https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory
+	conn := r.MqlRuntime.Connection.(*connection.JamfConnection)
+	var out struct {
+		TotalCount int `json:"totalCount"`
+	}
+	resp, err := conn.Client.HTTP.DoRequest("GET", "/api/v1/computers-inventory?page=0&page-size=1", nil, &out)
+	if err != nil {
+		return 0, err
+	}
+	if resp != nil && resp.Body != nil {
+		resp.Body.Close()
+	}
+	return int64(out.TotalCount), nil
 }
