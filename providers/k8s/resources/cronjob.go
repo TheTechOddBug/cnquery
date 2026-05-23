@@ -6,6 +6,7 @@ package resources
 import (
 	"errors"
 	"sync"
+	"time"
 
 	"go.mondoo.com/mql/v13/llx"
 	"go.mondoo.com/mql/v13/providers-sdk/v1/plugin"
@@ -111,4 +112,186 @@ func (k *mqlK8sCronjob) containers() ([]any, error) {
 		return nil, err
 	}
 	return getContainers(cj, &cj.ObjectMeta, k.MqlRuntime, ContainerContainerType)
+}
+
+func (k *mqlK8sCronjob) schedule() (string, error) {
+	cj, err := k.getCronJob()
+	if err != nil {
+		return "", err
+	}
+	return cj.Spec.Schedule, nil
+}
+
+func (k *mqlK8sCronjob) timeZone() (string, error) {
+	cj, err := k.getCronJob()
+	if err != nil {
+		return "", err
+	}
+	if cj.Spec.TimeZone == nil {
+		return "", nil
+	}
+	return *cj.Spec.TimeZone, nil
+}
+
+func (k *mqlK8sCronjob) concurrencyPolicy() (string, error) {
+	cj, err := k.getCronJob()
+	if err != nil {
+		return "", err
+	}
+	return string(cj.Spec.ConcurrencyPolicy), nil
+}
+
+func (k *mqlK8sCronjob) startingDeadlineSeconds() (int64, error) {
+	cj, err := k.getCronJob()
+	if err != nil {
+		return 0, err
+	}
+	if cj.Spec.StartingDeadlineSeconds == nil {
+		return 0, nil
+	}
+	return *cj.Spec.StartingDeadlineSeconds, nil
+}
+
+func (k *mqlK8sCronjob) successfulJobsHistoryLimit() (int64, error) {
+	cj, err := k.getCronJob()
+	if err != nil {
+		return 0, err
+	}
+	if cj.Spec.SuccessfulJobsHistoryLimit == nil {
+		return 3, nil
+	}
+	return int64(*cj.Spec.SuccessfulJobsHistoryLimit), nil
+}
+
+func (k *mqlK8sCronjob) failedJobsHistoryLimit() (int64, error) {
+	cj, err := k.getCronJob()
+	if err != nil {
+		return 0, err
+	}
+	if cj.Spec.FailedJobsHistoryLimit == nil {
+		return 1, nil
+	}
+	return int64(*cj.Spec.FailedJobsHistoryLimit), nil
+}
+
+func (k *mqlK8sCronjob) suspend() (bool, error) {
+	cj, err := k.getCronJob()
+	if err != nil {
+		return false, err
+	}
+	if cj.Spec.Suspend == nil {
+		return false, nil
+	}
+	return *cj.Spec.Suspend, nil
+}
+
+func (k *mqlK8sCronjob) active() ([]any, error) {
+	cj, err := k.getCronJob()
+	if err != nil {
+		return nil, err
+	}
+	return convert.JsonToDictSlice(cj.Status.Active)
+}
+
+func (k *mqlK8sCronjob) lastScheduleTime() (*time.Time, error) {
+	cj, err := k.getCronJob()
+	if err != nil {
+		return nil, err
+	}
+	if cj.Status.LastScheduleTime == nil {
+		k.LastScheduleTime.State = plugin.StateIsSet | plugin.StateIsNull
+		return nil, nil
+	}
+	t := cj.Status.LastScheduleTime.Time
+	return &t, nil
+}
+
+func (k *mqlK8sCronjob) lastSuccessfulTime() (*time.Time, error) {
+	cj, err := k.getCronJob()
+	if err != nil {
+		return nil, err
+	}
+	if cj.Status.LastSuccessfulTime == nil {
+		k.LastSuccessfulTime.State = plugin.StateIsSet | plugin.StateIsNull
+		return nil, nil
+	}
+	t := cj.Status.LastSuccessfulTime.Time
+	return &t, nil
+}
+
+func (k *mqlK8sCronjob) activeJobs() ([]any, error) {
+	cj, err := k.getCronJob()
+	if err != nil {
+		return nil, err
+	}
+
+	o, err := CreateResource(k.MqlRuntime, "k8s", map[string]*llx.RawData{})
+	if err != nil {
+		return nil, err
+	}
+	allJobs := o.(*mqlK8s).GetJobs()
+	if allJobs.Error != nil {
+		return nil, allJobs.Error
+	}
+
+	wantUIDs := make(map[string]struct{}, len(cj.Status.Active))
+	wantNames := make(map[string]struct{}, len(cj.Status.Active))
+	for _, ref := range cj.Status.Active {
+		if ref.UID != "" {
+			wantUIDs[string(ref.UID)] = struct{}{}
+		}
+		wantNames[ref.Namespace+"/"+ref.Name] = struct{}{}
+	}
+
+	out := []any{}
+	for i := range allJobs.Data {
+		j, ok := allJobs.Data[i].(*mqlK8sJob)
+		if !ok {
+			continue
+		}
+		if _, ok := wantUIDs[j.Uid.Data]; ok {
+			out = append(out, j)
+			continue
+		}
+		if _, ok := wantNames[j.Namespace.Data+"/"+j.Name.Data]; ok {
+			out = append(out, j)
+		}
+	}
+	return out, nil
+}
+
+func (k *mqlK8sCronjob) jobs() ([]any, error) {
+	cj, err := k.getCronJob()
+	if err != nil {
+		return nil, err
+	}
+
+	o, err := CreateResource(k.MqlRuntime, "k8s", map[string]*llx.RawData{})
+	if err != nil {
+		return nil, err
+	}
+	allJobs := o.(*mqlK8s).GetJobs()
+	if allJobs.Error != nil {
+		return nil, allJobs.Error
+	}
+
+	cjUID := string(cj.UID)
+	out := []any{}
+	for i := range allJobs.Data {
+		j, ok := allJobs.Data[i].(*mqlK8sJob)
+		if !ok {
+			continue
+		}
+		typedJob, err := j.getJob()
+		if err != nil {
+			continue
+		}
+		for _, ownerRef := range typedJob.OwnerReferences {
+			if ownerRef.Kind == "CronJob" && string(ownerRef.UID) == cjUID {
+				out = append(out, j)
+				break
+			}
+		}
+	}
+	return out, nil
 }
