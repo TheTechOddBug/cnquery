@@ -5,7 +5,6 @@ package resources
 
 import (
 	"sync"
-	"sync/atomic"
 
 	"go.mondoo.com/mql/v13/llx"
 	"go.mondoo.com/mql/v13/providers-sdk/v1/plugin"
@@ -39,8 +38,12 @@ type mqlKustomizeKustomizationInternal struct {
 	kustPath      string
 	rendered      []map[string]any
 	renderedErr   error
-	lock          sync.Mutex
-	fetched       atomic.Bool
+	renderedOnce  sync.Once
+	// stampOnce guards the post-construction write of kustomization
+	// and kustPath. CreateResource may return a cached instance for
+	// concurrent callers with the same __id; stampOnce ensures the
+	// stamp happens exactly once across those goroutines.
+	stampOnce sync.Once
 }
 
 func newMqlKustomization(runtime *plugin.Runtime, entry *connection.KustomizationEntry) (*mqlKustomizeKustomization, error) {
@@ -75,8 +78,14 @@ func newMqlKustomization(runtime *plugin.Runtime, entry *connection.Kustomizatio
 		return nil, err
 	}
 	mqlK := res.(*mqlKustomizeKustomization)
-	mqlK.kustomization = k
-	mqlK.kustPath = entry.Path
+	// CreateResource may return an already-cached instance when two
+	// callers ask for the same __id; stampOnce keeps the write
+	// race-free under concurrent newMqlKustomization calls and
+	// happens-before any subsequent reader on the returned pointer.
+	mqlK.stampOnce.Do(func() {
+		mqlK.kustomization = k
+		mqlK.kustPath = entry.Path
+	})
 	return mqlK, nil
 }
 
