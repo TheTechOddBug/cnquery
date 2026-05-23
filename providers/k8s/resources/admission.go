@@ -35,6 +35,7 @@ func (k *mqlK8sAdmissionreview) request() (*mqlK8sAdmissionrequest, error) {
 		return nil, err
 	}
 	if len(result) == 0 {
+		k.Request.State = plugin.StateIsSet | plugin.StateIsNull
 		return nil, nil
 	}
 
