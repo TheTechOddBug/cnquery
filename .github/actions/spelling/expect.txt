@@ -129,6 +129,7 @@ codeowners
 codeql
 compressratio
 computeagent
+conan
 containeranalysis
 continuedev
 corosync
@@ -606,6 +607,7 @@ rstrip
 rtl
 rtsp
 Rtt
+rubygems
 rulegroup
 rulegroupreferencestatement
 rxtx
@@ -783,6 +785,7 @@ webide
 webservers
 websockets
 Webstore
+whl
 wifi
 Wjki
 wordpress
