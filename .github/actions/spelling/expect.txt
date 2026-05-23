@@ -452,6 +452,7 @@ nullstring
 NUnit
 nvmxnet
 objectstorage
+OCIR
 ocr
 octavia
 odata
@@ -528,6 +529,7 @@ QGA
 Qin
 qlist
 qtype
+QUALYS
 querypack
 quorate
 qwen
