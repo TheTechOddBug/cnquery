@@ -100,11 +100,9 @@ certificatechains
 certificatesigningrequest
 certificatesmanagement
 cetypes
-cfs
 chabc
 chatgpt
 chokepoint
-cicustom
 cifs
 cipassword
 ciscocatalyst
@@ -139,8 +137,6 @@ cosmosdb
 costexplorer
 cowlib
 cpe
-cpulimit
-cpuunits
 CPWn
 cpx
 CRDR
@@ -304,6 +300,7 @@ Iaa
 iana
 iap
 IBgt
+ibpb
 iccid
 identitycenter
 identitysource
@@ -422,7 +419,6 @@ minfree
 MINIMALUSER
 Mirrorings
 mkey
-mknod
 mlag
 mls
 Mnfz
@@ -444,7 +440,6 @@ mychart
 myproject
 myvendor
 naflags
-nameserver
 natgateway
 nativead
 ndp
@@ -556,6 +551,7 @@ proxmox
 PROXYV
 psc
 psr
+pti
 PTn
 pubspec
 pushconfig
@@ -628,7 +624,6 @@ scm
 sdn
 sdp
 seabios
-searchdomain
 SECRETID
 secretmanager
 SECRETVALUE
@@ -657,7 +652,6 @@ slo
 smbv
 snaptime
 snat
-snippets
 SNOWSQL
 SNYK
 softdep
@@ -670,8 +664,8 @@ sqlimatchstatement
 sqlserver
 sriov
 srp
+ssbd
 SSHFP
-sshkeys
 ssis
 sslv
 Sspr
@@ -696,7 +690,6 @@ swi
 syd
 SYMANTEC
 symfony
-sys
 tacacs
 tailnets
 tailscale

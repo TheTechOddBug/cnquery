@@ -137,6 +137,46 @@ func (r *mqlProxmoxNode) uptime() (int64, error) {
 	return r.nodeStatus.Uptime, nil
 }
 
+func (r *mqlProxmoxNode) cpuFlags() (string, error) {
+	r.ensureStatus()
+	if r.statusErr != nil {
+		return "", r.statusErr
+	}
+	return r.nodeStatus.CPUInfo.Flags, nil
+}
+
+func (r *mqlProxmoxNode) bootKernel() (string, error) {
+	r.ensureStatus()
+	if r.statusErr != nil {
+		return "", r.statusErr
+	}
+	return r.nodeStatus.BootInfo.BootKernel, nil
+}
+
+// pendingReboot returns true only when both kernels are known and
+// they disagree — older PVE versions don't populate boot-info at all
+// and we don't want them to false-positive every node.
+func (r *mqlProxmoxNode) pendingReboot() (bool, error) {
+	r.ensureStatus()
+	if r.statusErr != nil {
+		return false, r.statusErr
+	}
+	cur := r.nodeStatus.BootInfo.CurrentKernel
+	boot := r.nodeStatus.BootInfo.BootKernel
+	if cur == "" || boot == "" {
+		return false, nil
+	}
+	return cur != boot, nil
+}
+
+func (r *mqlProxmoxNode) secureBoot() (bool, error) {
+	r.ensureStatus()
+	if r.statusErr != nil {
+		return false, r.statusErr
+	}
+	return r.nodeStatus.BootInfo.SecureBoot == 1, nil
+}
+
 func (r *mqlProxmoxNode) networks() ([]any, error) {
 	conn := nodeConn(r)
 	ifaces, err := conn.GetNodeNetworks(r.Name.Data)
@@ -309,6 +349,15 @@ func (r *mqlProxmoxNode) repositories() ([]any, error) {
 			for _, c := range repo.Components {
 				components = append(components, c)
 			}
+			// Signed-By is one of several deb822 options the API returns
+			// as a {Key, Values} list; pull the first matching entry.
+			var signedBy string
+			for _, opt := range repo.Options {
+				if opt.Key == "Signed-By" && len(opt.Values) > 0 {
+					signedBy = opt.Values[0]
+					break
+				}
+			}
 			res, err := CreateResource(r.MqlRuntime, "proxmox.repository", map[string]*llx.RawData{
 				"__id":       llx.StringData("proxmox.repository/" + r.Name.Data + "/" + repoID),
 				"id":         llx.StringData(repoID),
@@ -319,6 +368,7 @@ func (r *mqlProxmoxNode) repositories() ([]any, error) {
 				"suites":     llx.ArrayData(suites, "\x02"),
 				"components": llx.ArrayData(components, "\x02"),
 				"fileType":   llx.StringData(file.FileType),
+				"signedBy":   llx.StringData(signedBy),
 			})
 			if err != nil {
 				return nil, err
