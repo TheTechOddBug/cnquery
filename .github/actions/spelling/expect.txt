@@ -2,8 +2,8 @@ aad
 abortable
 accesscontextmanager
 accesskey
-acs
 ACCOUNTADMIN
+acs
 actioncable
 actionpack
 activedirectory
@@ -17,6 +17,7 @@ AJD
 aki
 alamofire
 allkeys
+alloc
 alloydb
 alpm
 alpn
@@ -101,6 +102,7 @@ chokepoint
 cifs
 ciscocatalyst
 citus
+cksum
 classpath
 claude
 clcerts
@@ -201,6 +203,7 @@ evc
 eventarc
 eventhubs
 Eventstream
+evpn
 evs
 EXACC
 exadata
@@ -256,6 +259,7 @@ GOSUMDB
 gotchas
 gpc
 gpo
+gpt
 gpu
 grafana
 groupname
@@ -266,6 +270,7 @@ gvnic
 hadoop
 HBFNV
 HCMCLOUD
+hdd
 headerorder
 hec
 hetzner
@@ -315,6 +320,7 @@ jamf
 JFi
 jira
 jkl
+jobnum
 jpi
 jql
 jre
@@ -426,6 +432,7 @@ ndp
 NEGs
 neq
 netbios
+netbox
 netin
 netout
 networkfirewall
@@ -509,6 +516,7 @@ persistentvolume
 persistentvolumeclaim
 pfs
 pgp
+phpipam
 phpunit
 pipefail
 pki
@@ -541,6 +549,7 @@ QAwr
 qcow
 QGA
 Qin
+qinq
 qlist
 qtype
 QUALYS
@@ -592,6 +601,7 @@ sbom
 scc
 scim
 scm
+sdn
 sdp
 seabios
 SECRETID
@@ -759,6 +769,7 @@ WORKSPACESUSER
 workspacesweb
 worktree
 writeback
+wwn
 Xff
 xks
 xlarge
