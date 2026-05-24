@@ -5,6 +5,7 @@ package resources
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"golang.org/x/sync/errgroup"
@@ -188,8 +189,10 @@ func (a *mqlAwsNetworkfirewallFirewall) vpc() (*mqlAwsVpc, error) {
 		a.Vpc.State = plugin.StateIsNull | plugin.StateIsSet
 		return nil, nil
 	}
+	conn := a.MqlRuntime.Connection.(*connection.AwsConnection)
+	vpcArn := fmt.Sprintf(vpcArnPattern, a.Region.Data, conn.AccountId(), *a.cacheVpcId)
 	mqlVpc, err := NewResource(a.MqlRuntime, "aws.vpc",
-		map[string]*llx.RawData{"id": llx.StringDataPtr(a.cacheVpcId)})
+		map[string]*llx.RawData{"arn": llx.StringData(vpcArn)})
 	if err != nil {
 		return nil, err
 	}

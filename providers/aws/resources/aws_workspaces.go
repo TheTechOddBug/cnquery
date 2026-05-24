@@ -146,6 +146,9 @@ func (a *mqlAwsWorkspacesDirectory) tags() (map[string]any, error) {
 		ResourceId: &a.DirectoryId.Data,
 	})
 	if err != nil {
+		if Is400AccessDeniedError(err) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	tags := make(map[string]any)
@@ -264,6 +267,9 @@ func (a *mqlAwsWorkspacesWorkspace) tags() (map[string]any, error) {
 		ResourceId: &a.WorkspaceId.Data,
 	})
 	if err != nil {
+		if Is400AccessDeniedError(err) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	tags := make(map[string]any)
