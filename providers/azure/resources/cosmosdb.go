@@ -128,6 +128,9 @@ func fetchCosmosDBAccounts(ctx context.Context, runtime *plugin.Runtime, conn *c
 			return nil, err
 		}
 		for _, account := range page.Value {
+			if account == nil || account.ID == nil {
+				continue
+			}
 			properties, err := convert.JsonToDict(account.Properties)
 			if err != nil {
 				return nil, err
