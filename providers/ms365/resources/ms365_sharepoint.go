@@ -129,6 +129,7 @@ func (r *mqlMs365Sharepointonline) getSharepointOnlineReport() error {
 
 	errHandler := func(err error) error {
 		r.fetchErr = err
+		r.fetched = true
 		return err
 	}
 
@@ -184,7 +185,7 @@ func (r *mqlMs365Sharepointonline) getSharepointOnlineReport() error {
 		}
 
 		logger.DebugDumpJSON("sharepoint-online-report", string(data))
-		return fmt.Errorf("failed to generate sharepoint online report (exit code %d): %s", res.ExitStatus, string(data))
+		return errHandler(fmt.Errorf("failed to generate sharepoint online report (exit code %d): %s", res.ExitStatus, string(data)))
 	}
 
 	spoTenant, spoTenantErr := convert.JsonToDict(report.SpoTenant)
@@ -211,6 +212,7 @@ func (r *mqlMs365Sharepointonline) getSharepointOnlineReport() error {
 
 	r.DefaultLinkPermission = plugin.TValue[string]{Data: report.DefaultLinkPermission, State: plugin.StateIsSet}
 
+	r.fetched = true
 	return nil
 }
 

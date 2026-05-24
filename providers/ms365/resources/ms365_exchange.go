@@ -76,7 +76,7 @@ $AtpPolicyForO365 = (Get-AtpPolicyForO365)
 $SharingPolicy = (Get-SharingPolicy)
 $RoleAssignmentPolicy = (Get-RoleAssignmentPolicy)
 $ExternalInOutlook = (Get-ExternalInOutlook)
-$ExoMailbox = (Get-EXOMailbox -RecipientTypeDetails SharedMailbox)
+$ExoMailbox = (Get-EXOMailbox -RecipientTypeDetails SharedMailbox | Select-Object Identity, ExternalDirectoryObjectId)
 $TeamsProtectionPolicy = (Get-TeamsProtectionPolicy)
 $ReportSubmissionPolicy = (Get-ReportSubmissionPolicy)
 $TransportConfig = (Get-TransportConfig)
@@ -404,6 +404,7 @@ func (r *mqlMs365Exchangeonline) getExchangeReport() error {
 
 	errHandler := func(err error) error {
 		r.fetchErr = err
+		r.fetched = true
 		return err
 	}
 
@@ -424,7 +425,7 @@ func (r *mqlMs365Exchangeonline) getExchangeReport() error {
 	fmtScript := fmt.Sprintf(exchangeReport, conn.ClientId(), organization, conn.TenantId(), outlookToken.Token)
 	res, err := conn.CheckAndRunPowershellScript(fmtScript)
 	if err != nil {
-		return err
+		return errHandler(err)
 	}
 	report := &ExchangeOnlineReport{}
 	if res.ExitStatus == 0 {
@@ -636,6 +637,7 @@ func (r *mqlMs365Exchangeonline) getExchangeReport() error {
 	}
 	r.MailboxAuditBypassAssociation = plugin.TValue[[]any]{Data: mailboxAuditBypassAssociations, State: plugin.StateIsSet, Error: mailboxAuditBypassAssociationErr}
 
+	r.fetched = true
 	return nil
 }
 
