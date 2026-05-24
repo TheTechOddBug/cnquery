@@ -85,8 +85,8 @@ blr
 breakglass
 broadwell
 Buildkit
-Burstable
 bumpable
+Burstable
 bwawxf
 BXdl
 bytematchstatement
@@ -236,6 +236,7 @@ fhir
 filestore
 filesz
 filevault
+finetune
 fips
 firefox
 firestore
@@ -266,6 +267,7 @@ GENEVE
 geocode
 geomatchstatement
 Geopair
+gguf
 GHSA
 gistfile
 githubactions
@@ -281,6 +283,7 @@ gpc
 gpo
 gpt
 gpu
+GQA
 grafana
 groupname
 Groupsv
@@ -442,6 +445,7 @@ Mnfz
 mno
 mobileapp
 modelarmor
+modelfile
 mongodb
 Mpim
 Mshv
@@ -509,13 +513,14 @@ Odr
 oem
 oid
 oidc
+ollama
 OMA
 onboarded
 onboot
 onbuild
 ondemand
-oneof
 ONELOGIN
+oneof
 ontap
 opcplc
 openai
@@ -574,8 +579,8 @@ pti
 PTn
 pubspec
 pushconfig
-pve
 PVCs
+pve
 PVEAPI
 pveproxy
 pyspark
@@ -651,6 +656,7 @@ secureboot
 Selfharm
 selfservice
 sendmail
+sentencepiece
 sentinelone
 serde
 serviceconnection
@@ -788,6 +794,7 @@ vnet
 VNI
 vnic
 vpus
+vram
 vrf
 vrrp
 vtpm
