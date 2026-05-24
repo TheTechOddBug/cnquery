@@ -22,6 +22,30 @@ import (
 	"go.mondoo.com/mql/v13/types"
 )
 
+// esDescribeBatchSize is the maximum number of domain names accepted by a single
+// DescribeElasticsearchDomains call.
+const esDescribeBatchSize = 5
+
+// chunkStrings splits s into successive slices of at most size elements.
+// A non-positive size returns a single chunk containing all of s.
+func chunkStrings(s []string, size int) [][]string {
+	if len(s) == 0 {
+		return nil
+	}
+	if size <= 0 {
+		return [][]string{s}
+	}
+	out := make([][]string, 0, (len(s)+size-1)/size)
+	for i := 0; i < len(s); i += size {
+		end := i + size
+		if end > len(s) {
+			end = len(s)
+		}
+		out = append(out, s[i:end])
+	}
+	return out
+}
+
 type mqlAwsEsDomainInternal struct {
 	securityGroupIdHandler
 	region    string
@@ -81,27 +105,30 @@ func (a *mqlAwsEs) getDomains(conn *connection.AwsConnection) []*jobpool.Job {
 				return nil, err
 			}
 
+			names := make([]string, 0, len(domains.DomainNames))
 			for _, domain := range domains.DomainNames {
-				name := convert.ToValue(domain.DomainName)
-				if name == "" {
-					continue
+				if n := convert.ToValue(domain.DomainName); n != "" {
+					names = append(names, n)
 				}
-				details, err := svc.DescribeElasticsearchDomain(ctx, &elasticsearchservice.DescribeElasticsearchDomainInput{DomainName: &name})
+			}
+
+			// DescribeElasticsearchDomains accepts up to 5 domain names per call.
+			for _, batch := range chunkStrings(names, esDescribeBatchSize) {
+				resp, err := svc.DescribeElasticsearchDomains(ctx, &elasticsearchservice.DescribeElasticsearchDomainsInput{DomainNames: batch})
 				if err != nil {
 					if Is400AccessDeniedError(err) {
-						log.Warn().Str("region", region).Str("domain", name).Msg("access denied describing es domain")
+						log.Warn().Str("region", region).Strs("domains", batch).Msg("access denied describing es domains")
 						continue
 					}
 					return nil, err
 				}
-				if details == nil || details.DomainStatus == nil {
-					continue
+				for j := range resp.DomainStatusList {
+					mqlDomain, err := newMqlAwsEsDomain(a.MqlRuntime, region, conn.AccountId(), svc, resp.DomainStatusList[j])
+					if err != nil {
+						return nil, err
+					}
+					res = append(res, mqlDomain)
 				}
-				mqlDomain, err := newMqlAwsEsDomain(a.MqlRuntime, region, conn.AccountId(), svc, *details.DomainStatus)
-				if err != nil {
-					return nil, err
-				}
-				res = append(res, mqlDomain)
 			}
 			return jobpool.JobResult(res), nil
 		}
