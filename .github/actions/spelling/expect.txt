@@ -418,6 +418,7 @@ linklayer
 linuxbrew
 linuxefi
 liveanalytics
+llmnr
 lmstudio
 localos
 loggedin
@@ -663,6 +664,7 @@ regexpatternsetreferencestatement
 Remediator
 renv
 RESKEY
+resolvectl
 resourcegroup
 resourcepolicy
 resourcequota
@@ -728,6 +730,7 @@ smbv
 snaptime
 snat
 SNOWSQL
+SNTP
 SNYK
 softdep
 softwareupdate
@@ -782,6 +785,7 @@ testutils
 tfa
 tfhub
 tgw
+timesync
 tokenauth
 tokenid
 tokio
