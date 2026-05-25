@@ -599,6 +599,7 @@ pgp
 phpipam
 phpunit
 pipefail
+pids
 Pixtral
 pki
 poddisruptionbudget
@@ -811,6 +812,7 @@ uptycs
 URkuh
 usb
 Usec
+usec
 userdata
 USERPOOL
 userspace
