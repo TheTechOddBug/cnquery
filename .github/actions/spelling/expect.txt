@@ -240,6 +240,7 @@ fastcgi
 favourited
 fce
 fdfhash
+fdrl
 FEBLx
 fhir
 filestore
@@ -277,6 +278,7 @@ GENEVE
 geocode
 geomatchstatement
 Geopair
+Geos
 gguf
 GHSA
 gistfile
@@ -754,6 +756,7 @@ subnetted
 subports
 subscriptionfilter
 superusers
+svac
 SVI
 swi
 SXM
@@ -797,6 +800,7 @@ uefi
 ugid
 UNAVAIL
 unifi
+uncached
 Uocm
 upn
 uptycs
@@ -867,6 +871,7 @@ Workflowapp
 WORKSPACESUSER
 workspacesweb
 worktree
+wrkspc
 writeback
 wwn
 Xff
