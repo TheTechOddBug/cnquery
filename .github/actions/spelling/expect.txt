@@ -49,6 +49,7 @@ atlassian
 auditlog
 authpriv
 Auths
+authtok
 autoaccept
 autoclass
 autoclose
@@ -235,6 +236,7 @@ EXACC
 exadata
 exo
 faa
+faillock
 fargate
 fastcgi
 favourited
@@ -624,6 +626,7 @@ PVCs
 pve
 PVEAPI
 pveproxy
+pwquality
 pyspark
 pythonshell
 pytorch
