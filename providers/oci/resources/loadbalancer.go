@@ -94,6 +94,15 @@ func (o *mqlOciLoadBalancer) getLoadBalancers(conn *connection.OciConnection, re
 					created = &lb.TimeCreated.Time
 				}
 
+				freeformTags := make(map[string]interface{}, len(lb.FreeformTags))
+				for k, v := range lb.FreeformTags {
+					freeformTags[k] = v
+				}
+				definedTags := make(map[string]interface{}, len(lb.DefinedTags))
+				for k, v := range lb.DefinedTags {
+					definedTags[k] = v
+				}
+
 				mqlInstance, err := CreateResource(o.MqlRuntime, "oci.loadBalancer.loadBalancer", map[string]*llx.RawData{
 					"id":                        llx.StringDataPtr(lb.Id),
 					"name":                      llx.StringDataPtr(lb.DisplayName),
@@ -103,6 +112,8 @@ func (o *mqlOciLoadBalancer) getLoadBalancers(conn *connection.OciConnection, re
 					"isDeleteProtectionEnabled": llx.BoolDataPtr(lb.IsDeleteProtectionEnabled),
 					"state":                     llx.StringData(string(lb.LifecycleState)),
 					"created":                   llx.TimeDataPtr(created),
+					"freeformTags":              llx.MapData(freeformTags, types.String),
+					"definedTags":               llx.MapData(definedTags, types.Any),
 				})
 				if err != nil {
 					return nil, err
@@ -110,6 +121,7 @@ func (o *mqlOciLoadBalancer) getLoadBalancers(conn *connection.OciConnection, re
 				mqlLb := mqlInstance.(*mqlOciLoadBalancerLoadBalancer)
 				mqlLb.cacheListeners = lb.Listeners
 				mqlLb.cacheBackendSets = lb.BackendSets
+				mqlLb.cacheRegion = regionResource.Id.Data
 				res = append(res, mqlLb)
 			}
 
@@ -123,6 +135,7 @@ func (o *mqlOciLoadBalancer) getLoadBalancers(conn *connection.OciConnection, re
 type mqlOciLoadBalancerLoadBalancerInternal struct {
 	cacheListeners   map[string]loadbalancer.Listener
 	cacheBackendSets map[string]loadbalancer.BackendSet
+	cacheRegion      string
 }
 
 func initOciLoadBalancerLoadBalancer(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error) {
@@ -130,10 +143,18 @@ func initOciLoadBalancerLoadBalancer(runtime *plugin.Runtime, args map[string]*l
 		return args, nil, nil
 	}
 
-	if args["id"] == nil {
-		return nil, nil, errors.New("id required to fetch oci.loadBalancer.loadBalancer")
+	idVal := ociArgString(args, "id")
+	if idVal == "" {
+		conn := runtime.Connection.(*connection.OciConnection)
+		if conn.Conf == nil || conn.Conf.PlatformId == "" {
+			return args, nil, nil
+		}
+		parsed, ok := parseOciObjectPlatformID(conn.Conf.PlatformId)
+		if !ok || parsed.service != "loadbalancer" || parsed.objectType != "loadBalancer" {
+			return args, nil, nil
+		}
+		idVal = parsed.id
 	}
-	idVal := args["id"].Value.(string)
 
 	obj, err := CreateResource(runtime, "oci.loadBalancer", nil)
 	if err != nil {

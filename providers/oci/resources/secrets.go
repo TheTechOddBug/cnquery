@@ -102,6 +102,15 @@ func (o *mqlOciVault) getSecrets(conn *connection.OciConnection, regions []any) 
 					nextRotation = &s.NextRotationTime.Time
 				}
 
+				freeformTags := make(map[string]interface{}, len(s.FreeformTags))
+				for k, v := range s.FreeformTags {
+					freeformTags[k] = v
+				}
+				definedTags := make(map[string]interface{}, len(s.DefinedTags))
+				for k, v := range s.DefinedTags {
+					definedTags[k] = v
+				}
+
 				mqlInstance, err := CreateResource(o.MqlRuntime, "oci.vault.secret", map[string]*llx.RawData{
 					"id":                      llx.StringDataPtr(s.Id),
 					"name":                    llx.StringDataPtr(s.SecretName),
@@ -113,6 +122,8 @@ func (o *mqlOciVault) getSecrets(conn *connection.OciConnection, regions []any) 
 					"nextRotationTime":        llx.TimeDataPtr(nextRotation),
 					"isAutoGenerationEnabled": llx.BoolDataPtr(s.IsAutoGenerationEnabled),
 					"created":                 llx.TimeDataPtr(created),
+					"freeformTags":            llx.MapData(freeformTags, types.String),
+					"definedTags":             llx.MapData(definedTags, types.Any),
 				})
 				if err != nil {
 					return nil, err
@@ -152,6 +163,48 @@ type mqlOciVaultSecretInternal struct {
 
 func (o *mqlOciVaultSecret) id() (string, error) {
 	return "oci.vault.secret/" + o.Id.Data, nil
+}
+
+// initOciVaultSecret resolves a single secret from the scan asset's PlatformId
+// when policies reference `oci.vault.secret` on a discovered oci-vault-secret
+// asset. Explicit id takes precedence.
+func initOciVaultSecret(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error) {
+	if len(args) > 2 {
+		return args, nil, nil
+	}
+
+	idVal := ociArgString(args, "id")
+	if idVal == "" {
+		conn := runtime.Connection.(*connection.OciConnection)
+		if conn.Conf == nil || conn.Conf.PlatformId == "" {
+			return args, nil, nil
+		}
+		parsed, ok := parseOciObjectPlatformID(conn.Conf.PlatformId)
+		if !ok || parsed.service != "vault" || parsed.objectType != "secret" {
+			return args, nil, nil
+		}
+		idVal = parsed.id
+	}
+
+	obj, err := CreateResource(runtime, "oci.vault", nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	vaultSvc := obj.(*mqlOciVault)
+
+	secrets := vaultSvc.GetSecrets()
+	if secrets.Error != nil {
+		return nil, nil, secrets.Error
+	}
+
+	for _, raw := range secrets.Data {
+		s := raw.(*mqlOciVaultSecret)
+		if s.Id.Data == idVal {
+			return args, s, nil
+		}
+	}
+
+	return nil, nil, errors.New("oci.vault.secret not found: " + idVal)
 }
 
 func (o *mqlOciVaultSecret) kmsVault() (*mqlOciKmsVault, error) {

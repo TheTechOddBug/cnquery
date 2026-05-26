@@ -34,6 +34,11 @@ Examples:
 				resources.DiscoveryUsers,
 				resources.DiscoveryPolicies,
 				resources.DiscoveryBuckets,
+				resources.DiscoveryAPIGatewayDeployments,
+				resources.DiscoveryLoadBalancers,
+				resources.DiscoveryRedisClusters,
+				resources.DiscoveryVaultSecrets,
+				resources.DiscoveryOkeClusters,
 			},
 			Flags: []plugin.Flag{
 				{

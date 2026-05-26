@@ -126,6 +126,15 @@ func (o *mqlOciOke) getClusters(conn *connection.OciConnection, regions []any) [
 					upgrades = append(upgrades, u)
 				}
 
+				freeformTags := make(map[string]interface{}, len(cluster.FreeformTags))
+				for k, v := range cluster.FreeformTags {
+					freeformTags[k] = v
+				}
+				definedTags := make(map[string]interface{}, len(cluster.DefinedTags))
+				for k, v := range cluster.DefinedTags {
+					definedTags[k] = v
+				}
+
 				mqlInstance, err := CreateResource(o.MqlRuntime, "oci.oke.cluster", map[string]*llx.RawData{
 					"id":                          llx.StringDataPtr(cluster.Id),
 					"name":                        llx.StringDataPtr(cluster.Name),
@@ -140,6 +149,8 @@ func (o *mqlOciOke) getClusters(conn *connection.OciConnection, regions []any) [
 					"isPodSecurityPolicyEnabled":  llx.BoolData(isPodSecurityPolicyEnabled),
 					"state":                       llx.StringData(string(cluster.LifecycleState)),
 					"created":                     llx.TimeDataPtr(created),
+					"freeformTags":                llx.MapData(freeformTags, types.String),
+					"definedTags":                 llx.MapData(definedTags, types.Any),
 				})
 				if err != nil {
 					return nil, err
@@ -167,6 +178,48 @@ type mqlOciOkeClusterInternal struct {
 
 func (o *mqlOciOkeCluster) id() (string, error) {
 	return "oci.oke.cluster/" + o.Id.Data, nil
+}
+
+// initOciOkeCluster resolves a single OKE cluster from the scan asset's
+// PlatformId when policies reference `oci.oke.cluster` on a discovered
+// oci-oke-cluster asset. Explicit id takes precedence.
+func initOciOkeCluster(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error) {
+	if len(args) > 2 {
+		return args, nil, nil
+	}
+
+	idVal := ociArgString(args, "id")
+	if idVal == "" {
+		conn := runtime.Connection.(*connection.OciConnection)
+		if conn.Conf == nil || conn.Conf.PlatformId == "" {
+			return args, nil, nil
+		}
+		parsed, ok := parseOciObjectPlatformID(conn.Conf.PlatformId)
+		if !ok || parsed.service != "oke" || parsed.objectType != "cluster" {
+			return args, nil, nil
+		}
+		idVal = parsed.id
+	}
+
+	obj, err := CreateResource(runtime, "oci.oke", nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	oke := obj.(*mqlOciOke)
+
+	clusters := oke.GetClusters()
+	if clusters.Error != nil {
+		return nil, nil, clusters.Error
+	}
+
+	for _, raw := range clusters.Data {
+		c := raw.(*mqlOciOkeCluster)
+		if c.Id.Data == idVal {
+			return args, c, nil
+		}
+	}
+
+	return nil, nil, errors.New("oci.oke.cluster not found: " + idVal)
 }
 
 func (o *mqlOciOkeCluster) vcn() (*mqlOciNetworkVcn, error) {
