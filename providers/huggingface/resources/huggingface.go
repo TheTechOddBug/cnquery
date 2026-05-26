@@ -143,14 +143,12 @@ func createModelResource(runtime *plugin.Runtime, m hfmodels.Model) (*mqlHugging
 		"__id":         llx.StringData("huggingface.model/" + m.ID),
 		"id":           llx.StringData(m.ID),
 		"modelId":      llx.StringData(m.ModelID),
-		"author":       llx.StringData(m.Author),
 		"private":      llx.BoolData(m.Private),
 		"pipelineTag":  llx.StringData(m.PipelineTag),
 		"libraryName":  llx.StringData(m.LibraryName),
 		"tags":         llx.ArrayData(stringsToInterface(m.Tags), types.String),
 		"downloads":    llx.IntData(int64(m.Downloads)),
 		"likes":        llx.IntData(int64(m.Likes)),
-		"sha":          llx.StringData(m.Sha),
 		"lastModified": llx.TimeDataPtr(lastMod),
 		"gated":        llx.BoolData(m.Gated.IsGated),
 		"disabled":     llx.BoolData(m.Disabled),
@@ -158,7 +156,10 @@ func createModelResource(runtime *plugin.Runtime, m hfmodels.Model) (*mqlHugging
 	if err != nil {
 		return nil, err
 	}
-	return res.(*mqlHuggingfaceModel), nil
+	model := res.(*mqlHuggingfaceModel)
+	model.listAuthor = m.Author
+	model.listSha = m.Sha
+	return model, nil
 }
 
 func (r *mqlHuggingface) datasets() ([]any, error) {
@@ -472,6 +473,8 @@ func initHuggingfaceModel(runtime *plugin.Runtime, args map[string]*llx.RawData)
 }
 
 type mqlHuggingfaceModelInternal struct {
+	listAuthor string
+	listSha    string
 	detail     *hfmodels.ModelDetail
 	detailOnce sync.Once
 	detailErr  error
@@ -487,6 +490,34 @@ func (r *mqlHuggingfaceModel) fetchDetail() (*hfmodels.ModelDetail, error) {
 
 func (r *mqlHuggingfaceModel) id() (string, error) {
 	return "huggingface.model/" + r.Id.Data, nil
+}
+
+func (r *mqlHuggingfaceModel) author() (string, error) {
+	if r.listAuthor != "" {
+		return r.listAuthor, nil
+	}
+	detail, err := r.fetchDetail()
+	if err != nil {
+		return "", err
+	}
+	if detail.Author != "" {
+		return detail.Author, nil
+	}
+	if parts := strings.SplitN(detail.ID, "/", 2); len(parts) == 2 {
+		return parts[0], nil
+	}
+	return "", nil
+}
+
+func (r *mqlHuggingfaceModel) sha() (string, error) {
+	if r.listSha != "" {
+		return r.listSha, nil
+	}
+	detail, err := r.fetchDetail()
+	if err != nil {
+		return "", err
+	}
+	return detail.Sha, nil
 }
 
 func (r *mqlHuggingfaceModel) createdAt() (*time.Time, error) {

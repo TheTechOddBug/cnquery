@@ -45,6 +45,18 @@ func (s *Service) ParseCLI(req *plugin.ParseCLIReq) (*plugin.ParseCLIRes, error)
 		conf.Options[connection.TokenOption] = string(token.Value)
 	}
 
+	if ns, ok := flags["namespace"]; ok {
+		conf.Options[connection.NamespaceOption] = string(ns.Value)
+	}
+
+	if nsType, ok := flags["namespace-type"]; ok {
+		val := string(nsType.Value)
+		if val != connection.NamespaceTypeUser && val != connection.NamespaceTypeOrg {
+			return nil, fmt.Errorf("invalid --namespace-type %q: must be %q or %q", val, connection.NamespaceTypeUser, connection.NamespaceTypeOrg)
+		}
+		conf.Options[connection.NamespaceType] = val
+	}
+
 	discoverTargets := []string{}
 	if x, ok := flags["discover"]; ok && len(x.Array) != 0 {
 		for i := range x.Array {
