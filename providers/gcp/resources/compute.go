@@ -3149,6 +3149,11 @@ func (g *mqlGcpProjectComputeService) sslCertificates() ([]any, error) {
 					return err
 				}
 
+				var managedStatus string
+				if cert.Managed != nil {
+					managedStatus = cert.Managed.Status
+				}
+
 				mqlCert, err := CreateResource(g.MqlRuntime, "gcp.project.computeService.sslCertificate", map[string]*llx.RawData{
 					"id":                      llx.StringData(strconv.FormatUint(cert.Id, 10)),
 					"name":                    llx.StringData(cert.Name),
@@ -3156,6 +3161,7 @@ func (g *mqlGcpProjectComputeService) sslCertificates() ([]any, error) {
 					"type":                    llx.StringData(cert.Type),
 					"subjectAlternativeNames": llx.ArrayData(convert.SliceAnyToInterface(cert.SubjectAlternativeNames), types.String),
 					"managed":                 llx.DictData(managed),
+					"managedStatus":           llx.StringData(managedStatus),
 					"regionUrl":               llx.StringData(cert.Region),
 					"selfLink":                llx.StringData(cert.SelfLink),
 					"expireTime":              llx.StringData(cert.ExpireTime),
@@ -3652,6 +3658,43 @@ func (g *mqlGcpProjectComputeServiceInstance) serialPortEnabled() (bool, error) 
 		return false, md.Error
 	}
 	return metadataBoolFlag(md.Data, "serial-port-enable"), nil
+}
+
+func (g *mqlGcpProjectComputeService) projectMetadataFlag(key string) (bool, error) {
+	if g.ProjectId.Error != nil {
+		return false, g.ProjectId.Error
+	}
+	projectId := g.ProjectId.Data
+	if projectId == "" {
+		return false, nil
+	}
+	projRes, err := NewResource(g.MqlRuntime, "gcp.project", map[string]*llx.RawData{
+		"id": llx.StringData(projectId),
+	})
+	if err != nil {
+		return false, err
+	}
+	proj := projRes.(*mqlGcpProject)
+	projMd := proj.GetCommonInstanceMetadata()
+	if projMd.Error != nil {
+		return false, projMd.Error
+	}
+	if projMd.Data == nil {
+		return false, nil
+	}
+	return metadataBoolFlag(projMd.Data, key), nil
+}
+
+func (g *mqlGcpProjectComputeService) projectOsLoginEnabled() (bool, error) {
+	return g.projectMetadataFlag("enable-oslogin")
+}
+
+func (g *mqlGcpProjectComputeService) projectBlockProjectSshKeys() (bool, error) {
+	return g.projectMetadataFlag("block-project-ssh-keys")
+}
+
+func (g *mqlGcpProjectComputeService) projectSerialPortEnabled() (bool, error) {
+	return g.projectMetadataFlag("serial-port-enable")
 }
 
 func (g *mqlGcpProjectComputeService) hasDefaultNetwork() (bool, error) {

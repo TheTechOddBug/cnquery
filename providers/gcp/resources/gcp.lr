@@ -124,6 +124,15 @@ private gcp.organization.role @defaults("title name") {
   includedPermissions []string
   // Whether the role has been deleted
   deleted bool
+  // Whether the role grants any IAM policy management permission (any permission ending in .setIamPolicy)
+  grantsIamPolicyManagement() bool
+  // Whether the role grants service-account impersonation
+  //
+  // True when any included permission is iam.serviceAccounts.actAs,
+  // getAccessToken, signBlob, signJwt, getOpenIdToken, or
+  // implicitDelegation — the permissions that enable acting as a service
+  // account and escalating privilege.
+  grantsServiceAccountImpersonation() bool
 }
 
 // Network Security profile for an organization
@@ -832,6 +841,51 @@ gcp.project @defaults("name number") {
   workflows() gcp.project.workflowsService
   // GCP Cloud Domains resources
   cloudDomains() gcp.project.cloudDomainsService
+  // Resource Manager liens that block deletion or other operations on the project
+  liens() []gcp.project.lien
+  // Resource Manager tag bindings attached to the project
+  tagBindings() []gcp.project.tagBinding
+}
+
+// Google Cloud (GCP) Resource Manager lien
+//
+// Examine the encumbrances that block destructive operations on a project.
+// A lien names the operations it blocks through `restrictions` (e.g.
+// `resourcemanager.projects.delete`), the system that created it via
+// `origin`, and a human-readable `reason`. Liens are deletion-protection
+// controls — a project with a `resourcemanager.projects.delete` lien cannot
+// be deleted until the lien is removed. Liens are selected by their
+// system-generated `name` (e.g. `liens/1234abcd`).
+private gcp.project.lien @defaults("name reason") {
+  // System-generated unique identifier for this lien (e.g. liens/1234abcd)
+  name string
+  // Stable, user-visible string identifying the system that created the lien (e.g. compute.googleapis.com)
+  origin string
+  // Concise user-visible string explaining why an action is blocked
+  reason string
+  // IAM permissions whose corresponding operations this lien blocks (e.g. resourcemanager.projects.delete)
+  restrictions []string
+  // Time the lien was created
+  createTime time
+}
+
+// Google Cloud (GCP) Resource Manager tag binding
+//
+// Examine the connection between a tag value and the project. A tag binding
+// applies a `tagValue` to the bound resource and all of its descendants, and
+// tags drive conditional IAM and organization-policy enforcement. The
+// `tagValueNamespacedName` gives the human-readable key/value path and
+// `resource` identifies the bound resource. Tag bindings are selected by
+// their `name`.
+private gcp.project.tagBinding @defaults("tagValueNamespacedName resource") {
+  // Name of the tag binding
+  name string
+  // Permanent ID of the bound tag value (e.g. tagValues/456)
+  tagValue string
+  // Namespaced name of the bound tag value (e.g. 123/environment/production)
+  tagValueNamespacedName string
+  // Full resource name the tag value is bound to (e.g. //cloudresourcemanager.googleapis.com/projects/123)
+  resource string
 }
 
 // Google Cloud service API
@@ -909,6 +963,17 @@ private gcp.resourcemanager.binding {
   conditionExpression string
   // Description of the IAM condition that scopes this binding
   conditionDescription string
+  // Whether any member is allUsers or allAuthenticatedUsers, exposing the binding to the public
+  hasExternalMembers() bool
+  // Whether the bound role is a primitive role (roles/owner, roles/editor, or roles/viewer)
+  isPrimitiveRole() bool
+  // Whether the bound role grants service-account impersonation
+  //
+  // True when the role is one of roles/iam.serviceAccountTokenCreator,
+  // roles/iam.serviceAccountUser, roles/iam.workloadIdentityUser, or
+  // roles/iam.serviceAccountKeyAdmin — the roles that surface
+  // impersonation and privilege-escalation paths.
+  grantsImpersonation() bool
 }
 
 // Google Cloud (GCP) Compute Engine
@@ -1013,6 +1078,12 @@ private gcp.project.computeService {
   publicAdvertisedPrefixes() []gcp.project.computeService.publicAdvertisedPrefix
   // Instance templates
   instanceTemplates() []gcp.project.computeService.instanceTemplate
+  // Whether OS Login is enabled project-wide — project commonInstanceMetadata item 'enable-oslogin' is TRUE
+  projectOsLoginEnabled() bool
+  // Whether project-wide SSH keys are blocked — project commonInstanceMetadata item 'block-project-ssh-keys' is TRUE
+  projectBlockProjectSshKeys() bool
+  // Whether serial port access is enabled project-wide — project commonInstanceMetadata item 'serial-port-enable' is TRUE
+  projectSerialPortEnabled() bool
 }
 
 // Google Cloud (GCP) Compute Engine static IP address
@@ -2529,6 +2600,8 @@ private gcp.project.sqlService.instance @defaults("name") {
   // `failoverDrReplicaName` is set on the primary to designate the DR
   // replica.
   replicationCluster dict
+  // Expiration time of the instance's server CA certificate used for TLS
+  serverCaCertExpiration time
 }
 
 // Google Cloud (GCP) SQL instance database
@@ -3305,6 +3378,8 @@ private gcp.project.dnsService {
   managedZones() []gcp.project.dnsService.managedzone
   // Cloud DNS rules in project
   policies() []gcp.project.dnsService.policy
+  // Cloud DNS response policies in project
+  responsePolicies() []gcp.project.dnsService.responsePolicy
 }
 
 // Google Cloud DNS managed zone
@@ -3350,6 +3425,10 @@ private gcp.project.dnsService.managedzone @defaults("name") {
   dnssecDefaultKeyAlgorithms []string
   // Authorized VPC networks and GKE clusters for a private zone (empty for public zones)
   privateVisibilityConfig dict
+  // IPv4 addresses of the name servers this private zone forwards outbound queries to (empty when forwarding is not configured)
+  forwardingTargets []string
+  // Fully qualified URL of the VPC network this private zone peers with for DNS resolution (empty when peering is not configured)
+  peeringNetwork string
   // Cloud DNS record set in the zone
   recordSets() []gcp.project.dnsService.recordset
   // IAM policy bindings for this managed zone
@@ -3401,6 +3480,34 @@ private gcp.project.dnsService.policy @defaults("name") {
   networkNames []string
   // List of networks to which this policy is applied
   networks() []gcp.project.computeService.network
+  // IPv4 addresses of alternative name servers that all DNS queries are forwarded to (outbound forwarding targets)
+  alternativeNameServers []string
+}
+
+// Google Cloud DNS response policy
+//
+// Examine a Cloud DNS response policy that overrides DNS answers for queries
+// made against one or more VPC networks. Because a response policy can
+// redirect or rewrite resolved addresses, surfacing its bindings matters for
+// security review. Surfaces the server-assigned `id`, the user-assigned
+// `responsePolicyName`, `description`, `networkUrls` / `networks()` listing
+// the VPC networks the policy is attached to, and `gkeClusters` naming any
+// bound GKE clusters.
+private gcp.project.dnsService.responsePolicy @defaults("responsePolicyName") {
+  // Project ID
+  projectId string
+  // Unique server-assigned identifier for the response policy
+  id string
+  // User-assigned name for this response policy
+  responsePolicyName string
+  // User-provided description for this response policy
+  description string
+  // Fully qualified URLs of the VPC networks this response policy is applied to
+  networkUrls []string
+  // VPC networks this response policy is applied to
+  networks() []gcp.project.computeService.network
+  // Resource names of the GKE clusters this response policy is applied to
+  gkeClusters []string
 }
 
 // Google Kubernetes Engine (GKE)
@@ -3510,6 +3617,20 @@ private gcp.project.gkeService.cluster @defaults("name description location stat
   legacyAbacEnabled bool
   // Authentication information for accessing the master endpoint
   masterAuth dict
+  // Whether client certificate authentication to the control plane is enabled
+  //
+  // True when the cluster issues a client certificate (MasterAuth client
+  // certificate config) or an output client certificate is present. Static
+  // client certificates cannot be rotated or revoked, so CIS recommends
+  // disabling this in favor of short-lived credentials.
+  clientCertificateEnabled bool
+  // Whether HTTP basic authentication to the control plane is enabled
+  //
+  // True when a static MasterAuth username is set. Basic authentication is
+  // deprecated and removed in modern GKE versions; a non-empty value is a CIS
+  // benchmark finding. Reads the deprecated MasterAuth.Username field purely
+  // for the audit signal.
+  basicAuthEnabled bool
   // Legacy master authorized networks configuration
   //
   // Deprecated in favor of
@@ -3665,6 +3786,8 @@ private gcp.project.gkeService.cluster @defaults("name description location stat
   costManagementConfig dict
   // Configuration of Confidential Nodes
   confidentialNodesConfig dict
+  // Whether Confidential Nodes (memory encryption via AMD SEV) is enabled cluster-wide
+  confidentialNodesEnabled bool
   // Configuration for Identity Service component
   identityServiceConfig dict
   // Raw network policy config dict
@@ -4027,6 +4150,11 @@ private gcp.project.gkeService.cluster.nodepool.config @defaults("machineType di
   taints []gcp.project.gkeService.cluster.nodepool.config.nodeTaint
   // Sandbox configuration for this node
   sandboxConfig gcp.project.gkeService.cluster.nodepool.config.sandboxConfig
+  // Whether the gVisor sandbox runtime is enabled for nodes in this pool
+  //
+  // True when the sandbox config type is GVISOR. gVisor provides an extra
+  // kernel-isolation boundary between containers and the host.
+  gvisorSandbox bool
   // Shielded instance configuration
   shieldedInstanceConfig gcp.project.gkeService.cluster.nodepool.config.shieldedInstanceConfig
   // Parameters that can be configured on Linux nodes
@@ -4039,6 +4167,8 @@ private gcp.project.gkeService.cluster.nodepool.config @defaults("machineType di
   bootDiskKmsKey string
   // Google Container File System (image streaming) configuration
   gcfsConfig gcp.project.gkeService.cluster.nodepool.config.gcfsConfig
+  // Whether Google Container File System (image streaming) is enabled for nodes in this pool
+  gcfsEnabled bool
   // Advanced features for the Compute Engine VM
   advancedMachineFeatures gcp.project.gkeService.cluster.nodepool.config.advancedMachineFeatures
   // gVNIC configuration
@@ -4365,6 +4495,10 @@ private gcp.project.pubsubService.subscription.config.pushconfig @defaults("attr
   endpoint string
   // Endpoint configuration attributes
   attributes map[string]string
+  // Service account email used to generate the OIDC token for authenticated push
+  oidcTokenServiceAccountEmail string
+  // Audience used when generating the OIDC token for authenticated push
+  oidcTokenAudience string
 }
 
 // Google Cloud (GCP) Pub/Sub snapshot
@@ -4778,6 +4912,8 @@ private gcp.project.loggingservice {
   sinks() []gcp.project.loggingservice.sink
   // List of log exclusions
   exclusions() []gcp.project.loggingservice.exclusion
+  // Customer-managed KMS key the Log Router uses to encrypt newly ingested log entries (empty when Google-managed)
+  cmekKmsKeyName() string
 }
 
 // Google Cloud (GCP) Cloud Logging bucket
@@ -4903,6 +5039,8 @@ private gcp.project.loggingservice.sink @defaults("destination") {
   //
   // When true, the sink also receives log entries (recursively) from any contained folders, billing accounts, or projects.
   includeChildren bool
+  // Whether the sink exports every log entry because its filter is empty
+  capturesAllLogs() bool
 }
 
 // Google Cloud (GCP) Cloud Logging exclusion filter
@@ -4971,6 +5109,15 @@ private gcp.project.iamService.role @defaults("title name") {
   includedPermissions []string
   // Whether the role has been deleted
   deleted bool
+  // Whether the role grants any IAM policy management permission (any permission ending in .setIamPolicy)
+  grantsIamPolicyManagement() bool
+  // Whether the role grants service-account impersonation
+  //
+  // True when any included permission is iam.serviceAccounts.actAs,
+  // getAccessToken, signBlob, signJwt, getOpenIdToken, or
+  // implicitDelegation — the permissions that enable acting as a service
+  // account and escalating privilege.
+  grantsServiceAccountImpersonation() bool
 }
 
 // Google Cloud (GCP) IAM service account
@@ -6661,10 +6808,16 @@ private gcp.project.secretmanagerService.secret @defaults("name createTime") {
   topics []string
   // Expiration time (if set)
   expireTime time
+  // Input-only time-to-live duration after which the secret is scheduled to expire (empty when an absolute expireTime is set instead)
+  ttl string
   // Etag of the secret
   etag string
   // Rotation policy configuration
   rotation dict
+  // Frequency at which Secret Manager rotates the secret, as a duration (empty when no rotation policy is configured)
+  rotationPeriod string
+  // Time at which Secret Manager will send a rotation notification (empty when no rotation policy is configured)
+  nextRotationTime time
   // Whether rotation is configured (rotation.rotationPeriod or nextRotationTime is set)
   rotationEnabled() bool
   // Version aliases mapping alias names to version numbers
@@ -7603,6 +7756,12 @@ private gcp.project.computeService.sslCertificate @defaults("name type") {
   subjectAlternativeNames []string
   // Managed certificate configuration and status
   managed dict
+  // Provisioning status of a managed certificate
+  //
+  // One of ACTIVE, PROVISIONING, PROVISIONING_FAILED,
+  // PROVISIONING_FAILED_PERMANENTLY, or RENEWAL_FAILED. Empty for
+  // self-managed certificates.
+  managedStatus string
   // Raw region self-link URL
   //
   // Deprecated in favor of `region`.
@@ -7851,6 +8010,10 @@ private gcp.project.certificateAuthorityService.caPool @defaults("name tier") {
   issuancePolicy dict
   // Publishing options
   publishingOptions dict
+  // Whether each CA's certificate is published and referenced in the Authority Information Access X.509 extension of issued certificates
+  publishCaCert bool
+  // Whether each CA's certificate revocation list is published and referenced in the CRL Distribution Points X.509 extension of issued certificates
+  publishCrl bool
   // User-defined key/value labels for organizing the resource
   labels map[string]string
   // Certificate authorities in this pool
