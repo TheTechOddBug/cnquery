@@ -72,6 +72,9 @@ func (r *mqlBicep) template() (*mqlBicepTemplate, error) {
 type mqlBicepFileInternal struct {
 	parseOnce sync.Once
 	parsed    *parsedBicepFile
+
+	resolverOnce   sync.Once
+	cachedResolver *symbolResolver
 }
 
 func newMqlBicepFile(runtime *plugin.Runtime, f *connection.BicepFile) (*mqlBicepFile, error) {
@@ -114,24 +117,37 @@ func (f *mqlBicepFile) id() (string, error) {
 	return "bicep.file:" + f.Path.Data, nil
 }
 
+// resolver builds the per-file symbol table once and caches it. It's invoked
+// from variables()/resources()/modules()/outputs(), so caching avoids
+// rebuilding the index (and its maps) on each call. The resolver lets
+// expression-tree nodes resolve a root identifier (`target`) to the
+// declaration it names within this file, and is derived purely from the
+// already-parsed model.
+func (f *mqlBicepFile) resolver() *symbolResolver {
+	f.resolverOnce.Do(func() {
+		f.cachedResolver = newSymbolResolver(f.Path.Data, f.getParsed())
+	})
+	return f.cachedResolver
+}
+
 func (f *mqlBicepFile) parameters() ([]any, error) {
 	return createMqlParameters(f.MqlRuntime, f.Path.Data, f.getParsed().parameters)
 }
 
 func (f *mqlBicepFile) variables() ([]any, error) {
-	return createMqlVariables(f.MqlRuntime, f.Path.Data, f.getParsed().variables)
+	return createMqlVariables(f.MqlRuntime, f.Path.Data, f.getParsed().variables, f.resolver())
 }
 
 func (f *mqlBicepFile) resources() ([]any, error) {
-	return createMqlResources(f.MqlRuntime, f.Path.Data, f.getParsed().resources)
+	return createMqlResources(f.MqlRuntime, f.Path.Data, f.getParsed().resources, f.resolver())
 }
 
 func (f *mqlBicepFile) modules() ([]any, error) {
-	return createMqlModules(f.MqlRuntime, f.Path.Data, f.getParsed().modules)
+	return createMqlModules(f.MqlRuntime, f.Path.Data, f.getParsed().modules, f.resolver())
 }
 
 func (f *mqlBicepFile) outputs() ([]any, error) {
-	return createMqlOutputs(f.MqlRuntime, f.Path.Data, f.getParsed().outputs)
+	return createMqlOutputs(f.MqlRuntime, f.Path.Data, f.getParsed().outputs, f.resolver())
 }
 
 func (f *mqlBicepFile) types() ([]any, error) {
