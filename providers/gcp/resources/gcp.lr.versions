@@ -117,6 +117,7 @@ gcp.orgPolicy.customConstraint.methodTypes 13.15.1
 gcp.orgPolicy.customConstraint.name 13.15.1
 gcp.orgPolicy.customConstraint.resourceTypes 13.15.1
 gcp.orgPolicy.customConstraint.updated 13.15.1
+gcp.orgPolicy.dryRunOnly 13.18.1
 gcp.orgPolicy.dryRunSpec 11.5.1
 gcp.orgPolicy.etag 11.5.1
 gcp.orgPolicy.id 11.5.1
@@ -241,6 +242,7 @@ gcp.project.alloydbService.cluster.name 11.3.1
 gcp.project.alloydbService.cluster.networkConfig 11.3.1
 gcp.project.alloydbService.cluster.primaryConfig 11.3.1
 gcp.project.alloydbService.cluster.projectId 11.3.1
+gcp.project.alloydbService.cluster.pscEnabled 13.18.1
 gcp.project.alloydbService.cluster.reconciling 11.3.1
 gcp.project.alloydbService.cluster.secondaryConfig 11.3.1
 gcp.project.alloydbService.cluster.sslConfig 11.3.1
@@ -331,6 +333,7 @@ gcp.project.apiKey.resourcePath 9.0.0
 gcp.project.apiKey.restrictions 9.0.0
 gcp.project.apiKey.restrictions.androidKeyRestrictions 9.0.0
 gcp.project.apiKey.restrictions.apiTargets 9.0.0
+gcp.project.apiKey.restrictions.appliedRestrictionTypes 13.18.1
 gcp.project.apiKey.restrictions.browserKeyRestrictions 9.0.0
 gcp.project.apiKey.restrictions.iosKeyRestrictions 9.0.0
 gcp.project.apiKey.restrictions.parentResourcePath 9.0.0
@@ -463,6 +466,7 @@ gcp.project.backupdrService.backupVault.deletable 13.1.2
 gcp.project.backupdrService.backupVault.description 13.1.2
 gcp.project.backupdrService.backupVault.effectiveTime 13.1.2
 gcp.project.backupdrService.backupVault.etag 13.1.2
+gcp.project.backupdrService.backupVault.kmsKeyName 13.18.1
 gcp.project.backupdrService.backupVault.labels 13.1.2
 gcp.project.backupdrService.backupVault.name 13.1.2
 gcp.project.backupdrService.backupVault.serviceAccount 13.1.2
@@ -1175,6 +1179,8 @@ gcp.project.cloudRunService.regions 9.0.0
 gcp.project.cloudRunService.service 9.0.0
 gcp.project.cloudRunService.service.annotations 9.0.0
 gcp.project.cloudRunService.service.binaryAuthorization 13.7.2
+gcp.project.cloudRunService.service.binaryAuthorizationBreakglassJustification 13.18.1
+gcp.project.cloudRunService.service.binaryAuthorizationUseDefault 13.18.1
 gcp.project.cloudRunService.service.conditions 9.0.0
 gcp.project.cloudRunService.service.created 9.0.0
 gcp.project.cloudRunService.service.creator 9.0.0
@@ -1235,6 +1241,8 @@ gcp.project.cloudSchedulerService.job 11.6.6
 gcp.project.cloudSchedulerService.job.description 11.6.6
 gcp.project.cloudSchedulerService.job.lastAttemptTime 11.6.6
 gcp.project.cloudSchedulerService.job.name 11.6.6
+gcp.project.cloudSchedulerService.job.oauthServiceAccountEmail 13.18.1
+gcp.project.cloudSchedulerService.job.oidcServiceAccountEmail 13.18.1
 gcp.project.cloudSchedulerService.job.projectId 11.6.6
 gcp.project.cloudSchedulerService.job.retryConfig 11.6.6
 gcp.project.cloudSchedulerService.job.schedule 11.6.6
@@ -1265,10 +1273,12 @@ gcp.project.composerService.environment.createTime 13.15.1
 gcp.project.composerService.environment.imageVersion 13.15.1
 gcp.project.composerService.environment.labels 13.15.1
 gcp.project.composerService.environment.name 13.15.1
+gcp.project.composerService.environment.privateEnvironmentEnabled 13.18.1
 gcp.project.composerService.environment.projectId 13.15.1
 gcp.project.composerService.environment.state 13.15.1
 gcp.project.composerService.environment.updateTime 13.15.1
 gcp.project.composerService.environment.uuid 13.15.1
+gcp.project.composerService.environment.webServerAllowedIpRanges 13.18.1
 gcp.project.composerService.environments 13.15.1
 gcp.project.composerService.projectId 13.15.1
 gcp.project.compute 9.0.0
@@ -1390,6 +1400,8 @@ gcp.project.computeService.backendService.regionUrl 9.0.0
 gcp.project.computeService.backendService.securityPolicy 13.6.1
 gcp.project.computeService.backendService.securityPolicyUrl 9.0.0
 gcp.project.computeService.backendService.securitySettings 9.0.0
+gcp.project.computeService.backendService.securitySettingsClientTlsPolicy 13.18.1
+gcp.project.computeService.backendService.securitySettingsSubjectAltNames 13.18.1
 gcp.project.computeService.backendService.serviceBindingUrls 9.0.0
 gcp.project.computeService.backendService.serviceLbPolicy 11.6.6
 gcp.project.computeService.backendService.sessionAffinity 9.0.0
@@ -1456,6 +1468,7 @@ gcp.project.computeService.firewall.direction 9.0.0
 gcp.project.computeService.firewall.disabled 9.0.0
 gcp.project.computeService.firewall.id 9.0.0
 gcp.project.computeService.firewall.logConfig 13.7.2
+gcp.project.computeService.firewall.logConfigMetadata 13.18.1
 gcp.project.computeService.firewall.loggingEnabled 11.6.6
 gcp.project.computeService.firewall.name 9.0.0
 gcp.project.computeService.firewall.network 13.1.2
@@ -1619,6 +1632,7 @@ gcp.project.computeService.instance.metadata 9.0.0
 gcp.project.computeService.instance.minCpuPlatform 9.0.0
 gcp.project.computeService.instance.name 9.0.0
 gcp.project.computeService.instance.networkInterfaces 9.0.0
+gcp.project.computeService.instance.networkStackTypes 13.18.1
 gcp.project.computeService.instance.osInventory 13.15.1
 gcp.project.computeService.instance.osInventory.items 13.15.1
 gcp.project.computeService.instance.osInventory.name 13.15.1
@@ -2255,6 +2269,7 @@ gcp.project.dataflowService.job.name 11.6.6
 gcp.project.dataflowService.job.pipelineDescription 11.6.6
 gcp.project.dataflowService.job.projectId 11.6.6
 gcp.project.dataflowService.job.type 11.6.6
+gcp.project.dataflowService.job.workerIpConfiguration 13.18.1
 gcp.project.dataflowService.jobs 11.6.6
 gcp.project.dataflowService.projectId 11.6.6
 gcp.project.dataplex 13.18.1
@@ -2650,6 +2665,7 @@ gcp.project.dnsService.managedzone.description 9.0.0
 gcp.project.dnsService.managedzone.dnsName 9.0.0
 gcp.project.dnsService.managedzone.dnsSecAlgorithmWeak 13.12.2
 gcp.project.dnsService.managedzone.dnssecConfig 9.0.0
+gcp.project.dnsService.managedzone.dnssecDefaultKeyAlgorithms 13.18.1
 gcp.project.dnsService.managedzone.dnssecEnabled 13.1.2
 gcp.project.dnsService.managedzone.iamPolicy 13.9.1
 gcp.project.dnsService.managedzone.id 9.0.0
@@ -2839,6 +2855,9 @@ gcp.project.gkeService.cluster.clusterIpv4Cidr 9.0.0
 gcp.project.gkeService.cluster.conditions 13.16.3
 gcp.project.gkeService.cluster.confidentialNodesConfig 9.0.0
 gcp.project.gkeService.cluster.controlPlaneEndpointsConfig 13.16.3
+gcp.project.gkeService.cluster.controlPlaneLoggingComponents 13.18.1
+gcp.project.gkeService.cluster.controlPlaneMonitoringComponents 13.18.1
+gcp.project.gkeService.cluster.controlPlanePublicEndpointEnabled 13.18.1
 gcp.project.gkeService.cluster.costManagementConfig 9.0.0
 gcp.project.gkeService.cluster.created 9.0.0
 gcp.project.gkeService.cluster.currentMasterVersion 9.0.0
@@ -2889,6 +2908,8 @@ gcp.project.gkeService.cluster.maintenancePolicy.recurringWindowRecurrence 11.6.
 gcp.project.gkeService.cluster.maintenancePolicy.recurringWindowStartTime 11.6.6
 gcp.project.gkeService.cluster.maintenancePolicy.resourceVersion 11.6.6
 gcp.project.gkeService.cluster.masterAuth 9.0.0
+gcp.project.gkeService.cluster.masterAuthorizedNetworksAllowed 13.18.1
+gcp.project.gkeService.cluster.masterAuthorizedNetworksCidrs 13.18.1
 gcp.project.gkeService.cluster.masterAuthorizedNetworksConfig 9.0.0
 gcp.project.gkeService.cluster.masterAuthorizedNetworksEnabled 13.12.2
 gcp.project.gkeService.cluster.masterGlobalAccessEnabled 13.12.2
@@ -3118,7 +3139,9 @@ gcp.project.iamService.serviceAccount.disabled 9.0.0
 gcp.project.iamService.serviceAccount.displayName 9.0.0
 gcp.project.iamService.serviceAccount.email 9.0.0
 gcp.project.iamService.serviceAccount.hasUserManagedKeys 13.12.2
+gcp.project.iamService.serviceAccount.isDefault 13.18.1
 gcp.project.iamService.serviceAccount.key 9.0.0
+gcp.project.iamService.serviceAccount.key.ageInDays 13.18.1
 gcp.project.iamService.serviceAccount.key.disabled 9.0.0
 gcp.project.iamService.serviceAccount.key.keyAlgorithm 9.0.0
 gcp.project.iamService.serviceAccount.key.keyOrigin 9.0.0
@@ -3161,6 +3184,7 @@ gcp.project.iamService.workloadIdentityPool.provider.providerId 13.13.4
 gcp.project.iamService.workloadIdentityPool.provider.providerType 13.13.4
 gcp.project.iamService.workloadIdentityPool.provider.samlIdpMetadataXml 13.13.4
 gcp.project.iamService.workloadIdentityPool.provider.state 13.13.4
+gcp.project.iamService.workloadIdentityPool.provider.x509TrustAnchorCount 13.18.1
 gcp.project.iamService.workloadIdentityPool.providers 13.13.4
 gcp.project.iamService.workloadIdentityPool.state 13.13.4
 gcp.project.iamService.workloadIdentityPools 13.13.4
@@ -3224,6 +3248,7 @@ gcp.project.kmsService.keyring.cryptokey.labels 9.0.0
 gcp.project.kmsService.keyring.cryptokey.name 9.0.0
 gcp.project.kmsService.keyring.cryptokey.nextRotation 9.0.0
 gcp.project.kmsService.keyring.cryptokey.primary 9.0.0
+gcp.project.kmsService.keyring.cryptokey.primaryState 13.18.1
 gcp.project.kmsService.keyring.cryptokey.public 13.12.2
 gcp.project.kmsService.keyring.cryptokey.purpose 9.0.0
 gcp.project.kmsService.keyring.cryptokey.resourcePath 9.0.0
@@ -3606,6 +3631,7 @@ gcp.project.networkSecurityService.projectId 13.15.1
 gcp.project.networkSecurityService.serverTlsPolicies 13.15.1
 gcp.project.networkSecurityService.serverTlsPolicy 13.15.1
 gcp.project.networkSecurityService.serverTlsPolicy.allowOpen 13.15.1
+gcp.project.networkSecurityService.serverTlsPolicy.clientValidationMode 13.18.1
 gcp.project.networkSecurityService.serverTlsPolicy.created 13.15.1
 gcp.project.networkSecurityService.serverTlsPolicy.description 13.15.1
 gcp.project.networkSecurityService.serverTlsPolicy.labels 13.15.1
@@ -3926,6 +3952,7 @@ gcp.project.secretmanagerService.secret.name 11.1.0
 gcp.project.secretmanagerService.secret.projectId 11.1.0
 gcp.project.secretmanagerService.secret.public 13.12.2
 gcp.project.secretmanagerService.secret.replication 11.1.0
+gcp.project.secretmanagerService.secret.replicationType 13.18.1
 gcp.project.secretmanagerService.secret.resourcePath 11.1.0
 gcp.project.secretmanagerService.secret.rotation 11.1.0
 gcp.project.secretmanagerService.secret.rotationEnabled 13.12.2
@@ -4477,6 +4504,7 @@ gcp.project.workbenchService.instance 13.15.1
 gcp.project.workbenchService.instance.createTime 13.15.1
 gcp.project.workbenchService.instance.creator 13.15.1
 gcp.project.workbenchService.instance.disableProxyAccess 13.15.1
+gcp.project.workbenchService.instance.disablePublicIp 13.18.1
 gcp.project.workbenchService.instance.enableDeletionProtection 13.15.1
 gcp.project.workbenchService.instance.enableThirdPartyIdentity 13.15.1
 gcp.project.workbenchService.instance.gceSetup 13.15.1
@@ -4561,6 +4589,9 @@ gcp.resourcemanager.auditConfig.logConfig.id 11.5.1
 gcp.resourcemanager.auditConfig.logConfig.logType 11.5.1
 gcp.resourcemanager.auditConfig.service 11.5.1
 gcp.resourcemanager.binding 9.0.0
+gcp.resourcemanager.binding.conditionDescription 13.18.1
+gcp.resourcemanager.binding.conditionExpression 13.18.1
+gcp.resourcemanager.binding.conditionTitle 13.18.1
 gcp.resourcemanager.binding.id 9.0.0
 gcp.resourcemanager.binding.members 9.0.0
 gcp.resourcemanager.binding.role 9.0.0

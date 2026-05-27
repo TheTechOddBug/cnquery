@@ -210,9 +210,15 @@ func initGcpProjectKmsServiceKeyringCryptokey(runtime *plugin.Runtime, args map[
 		mqlDestroyScheduledDuration = &v
 	}
 
+	var primaryState string
+	if k.Primary != nil {
+		primaryState = k.Primary.State.String()
+	}
+
 	args["resourcePath"] = llx.StringData(k.Name)
 	args["name"] = llx.StringData(parseResourceName(k.Name))
 	args["primary"] = llx.ResourceData(mqlPrimary, "gcp.project.kmsService.keyring.cryptokey.version")
+	args["primaryState"] = llx.StringData(primaryState)
 	args["purpose"] = llx.StringData(k.Purpose.String())
 	args["created"] = llx.TimeData(k.CreateTime.AsTime())
 	args["nextRotation"] = llx.TimeData(k.NextRotationTime.AsTime())
@@ -447,10 +453,15 @@ func (g *mqlGcpProjectKmsServiceKeyring) cryptokeys() ([]any, error) {
 		if err != nil {
 			return nil, err
 		}
+		var primaryState string
+		if k.Primary != nil {
+			primaryState = k.Primary.State.String()
+		}
 		mqlKey, err := CreateResource(g.MqlRuntime, "gcp.project.kmsService.keyring.cryptokey", map[string]*llx.RawData{
 			"resourcePath":                  llx.StringData(k.Name),
 			"name":                          llx.StringData(parseResourceName(k.Name)),
 			"primary":                       llx.ResourceData(mqlPrimary, "gcp.project.kmsService.keyring.cryptokey.version"),
+			"primaryState":                  llx.StringData(primaryState),
 			"purpose":                       llx.StringData(k.Purpose.String()),
 			"created":                       llx.TimeData(k.CreateTime.AsTime()),
 			"nextRotation":                  llx.TimeData(k.NextRotationTime.AsTime()),
@@ -557,9 +568,12 @@ func (g *mqlGcpProjectKmsServiceKeyringCryptokey) iamPolicy() ([]any, error) {
 	res := make([]any, 0, len(policy.Bindings))
 	for i, b := range policy.Bindings {
 		mqlBinding, err := CreateResource(g.MqlRuntime, "gcp.resourcemanager.binding", map[string]*llx.RawData{
-			"id":      llx.StringData(cryptokey + "-" + strconv.Itoa(i)),
-			"role":    llx.StringData(b.Role),
-			"members": llx.ArrayData(convert.SliceAnyToInterface(b.Members), types.String),
+			"id":                   llx.StringData(cryptokey + "-" + strconv.Itoa(i)),
+			"role":                 llx.StringData(b.Role),
+			"members":              llx.ArrayData(convert.SliceAnyToInterface(b.Members), types.String),
+			"conditionTitle":       llx.StringData(b.GetCondition().GetTitle()),
+			"conditionExpression":  llx.StringData(b.GetCondition().GetExpression()),
+			"conditionDescription": llx.StringData(b.GetCondition().GetDescription()),
 		})
 		if err != nil {
 			return nil, err

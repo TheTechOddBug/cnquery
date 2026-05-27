@@ -481,39 +481,47 @@ func (g *mqlGcpProjectCloudRunService) services() ([]any, error) {
 				if err != nil {
 					log.Error().Err(err).Msg("failed to convert BinaryAuthorization to dict")
 				}
+				var baUseDefault bool
+				var baBreakglass string
+				if s.BinaryAuthorization != nil {
+					baUseDefault = s.BinaryAuthorization.GetUseDefault()
+					baBreakglass = s.BinaryAuthorization.GetBreakglassJustification()
+				}
 				mqlS, err := CreateResource(g.MqlRuntime, "gcp.project.cloudRunService.service", map[string]*llx.RawData{
-					"id":                    llx.StringData(s.Name),
-					"projectId":             llx.StringData(projectId),
-					"region":                llx.StringData(region),
-					"name":                  llx.StringData(parseResourceName(s.Name)),
-					"description":           llx.StringData(s.Description),
-					"generation":            llx.IntData(s.Generation),
-					"labels":                llx.MapData(convert.MapToInterfaceMap(s.Labels), types.String),
-					"annotations":           llx.MapData(convert.MapToInterfaceMap(s.Annotations), types.String),
-					"created":               llx.TimeData(s.CreateTime.AsTime()),
-					"updated":               llx.TimeData(s.UpdateTime.AsTime()),
-					"deleted":               llx.TimeData(s.DeleteTime.AsTime()),
-					"expired":               llx.TimeData(s.ExpireTime.AsTime()),
-					"creator":               llx.StringData(s.Creator),
-					"lastModifier":          llx.StringData(s.LastModifier),
-					"ingress":               llx.StringData(s.Ingress.String()),
-					"launchStage":           llx.StringData(s.LaunchStage.String()),
-					"template":              llx.ResourceData(mqlTemplate, "gcp.project.cloudRunService.service.revisionTemplate"),
-					"traffic":               llx.ArrayData(mqlTraffic, types.Dict),
-					"observedGeneration":    llx.IntData(s.ObservedGeneration),
-					"terminalCondition":     llx.ResourceData(mqlTerminalCondition, "gcp.project.cloudRunService.condition"),
-					"conditions":            llx.ArrayData(mqlConditions, types.Resource("gcp.project.cloudRunService.condition")),
-					"latestReadyRevision":   llx.StringData(s.LatestReadyRevision),
-					"latestCreatedRevision": llx.StringData(s.LatestCreatedRevision),
-					"trafficStatuses":       llx.ArrayData(mqlTrafficStatuses, types.Dict),
-					"uri":                   llx.StringData(s.Uri),
-					"reconciling":           llx.BoolData(s.Reconciling),
-					"customAudiences":       llx.ArrayData(convert.SliceAnyToInterface(s.CustomAudiences), types.String),
-					"defaultUriDisabled":    llx.BoolData(s.DefaultUriDisabled),
-					"satisfiesPzs":          llx.BoolData(s.SatisfiesPzs),
-					"uid":                   llx.StringData(s.Uid),
-					"etag":                  llx.StringData(s.Etag),
-					"binaryAuthorization":   llx.DictData(baDict),
+					"id":                            llx.StringData(s.Name),
+					"projectId":                     llx.StringData(projectId),
+					"region":                        llx.StringData(region),
+					"name":                          llx.StringData(parseResourceName(s.Name)),
+					"description":                   llx.StringData(s.Description),
+					"generation":                    llx.IntData(s.Generation),
+					"labels":                        llx.MapData(convert.MapToInterfaceMap(s.Labels), types.String),
+					"annotations":                   llx.MapData(convert.MapToInterfaceMap(s.Annotations), types.String),
+					"created":                       llx.TimeData(s.CreateTime.AsTime()),
+					"updated":                       llx.TimeData(s.UpdateTime.AsTime()),
+					"deleted":                       llx.TimeData(s.DeleteTime.AsTime()),
+					"expired":                       llx.TimeData(s.ExpireTime.AsTime()),
+					"creator":                       llx.StringData(s.Creator),
+					"lastModifier":                  llx.StringData(s.LastModifier),
+					"ingress":                       llx.StringData(s.Ingress.String()),
+					"launchStage":                   llx.StringData(s.LaunchStage.String()),
+					"template":                      llx.ResourceData(mqlTemplate, "gcp.project.cloudRunService.service.revisionTemplate"),
+					"traffic":                       llx.ArrayData(mqlTraffic, types.Dict),
+					"observedGeneration":            llx.IntData(s.ObservedGeneration),
+					"terminalCondition":             llx.ResourceData(mqlTerminalCondition, "gcp.project.cloudRunService.condition"),
+					"conditions":                    llx.ArrayData(mqlConditions, types.Resource("gcp.project.cloudRunService.condition")),
+					"latestReadyRevision":           llx.StringData(s.LatestReadyRevision),
+					"latestCreatedRevision":         llx.StringData(s.LatestCreatedRevision),
+					"trafficStatuses":               llx.ArrayData(mqlTrafficStatuses, types.Dict),
+					"uri":                           llx.StringData(s.Uri),
+					"reconciling":                   llx.BoolData(s.Reconciling),
+					"customAudiences":               llx.ArrayData(convert.SliceAnyToInterface(s.CustomAudiences), types.String),
+					"defaultUriDisabled":            llx.BoolData(s.DefaultUriDisabled),
+					"satisfiesPzs":                  llx.BoolData(s.SatisfiesPzs),
+					"uid":                           llx.StringData(s.Uid),
+					"etag":                          llx.StringData(s.Etag),
+					"binaryAuthorization":           llx.DictData(baDict),
+					"binaryAuthorizationUseDefault": llx.BoolData(baUseDefault),
+					"binaryAuthorizationBreakglassJustification": llx.StringData(baBreakglass),
 				})
 				if err != nil {
 					log.Error().Err(err).Send()
@@ -531,10 +539,20 @@ func (g *mqlGcpProjectCloudRunService) services() ([]any, error) {
 func cloudRunIamBindings(runtime *plugin.Runtime, resourcePath string, bindings []*runv2.GoogleIamV1Binding) ([]any, error) {
 	res := make([]any, 0, len(bindings))
 	for i, b := range bindings {
+		condTitle, condExpr, condDesc := "", "", ""
+		if b.Condition != nil {
+			condTitle = b.Condition.Title
+			condExpr = b.Condition.Expression
+			condDesc = b.Condition.Description
+		}
+
 		mqlBinding, err := CreateResource(runtime, "gcp.resourcemanager.binding", map[string]*llx.RawData{
-			"id":      llx.StringData(resourcePath + "-" + strconv.Itoa(i)),
-			"role":    llx.StringData(b.Role),
-			"members": llx.ArrayData(convert.SliceAnyToInterface(b.Members), types.String),
+			"id":                   llx.StringData(resourcePath + "-" + strconv.Itoa(i)),
+			"role":                 llx.StringData(b.Role),
+			"members":              llx.ArrayData(convert.SliceAnyToInterface(b.Members), types.String),
+			"conditionTitle":       llx.StringData(condTitle),
+			"conditionExpression":  llx.StringData(condExpr),
+			"conditionDescription": llx.StringData(condDesc),
 		})
 		if err != nil {
 			return nil, err
