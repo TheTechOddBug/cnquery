@@ -4,10 +4,13 @@
 package resources
 
 import (
+	"path/filepath"
 	"strconv"
+	"strings"
 
 	"go.mondoo.com/mql/v13/llx"
 	"go.mondoo.com/mql/v13/providers-sdk/v1/plugin"
+	"go.mondoo.com/mql/v13/providers/bicep/connection"
 	"go.mondoo.com/mql/v13/types"
 )
 
@@ -169,9 +172,12 @@ func (r *mqlBicepResource) resources() ([]any, error) {
 
 // mqlBicepModuleInternal carries the owning file's symbol resolver so the
 // lazy scope/condition expression-tree accessors can resolve referenced root
-// identifiers to same-file declarations.
+// identifiers to same-file declarations. owningFilePath is the path of the
+// file that declared this module; a relative `source` is resolved against its
+// directory by the target() accessor.
 type mqlBicepModuleInternal struct {
-	resolver *symbolResolver
+	resolver       *symbolResolver
+	owningFilePath string
 }
 
 func createMqlModules(runtime *plugin.Runtime, filePath string, modules []parsedModule, resolver *symbolResolver) ([]any, error) {
@@ -206,7 +212,9 @@ func createMqlModules(runtime *plugin.Runtime, filePath string, modules []parsed
 		if err != nil {
 			return nil, err
 		}
-		res.(*mqlBicepModule).resolver = resolver
+		mqlMod := res.(*mqlBicepModule)
+		mqlMod.resolver = resolver
+		mqlMod.owningFilePath = filePath
 		mqlModules = append(mqlModules, res)
 	}
 	return mqlModules, nil
@@ -400,6 +408,58 @@ func (m *mqlBicepModule) scopeTree() (*mqlBicepExpression, error) {
 
 func (m *mqlBicepModule) conditionTree() (*mqlBicepExpression, error) {
 	return expressionTreeFor(m.MqlRuntime, m.__id, "/conditionTree", m.Condition.Data, m.resolver)
+}
+
+// target resolves a local module `source` to the bicep.file it references.
+//
+// Only local sources are resolved: a registry (`br:`) or template-spec (`ts:`)
+// source returns null. The source path is computed relative to the directory
+// of the file that declared the module. The resolved path must match one of
+// the connection's already-discovered files, in which case the same cached
+// bicep.file is returned (reusing its __id) so the runtime serves the existing
+// instance and the caller can traverse into its resources/params/outputs. A
+// path that resolves outside the scanned root — or is otherwise unresolvable —
+// returns null; target() never reads an arbitrary path from disk (see the
+// security note at the lookup below).
+func (m *mqlBicepModule) target() (*mqlBicepFile, error) {
+	source := m.Source.Data
+	// Registry and template-spec references are not local files.
+	if m.IsRegistry.Data || m.IsTemplateSpec.Data ||
+		strings.HasPrefix(source, "br:") || strings.HasPrefix(source, "br/") ||
+		strings.HasPrefix(source, "ts:") || strings.HasPrefix(source, "ts/") {
+		m.Target.State = plugin.StateIsSet | plugin.StateIsNull
+		return nil, nil
+	}
+	if source == "" || m.owningFilePath == "" {
+		m.Target.State = plugin.StateIsSet | plugin.StateIsNull
+		return nil, nil
+	}
+
+	resolved := filepath.Clean(filepath.Join(filepath.Dir(m.owningFilePath), source))
+
+	conn, ok := m.MqlRuntime.Connection.(*connection.BicepConnection)
+	if !ok {
+		m.Target.State = plugin.StateIsSet | plugin.StateIsNull
+		return nil, nil
+	}
+
+	// Resolve only to a file the scan already discovered, returning the same
+	// cached bicep.file instance. We never read an arbitrary path from disk:
+	// `source` comes from the (potentially untrusted) Bicep file, so an
+	// on-demand read of the resolved path would let a crafted module
+	// reference (e.g. '../../../../etc/passwd') disclose arbitrary file
+	// contents via bicep.file.content. The scan already loads every .bicep
+	// under the root recursively, so any legitimate in-tree target — including
+	// ones reached via a relative '../' path — is present here; anything not
+	// found (out-of-root or absolute references) resolves to null.
+	for _, f := range conn.BicepFiles() {
+		if filepath.Clean(f.Path) == resolved {
+			return newMqlBicepFile(m.MqlRuntime, f)
+		}
+	}
+
+	m.Target.State = plugin.StateIsSet | plugin.StateIsNull
+	return nil, nil
 }
 
 // mqlBicepOutputInternal carries the owning file's symbol resolver so the
