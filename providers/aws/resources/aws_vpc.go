@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
@@ -1281,6 +1282,107 @@ func (a *mqlAwsVpc) networkAcls() ([]any, error) {
 		}
 	}
 	return acls, nil
+}
+
+func (a *mqlAwsVpc) defaultSecurityGroup() (*mqlAwsEc2Securitygroup, error) {
+	conn := a.MqlRuntime.Connection.(*connection.AwsConnection)
+	svc := conn.Ec2(a.Region.Data)
+	ctx := context.Background()
+
+	resp, err := svc.DescribeSecurityGroups(ctx, &ec2.DescribeSecurityGroupsInput{
+		Filters: []vpctypes.Filter{
+			vpcFilter(a.Id.Data),
+			{Name: aws.String("group-name"), Values: []string{"default"}},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(resp.SecurityGroups) == 0 {
+		a.DefaultSecurityGroup.State = plugin.StateIsNull | plugin.StateIsSet
+		return nil, nil
+	}
+
+	mqlSg, err := NewResource(a.MqlRuntime, ResourceAwsEc2Securitygroup,
+		map[string]*llx.RawData{
+			"arn": llx.StringData(fmt.Sprintf(securityGroupArnPattern, a.Region.Data, conn.AccountId(), convert.ToValue(resp.SecurityGroups[0].GroupId))),
+		})
+	if err != nil {
+		return nil, err
+	}
+	return mqlSg.(*mqlAwsEc2Securitygroup), nil
+}
+
+func (a *mqlAwsVpc) defaultNetworkAcl() (*mqlAwsEc2Networkacl, error) {
+	conn := a.MqlRuntime.Connection.(*connection.AwsConnection)
+	svc := conn.Ec2(a.Region.Data)
+	ctx := context.Background()
+
+	resp, err := svc.DescribeNetworkAcls(ctx, &ec2.DescribeNetworkAclsInput{
+		Filters: []vpctypes.Filter{
+			vpcFilter(a.Id.Data),
+			{Name: aws.String("default"), Values: []string{"true"}},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(resp.NetworkAcls) == 0 {
+		a.DefaultNetworkAcl.State = plugin.StateIsNull | plugin.StateIsSet
+		return nil, nil
+	}
+
+	mqlAcl, err := NewResource(a.MqlRuntime, ResourceAwsEc2Networkacl,
+		map[string]*llx.RawData{
+			"arn": llx.StringData(fmt.Sprintf(networkAclArnPattern, a.Region.Data, conn.AccountId(), convert.ToValue(resp.NetworkAcls[0].NetworkAclId))),
+		})
+	if err != nil {
+		return nil, err
+	}
+	return mqlAcl.(*mqlAwsEc2Networkacl), nil
+}
+
+func (a *mqlAwsVpc) blockPublicAccessOptions() (any, error) {
+	conn := a.MqlRuntime.Connection.(*connection.AwsConnection)
+	region := a.Region.Data
+
+	// VPC Block Public Access is account/region-scoped, so every VPC in a
+	// region returns identical data — cache it per region on the connection.
+	cacheKey := "_vpc_bpa_" + region
+	if cached, ok := conn.GetCachedValue(cacheKey); ok {
+		return cached, nil
+	}
+
+	svc := conn.Ec2(region)
+	ctx := context.Background()
+
+	resp, err := svc.DescribeVpcBlockPublicAccessOptions(ctx, &ec2.DescribeVpcBlockPublicAccessOptionsInput{})
+	if err != nil {
+		if Is400AccessDeniedError(err) {
+			conn.SetCachedValue(cacheKey, nil)
+			return nil, nil
+		}
+		return nil, err
+	}
+	opts := resp.VpcBlockPublicAccessOptions
+	if opts == nil {
+		conn.SetCachedValue(cacheKey, nil)
+		return nil, nil
+	}
+	lastUpdate := ""
+	if opts.LastUpdateTimestamp != nil {
+		lastUpdate = opts.LastUpdateTimestamp.Format(time.RFC3339)
+	}
+	result := map[string]any{
+		"internetGatewayBlockMode": string(opts.InternetGatewayBlockMode),
+		"state":                    string(opts.State),
+		"exclusionsAllowed":        string(opts.ExclusionsAllowed),
+		"managedBy":                string(opts.ManagedBy),
+		"reason":                   convert.ToValue(opts.Reason),
+		"lastUpdateTimestamp":      lastUpdate,
+	}
+	conn.SetCachedValue(cacheKey, result)
+	return result, nil
 }
 
 // VPN Gateway implementation
