@@ -17,7 +17,7 @@ import (
 	"go.mondoo.com/mql/v13/types"
 )
 
-func (a *mqlAwsIamAccessanalyzerAnalyzer) id() (string, error) {
+func (a *mqlAwsIamAccessAnalyzerAnalyzer) id() (string, error) {
 	return a.Arn.Data, nil
 }
 
@@ -71,7 +71,7 @@ func (a *mqlAwsIamAccessAnalyzer) getAnalyzers(conn *connection.AwsConnection) [
 						return nil, err
 					}
 					for _, analyzer := range analyzers.Analyzers {
-						mqlAnalyzer, err := CreateResource(a.MqlRuntime, "aws.iam.accessanalyzer.analyzer",
+						mqlAnalyzer, err := CreateResource(a.MqlRuntime, "aws.iam.accessAnalyzer.analyzer",
 							map[string]*llx.RawData{
 								"arn":                    llx.StringDataPtr(analyzer.Arn),
 								"name":                   llx.StringDataPtr(analyzer.Name),
@@ -104,7 +104,7 @@ func (a *mqlAwsIamAccessAnalyzer) getAnalyzerMap() (map[string][]string, error) 
 		return nil, analyzerList.Error
 	}
 	for _, analyzer := range analyzerList.Data {
-		analyzerInstance, ok := analyzer.(*mqlAwsIamAccessanalyzerAnalyzer)
+		analyzerInstance, ok := analyzer.(*mqlAwsIamAccessAnalyzerAnalyzer)
 		if !ok {
 			return nil, errors.New("error casting to analyzer instance")
 		}
@@ -182,7 +182,7 @@ func (a *mqlAwsIamAccessAnalyzer) listFindings(conn *connection.AwsConnection, a
 						return nil, err
 					}
 					for _, finding := range findings.Findings {
-						mqlFinding, err := CreateResource(a.MqlRuntime, "aws.iam.accessanalyzer.finding",
+						mqlFinding, err := CreateResource(a.MqlRuntime, "aws.iam.accessAnalyzer.finding",
 							map[string]*llx.RawData{
 								"__id":                 llx.StringDataPtr(finding.Id),
 								"id":                   llx.StringDataPtr(finding.Id),
