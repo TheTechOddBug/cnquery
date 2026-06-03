@@ -253,22 +253,42 @@ func initWindowsOptionalFeature(runtime *plugin.Runtime, args map[string]*llx.Ra
 		return args, nil, nil
 	}
 
-	obj, err := NewResource(runtime, "windows", nil)
+	conn, ok := runtime.Connection.(shared.Connection)
+	if !ok {
+		return args, nil, nil
+	}
+
+	encodedCmd := powershell.Encode(windows.OptionalFeatureQuery(name))
+	executedCmd, err := conn.RunCommand(encodedCmd)
 	if err != nil {
 		return nil, nil, err
 	}
-	winResource := obj.(*mqlWindows)
 
-	features := winResource.GetOptionalFeatures()
-	if features.Error != nil {
-		return nil, nil, features.Error
+	// a non-zero exit means the feature name is unknown
+	if executedCmd.ExitStatus != 0 {
+		return nil, nil, errors.New("could not find feature " + name)
 	}
 
-	for i := range features.Data {
-		hf := features.Data[i].(*mqlWindowsOptionalFeature)
-		if hf.Name.Data == name {
-			return nil, hf, nil
+	features, err := windows.ParseWindowsOptionalFeatures(executedCmd.Stdout)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// DISM treats `*`/`?` in -FeatureName as wildcards, so a wildcard-ish name
+	// can return more than one feature (or none matching exactly); require an
+	// exact name match to keep the historic "could not find feature" behavior.
+	for i := range features {
+		feature := features[i]
+		if feature.Name != name {
+			continue
 		}
+		return map[string]*llx.RawData{
+			"name":        llx.StringData(feature.Name),
+			"displayName": llx.StringData(feature.DisplayName),
+			"description": llx.StringData(feature.Description),
+			"enabled":     llx.BoolData(feature.Enabled),
+			"state":       llx.IntData(feature.State),
+		}, nil, nil
 	}
 
 	// if the feature cannot be found we return an error
