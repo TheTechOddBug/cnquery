@@ -51,6 +51,7 @@ var validatedGCPPermissions = []string{
 	"aiplatform.notebookRuntimeTemplates.list",
 	"aiplatform.notebookRuntimes.list",
 	"aiplatform.pipelineJobs.list",
+	"aiplatform.reasoningEngines.list",
 	"aiplatform.tensorboards.list",
 	"alloydb.backups.list",
 	"alloydb.clusters.list",
