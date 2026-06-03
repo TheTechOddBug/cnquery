@@ -6,7 +6,13 @@ package connection
 import (
 	"context"
 	"errors"
+	"net/http"
+	"time"
 
+	"github.com/oracle/oci-go-sdk/v65/aidocument"
+	"github.com/oracle/oci-go-sdk/v65/ailanguage"
+	"github.com/oracle/oci-go-sdk/v65/aispeech"
+	"github.com/oracle/oci-go-sdk/v65/aivision"
 	"github.com/oracle/oci-go-sdk/v65/apigateway"
 	"github.com/oracle/oci-go-sdk/v65/audit"
 	"github.com/oracle/oci-go-sdk/v65/bastion"
@@ -22,6 +28,7 @@ import (
 	"github.com/oracle/oci-go-sdk/v65/events"
 	"github.com/oracle/oci-go-sdk/v65/filestorage"
 	"github.com/oracle/oci-go-sdk/v65/functions"
+	"github.com/oracle/oci-go-sdk/v65/generativeai"
 	"github.com/oracle/oci-go-sdk/v65/generativeaiagent"
 	"github.com/oracle/oci-go-sdk/v65/identity"
 	"github.com/oracle/oci-go-sdk/v65/keymanagement"
@@ -424,5 +431,67 @@ func (c *OciConnection) DataScienceClient(region string) (*datascience.DataScien
 		return nil, err
 	}
 	client.SetRegion(region)
+	return &client, nil
+}
+
+// failFastOnUnreachableRegion caps the per-request timeout and disables the
+// SDK's default retry policy on a region-limited AI client. Several AI services
+// publish a wildcard DNS record in regions where they are not deployed, so calls
+// there resolve but the connection times out; without this the SDK would retry
+// the timeout ~8 times with backoff and hang for minutes. With it, unavailable
+// regions fail fast and are skipped (see ociRegionServiceUnavailable).
+func failFastOnUnreachableRegion(bc *common.BaseClient) {
+	bc.HTTPClient = &http.Client{Timeout: 15 * time.Second}
+	noRetry := common.NoRetryPolicy()
+	bc.SetCustomClientConfiguration(common.CustomClientConfiguration{RetryPolicy: &noRetry})
+}
+
+func (c *OciConnection) GenerativeAiClient(region string) (*generativeai.GenerativeAiClient, error) {
+	client, err := generativeai.NewGenerativeAiClientWithConfigurationProvider(c.config)
+	if err != nil {
+		return nil, err
+	}
+	client.SetRegion(region)
+	failFastOnUnreachableRegion(&client.BaseClient)
+	return &client, nil
+}
+
+func (c *OciConnection) AILanguageClient(region string) (*ailanguage.AIServiceLanguageClient, error) {
+	client, err := ailanguage.NewAIServiceLanguageClientWithConfigurationProvider(c.config)
+	if err != nil {
+		return nil, err
+	}
+	client.SetRegion(region)
+	failFastOnUnreachableRegion(&client.BaseClient)
+	return &client, nil
+}
+
+func (c *OciConnection) AIVisionClient(region string) (*aivision.AIServiceVisionClient, error) {
+	client, err := aivision.NewAIServiceVisionClientWithConfigurationProvider(c.config)
+	if err != nil {
+		return nil, err
+	}
+	client.SetRegion(region)
+	failFastOnUnreachableRegion(&client.BaseClient)
+	return &client, nil
+}
+
+func (c *OciConnection) AISpeechClient(region string) (*aispeech.AIServiceSpeechClient, error) {
+	client, err := aispeech.NewAIServiceSpeechClientWithConfigurationProvider(c.config)
+	if err != nil {
+		return nil, err
+	}
+	client.SetRegion(region)
+	failFastOnUnreachableRegion(&client.BaseClient)
+	return &client, nil
+}
+
+func (c *OciConnection) AIDocumentClient(region string) (*aidocument.AIServiceDocumentClient, error) {
+	client, err := aidocument.NewAIServiceDocumentClientWithConfigurationProvider(c.config)
+	if err != nil {
+		return nil, err
+	}
+	client.SetRegion(region)
+	failFastOnUnreachableRegion(&client.BaseClient)
 	return &client, nil
 }
