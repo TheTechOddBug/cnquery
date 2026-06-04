@@ -36,6 +36,13 @@ type PermissionDetail struct {
 	Action     string `json:"action"`
 	SourceFile string `json:"source_file"`
 	Scope      string `json:"scope,omitempty"`
+
+	// overridden is an internal dedup hint (never serialized): true when the
+	// Permission came from an override map rather than the natural derivation of
+	// Action. When several call sites in one file resolve to the same permission,
+	// dedup keeps the natural detail so the surviving Action reflects the real API
+	// call. It is reset to false before the manifest is emitted.
+	overridden bool
 }
 
 func main() {
@@ -117,6 +124,14 @@ func main() {
 		if details[i].SourceFile != details[j].SourceFile {
 			return details[i].SourceFile < details[j].SourceFile
 		}
+		// Prefer the natural derivation over an override-sourced one so the
+		// surviving detail's Action reflects the real API call. Without this, an
+		// override that redirects method A to a permission also produced naturally
+		// by method B (e.g. dlp ListDiscoveryConfigs and ListJobTriggers both →
+		// dlp.jobTriggers.list) could leave the override's misleading action.
+		if details[i].overridden != details[j].overridden {
+			return !details[i].overridden
+		}
 		if details[i].Action != details[j].Action {
 			return details[i].Action < details[j].Action
 		}
@@ -133,6 +148,12 @@ func main() {
 			}
 		}
 		details = deduped
+	}
+
+	// overridden is an internal dedup hint only; clear it so it never affects the
+	// serialization-equality check used to skip rewrites.
+	for i := range details {
+		details[i].overridden = false
 	}
 
 	manifest := PermissionManifest{
@@ -283,6 +304,9 @@ var awsServiceNameOverrides = map[string]string{
 	"databasemigrationservice": "dms",
 	"directoryservice":         "ds",
 	"docdb":                    "rds",
+	"docdbelastic":             "docdb-elastic",
+	"efs":                      "elasticfilesystem",
+	"emr":                      "elasticmapreduce",
 	"elasticsearchservice":     "es",
 	"elasticloadbalancing":     "elasticloadbalancing",
 	"elasticloadbalancingv2":   "elasticloadbalancing",
@@ -318,6 +342,78 @@ var awsServiceNameOverrides = map[string]string{
 	"eventbridge":              "events",
 	"sfn":                      "states",
 	"ssoadmin":                 "sso",
+}
+
+// awsPermissionOverrides maps a generated "service:Action" permission to the
+// correct IAM action for the cases where the AWS SDK operation name does not
+// match the IAM action name (the per-service-prefix renames are handled by
+// awsServiceNameOverrides instead). An empty-string value means the operation
+// has no corresponding IAM action and should be skipped entirely. Every entry
+// here was verified live against IAM Access Analyzer (validate-policy) — the
+// left side reported INVALID_ACTION and the right side validated clean.
+var awsPermissionOverrides = map[string]string{
+	// S3 API operation names differ from the S3 IAM action names.
+	"s3:GetBucketAccelerateConfiguration":           "s3:GetAccelerateConfiguration",
+	"s3:GetBucketEncryption":                        "s3:GetEncryptionConfiguration",
+	"s3:GetBucketLifecycleConfiguration":            "s3:GetLifecycleConfiguration",
+	"s3:GetBucketNotificationConfiguration":         "s3:GetBucketNotification",
+	"s3:GetBucketReplication":                       "s3:GetReplicationConfiguration",
+	"s3:GetObjectLockConfiguration":                 "s3:GetBucketObjectLockConfiguration",
+	"s3:GetPublicAccessBlock":                       "s3:GetBucketPublicAccessBlock",
+	"s3:ListBuckets":                                "s3:ListAllMyBuckets",
+	"s3:ListBucketAnalyticsConfigurations":          "s3:GetAnalyticsConfiguration",
+	"s3:ListBucketIntelligentTieringConfigurations": "s3:GetIntelligentTieringConfiguration",
+	"s3:ListBucketInventoryConfigurations":          "s3:GetInventoryConfiguration",
+	"s3:ListBucketMetricsConfigurations":            "s3:GetMetricsConfiguration",
+
+	// API Gateway reads are all governed by the single apigateway:GET action.
+	"apigateway:GetApiKeys":           "apigateway:GET",
+	"apigateway:GetApis":              "apigateway:GET",
+	"apigateway:GetAuthorizers":       "apigateway:GET",
+	"apigateway:GetDomainNames":       "apigateway:GET",
+	"apigateway:GetRequestValidators": "apigateway:GET",
+	"apigateway:GetRestApis":          "apigateway:GET",
+	"apigateway:GetRoutes":            "apigateway:GET",
+	"apigateway:GetStages":            "apigateway:GET",
+	"apigateway:GetUsagePlans":        "apigateway:GET",
+	"apigateway:GetVpcLinks":          "apigateway:GET",
+
+	// Budgets reads are governed by budgets:ViewBudget.
+	"budgets:DescribeBudgets":                    "budgets:ViewBudget",
+	"budgets:DescribeNotificationsForBudget":     "budgets:ViewBudget",
+	"budgets:DescribeSubscribersForNotification": "budgets:ViewBudget",
+
+	// Detective's IAM action is singular (the SDK operation is plural).
+	"detective:ListOrganizationAdminAccounts": "detective:ListOrganizationAdminAccount",
+
+	// The Access Analyzer ListFindingsV2 API maps to access-analyzer:ListFindings.
+	"access-analyzer:ListFindingsV2": "access-analyzer:ListFindings",
+
+	// Amazon Keyspaces uses the cassandra: IAM prefix; reads require
+	// cassandra:Select and tag reads require cassandra:TagResource.
+	"keyspaces:GetKeyspace":         "cassandra:Select",
+	"keyspaces:GetTable":            "cassandra:Select",
+	"keyspaces:ListKeyspaces":       "cassandra:Select",
+	"keyspaces:ListTables":          "cassandra:Select",
+	"keyspaces:ListTagsForResource": "cassandra:TagResource",
+
+	// Bedrock advanced prompt optimization jobs have no published IAM action
+	// yet; skip rather than emit an action that does not exist.
+	"bedrock:GetAdvancedPromptOptimizationJob":   "",
+	"bedrock:ListAdvancedPromptOptimizationJobs": "",
+}
+
+// awsApplyOverride resolves a generated "service:Action" permission against
+// awsPermissionOverrides. It returns the final permission and whether it should
+// be emitted (false means skip — the operation maps to no IAM action).
+func awsApplyOverride(perm string) (string, bool) {
+	if override, ok := awsPermissionOverrides[perm]; ok {
+		if override == "" {
+			return "", false
+		}
+		return override, true
+	}
+	return perm, true
 }
 
 func extractAWSPermissions(resourcesDir string) []PermissionDetail {
@@ -399,12 +495,14 @@ func extractAWSPermissions(resourcesDir string) []PermissionDetail {
 					if svcName, ok := varServices[ident.Name]; ok {
 						if isAWSAPIMethod(methodName) {
 							iamService := awsServiceToIAM(svcName)
-							details = append(details, PermissionDetail{
-								Permission: iamService + ":" + methodName,
-								Service:    iamService,
-								Action:     methodName,
-								SourceFile: fileName,
-							})
+							if perm, ok := awsApplyOverride(iamService + ":" + methodName); ok {
+								details = append(details, PermissionDetail{
+									Permission: perm,
+									Service:    strings.SplitN(perm, ":", 2)[0],
+									Action:     methodName,
+									SourceFile: fileName,
+								})
+							}
 						}
 					}
 				}
@@ -416,12 +514,14 @@ func extractAWSPermissions(resourcesDir string) []PermissionDetail {
 							action := strings.TrimPrefix(methodName, "New")
 							action = strings.TrimSuffix(action, "Paginator")
 							iamService := awsServiceToIAM(awsImports[ident.Name])
-							details = append(details, PermissionDetail{
-								Permission: iamService + ":" + action,
-								Service:    iamService,
-								Action:     action,
-								SourceFile: fileName,
-							})
+							if perm, ok := awsApplyOverride(iamService + ":" + action); ok {
+								details = append(details, PermissionDetail{
+									Permission: perm,
+									Service:    strings.SplitN(perm, ":", 2)[0],
+									Action:     action,
+									SourceFile: fileName,
+								})
+							}
 						}
 					}
 				}
@@ -848,13 +948,14 @@ func extractGCPgRPCCalls(f *ast.File, imports map[string]*gcpImportInfo, fileNam
 			if ident, ok := sel.X.(*ast.Ident); ok {
 				if cv, ok := clientVars[ident.Name]; ok {
 					if isGCPAPIMethod(methodName) {
-						perm := gcpMethodToPermission(cv.imp.service, cv.clientType, methodName)
+						perm, overridden := gcpMethodToPermission(cv.imp.service, cv.clientType, methodName)
 						if perm != "" {
 							details = append(details, PermissionDetail{
 								Permission: perm,
 								Service:    cv.imp.service,
 								Action:     methodName,
 								SourceFile: fileName,
+								overridden: overridden,
 							})
 						}
 					}
@@ -866,13 +967,14 @@ func extractGCPgRPCCalls(f *ast.File, imports map[string]*gcpImportInfo, fileNam
 				resource := innerSel.Sel.Name
 				if ident, ok := innerSel.X.(*ast.Ident); ok {
 					if imp, ok := restVars[ident.Name]; ok {
-						perm := gcpRESTToPermission(imp.service, resource, methodName)
+						perm, overridden := gcpRESTToPermission(imp.service, resource, methodName)
 						if perm != "" {
 							details = append(details, PermissionDetail{
 								Permission: perm,
 								Service:    imp.service,
 								Action:     resource + "." + methodName,
 								SourceFile: fileName,
+								overridden: overridden,
 							})
 						}
 					}
@@ -889,13 +991,14 @@ func extractGCPgRPCCalls(f *ast.File, imports map[string]*gcpImportInfo, fileNam
 								method := chain[len(chain)-1]
 								// Find the meaningful resource (skip "Projects", "Locations")
 								resourceName := findMeaningfulResource(chain[:len(chain)-1])
-								perm := gcpRESTToPermission(imp.service, resourceName, method)
+								perm, overridden := gcpRESTToPermission(imp.service, resourceName, method)
 								if perm != "" {
 									details = append(details, PermissionDetail{
 										Permission: perm,
 										Service:    imp.service,
 										Action:     resourceName + "." + method,
 										SourceFile: fileName,
+										overridden: overridden,
 									})
 								}
 							}
@@ -1055,12 +1158,37 @@ var gcpPermissionOverrides = map[string]map[string]string{
 		"GetConnectionProfile": "datastream.connectionProfiles.get",
 		"GetPrivateConnection": "datastream.privateConnections.get",
 	},
+	"cloudfunctions": {
+		// GetIamPolicy is called on functions (both the v1 and v2 clients); the
+		// real permission is the resource-scoped form, not the auto-derived
+		// "cloudfunctions.iamPolicy.get".
+		"GetIamPolicy": "cloudfunctions.functions.getIamPolicy",
+	},
+	"cloudtasks": {
+		// GetIamPolicy is called on a queue; the real permission is queue-scoped.
+		"GetIamPolicy": "cloudtasks.queues.getIamPolicy",
+	},
+	"discoveryengine": {
+		// GetDataStore → singular "dataStore" by default; the real IAM permission
+		// is the plural form.
+		"GetDataStore": "discoveryengine.dataStores.get",
+	},
+	"cloudidentity": {
+		// The Cloud Identity Groups API is not governed by project/org IAM
+		// permissions (it uses group-scope authorization via member/owner/admin
+		// roles), so no IAM permission corresponds to these calls — skip them.
+		"Groups.List":      "",
+		"Memberships.List": "",
+	},
 	"dlp": {
 		// The DLP API exposes jobs under a `jobs` permission, not `dlpJobs`.
 		"ListDlpJobs": "dlp.jobs.list",
 		// File store data profiles are listed via dlp.fileStoreProfiles.list
 		// (no "Data" segment in the real permission).
 		"ListFileStoreDataProfiles": "dlp.fileStoreProfiles.list",
+		// Discovery configs are governed by the jobTriggers permission; there is
+		// no dlp.discoveryConfigs.* permission.
+		"ListDiscoveryConfigs": "dlp.jobTriggers.list",
 	},
 	"memorystore": {
 		"GetInstance":         "memorystore.instances.get",
@@ -1094,6 +1222,9 @@ var gcpPermissionOverrides = map[string]map[string]string{
 		// IAM v2 deny policies are listed via iam.denypolicies.list, not the
 		// generic "iam.policies.list" (which is not a real permission).
 		"ListPolicies": "iam.denypolicies.list",
+		// GetIamPolicy is called on a service account; the real permission is the
+		// resource-scoped form, not the auto-derived "iam.iamPolicy.get".
+		"GetIamPolicy": "iam.serviceAccounts.getIamPolicy",
 	},
 	"certificatemanager": {
 		// The Certificate Manager IAM permissions use abbreviated, all-lowercase
@@ -1132,7 +1263,12 @@ var gcpPermissionOverrides = map[string]map[string]string{
 // level, not the project level. They are placed in the org_level_permissions
 // section of the manifest instead of the main permissions list.
 var gcpOrgLevelPermissions = map[string]bool{
+	// Custom org-policy constraints are an organization-scoped resource;
+	// ListCustomConstraints is only callable with an "organizations/{id}"
+	// parent, so the permission is rejected in a project-level custom role.
+	"orgpolicy.customConstraints.list":           true,
 	"resourcemanager.folders.get":                true,
+	"resourcemanager.folders.getIamPolicy":       true,
 	"resourcemanager.folders.list":               true,
 	"resourcemanager.folders.search":             true,
 	"resourcemanager.organizations.get":          true,
@@ -1154,10 +1290,13 @@ var gcpSkipMethods = map[string]bool{
 // clientType (e.g., "InstanceAdmin" from NewInstanceAdminClient) lets services with
 // multiple admin clients disambiguate methods like GetIamPolicy that don't carry a
 // resource hint in their name.
-func gcpMethodToPermission(service, clientType, method string) string {
+// gcpMethodToPermission returns the IAM permission for a gRPC method and a bool
+// reporting whether the result came from an override (rather than the natural
+// derivation), used by detail dedup to prefer the natural call site.
+func gcpMethodToPermission(service, clientType, method string) (string, bool) {
 	// Skip known non-API methods
 	if gcpSkipMethods[method] {
-		return ""
+		return "", false
 	}
 
 	// Strip "Iter" suffix from iterator helper methods (e.g., ListRolesIter -> ListRoles)
@@ -1168,11 +1307,11 @@ func gcpMethodToPermission(service, clientType, method string) string {
 	if overrides, ok := gcpPermissionOverrides[service]; ok {
 		if clientType != "" {
 			if perm, ok := overrides[clientType+"."+method]; ok {
-				return perm
+				return perm, true
 			}
 		}
 		if perm, ok := overrides[method]; ok {
-			return perm
+			return perm, true
 		}
 	}
 
@@ -1193,7 +1332,7 @@ func gcpMethodToPermission(service, clientType, method string) string {
 		verb = "get"
 		resource = strings.TrimPrefix(method, "Get")
 		if resource == "" {
-			return "" // bare Get without resource name is ambiguous
+			return "", false // bare Get without resource name is ambiguous
 		}
 	} else if strings.HasPrefix(method, "Create") {
 		verb = "create"
@@ -1214,29 +1353,30 @@ func gcpMethodToPermission(service, clientType, method string) string {
 		verb = "list"
 		resource = strings.TrimPrefix(method, "Search")
 	} else {
-		return ""
+		return "", false
 	}
 
 	if resource == "" {
-		return ""
+		return "", false
 	}
 
 	// Convert PascalCase to camelCase
 	resource = strings.ToLower(resource[:1]) + resource[1:]
 
-	return service + "." + resource + "." + verb
+	return service + "." + resource + "." + verb, false
 }
 
-// gcpRESTToPermission maps a REST-style call to a GCP IAM permission.
-func gcpRESTToPermission(service, resource, method string) string {
+// gcpRESTToPermission maps a REST-style call to a GCP IAM permission. The bool
+// reports whether the result came from an override (see gcpMethodToPermission).
+func gcpRESTToPermission(service, resource, method string) (string, bool) {
 	if resource == "" {
-		return ""
+		return "", false
 	}
 
 	// Check for explicit overrides using "Resource.Method" as the key
 	if overrides, ok := gcpPermissionOverrides[service]; ok {
 		if perm, ok := overrides[resource+"."+method]; ok {
-			return perm
+			return perm, true
 		}
 	}
 
@@ -1253,16 +1393,16 @@ func gcpRESTToPermission(service, resource, method string) string {
 	case "Update", "Patch":
 		verb = "update"
 	case "GetIamPolicy":
-		return service + "." + strings.ToLower(resource[:1]) + resource[1:] + ".getIamPolicy"
+		return service + "." + strings.ToLower(resource[:1]) + resource[1:] + ".getIamPolicy", false
 	case "SetIamPolicy":
-		return service + "." + strings.ToLower(resource[:1]) + resource[1:] + ".setIamPolicy"
+		return service + "." + strings.ToLower(resource[:1]) + resource[1:] + ".setIamPolicy", false
 	default:
 		verb = strings.ToLower(method)
 	}
 
 	// Convert PascalCase resource to camelCase
 	res := strings.ToLower(resource[:1]) + resource[1:]
-	return service + "." + res + "." + verb
+	return service + "." + res + "." + verb, false
 }
 
 // =============================================================================
@@ -1384,6 +1524,11 @@ func extractAzurePermissions(resourcesDir string) []PermissionDetail {
 				// Only care about read operations
 				if isAzureReadMethod(methodName) {
 					perm := azurePermission(info.armProvider, info.resourceType)
+					// A client serving multiple read methods may need per-method
+					// permissions that the client-level derivation can't express.
+					if o, ok := azureMethodPermissionOverrides[info.resourceType+"."+methodName]; ok {
+						perm = o
+					}
 					details = append(details, PermissionDetail{
 						Permission: perm,
 						Service:    info.armProvider,
@@ -1511,6 +1656,21 @@ func azureServiceToARM(service string) string {
 	return "Microsoft." + strings.ToUpper(service[:1]) + service[1:]
 }
 
+// azureMethodPermissionOverrides maps "<ResourceType>.<Method>" to the correct
+// permission for cases where one SDK client serves multiple read methods that
+// require different RBAC permissions. The client-derived permission is the same
+// for every method on the client, so a permission-string override (which keys on
+// that shared result) cannot distinguish them — this map keys on the
+// constructor-derived resource type plus the read method name instead.
+var azureMethodPermissionOverrides = map[string]string{
+	// SQLResourcesClient serves SQL container, role-assignment and role-definition
+	// reads. The client maps everything to sqlDatabases/containers/read (see the
+	// sQLResources override below), so the role calls each need their own mapping
+	// to the correct resource.
+	"SQLResources.NewListSQLRoleAssignmentsPager": "Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments/read",
+	"SQLResources.NewListSQLRoleDefinitionsPager": "Microsoft.DocumentDB/databaseAccounts/sqlRoleDefinitions/read",
+}
+
 // azurePermissionOverrides maps generated permission strings to the correct
 // Azure RBAC permission. Many Azure SDK client names don't include parent
 // resource paths (e.g., servers/) or use different names than the ARM API.
@@ -1531,11 +1691,11 @@ var azurePermissionOverrides = map[string]string{
 	"Microsoft.DBforMySQL/databases/read":      "Microsoft.DBforMySQL/servers/databases/read",
 	"Microsoft.DBforMySQL/firewallRules/read":  "Microsoft.DBforMySQL/servers/firewallRules/read",
 
-	// PostgreSQL: sub-resources need servers/ parent path; threat protection
-	// settings only exist on flexibleServers/
-	"Microsoft.DBforPostgreSQL/configurations/read":                   "Microsoft.DBforPostgreSQL/servers/configurations/read",
-	"Microsoft.DBforPostgreSQL/databases/read":                        "Microsoft.DBforPostgreSQL/servers/databases/read",
-	"Microsoft.DBforPostgreSQL/firewallRules/read":                    "Microsoft.DBforPostgreSQL/servers/firewallRules/read",
+	// PostgreSQL: the legacy single-server resource type (servers/) is retired
+	// and not in the RBAC catalog; all sub-resources resolve to flexibleServers/.
+	"Microsoft.DBforPostgreSQL/configurations/read":                   "Microsoft.DBforPostgreSQL/flexibleServers/configurations/read",
+	"Microsoft.DBforPostgreSQL/databases/read":                        "Microsoft.DBforPostgreSQL/flexibleServers/databases/read",
+	"Microsoft.DBforPostgreSQL/firewallRules/read":                    "Microsoft.DBforPostgreSQL/flexibleServers/firewallRules/read",
 	"Microsoft.DBforPostgreSQL/advancedThreatProtectionSettings/read": "Microsoft.DBforPostgreSQL/flexibleServers/advancedThreatProtectionSettings/read",
 
 	// Network: client names don't match ARM resource types
@@ -1656,6 +1816,92 @@ var azurePermissionOverrides = map[string]string{
 
 	// HybridCompute: machine extensions are nested under machines/, not a top-level type
 	"Microsoft.HybridCompute/machineExtensions/read": "Microsoft.HybridCompute/machines/extensions/read",
+
+	// App (Container Apps): SDK client names omit the managedEnvironments/ or
+	// containerApps/ parent path.
+	"Microsoft.App/certificates/read":                                 "Microsoft.App/managedEnvironments/certificates/read",
+	"Microsoft.App/daprComponents/read":                               "Microsoft.App/managedEnvironments/daprComponents/read",
+	"Microsoft.App/maintenanceConfigurations/read":                    "Microsoft.App/managedEnvironments/maintenanceConfigurations/read",
+	"Microsoft.App/managedEnvironmentPrivateEndpointConnections/read": "Microsoft.App/managedEnvironments/privateEndpointConnections/read",
+	"Microsoft.App/hTTPRouteConfig/read":                              "Microsoft.App/managedEnvironments/httpRouteConfigs/read",
+	"Microsoft.App/containerAppsAuthConfigs/read":                     "Microsoft.App/containerApps/authConfigs/read",
+	"Microsoft.App/containerAppsRevisions/read":                       "Microsoft.App/containerApps/revisions/read",
+
+	// Cognitive Services: sub-resources are nested under accounts/ (and projects/).
+	"Microsoft.Cognitiveservices/accountConnections/read":    "Microsoft.CognitiveServices/accounts/connections/read",
+	"Microsoft.Cognitiveservices/projectConnections/read":    "Microsoft.CognitiveServices/accounts/projects/connections/read",
+	"Microsoft.Cognitiveservices/projects/read":              "Microsoft.CognitiveServices/accounts/projects/read",
+	"Microsoft.Cognitiveservices/deployments/read":           "Microsoft.CognitiveServices/accounts/deployments/read",
+	"Microsoft.Cognitiveservices/defenderForAISettings/read": "Microsoft.CognitiveServices/accounts/defenderForAISettings/read",
+	"Microsoft.Cognitiveservices/raiPolicies/read":           "Microsoft.CognitiveServices/accounts/raiPolicies/read",
+	"Microsoft.Cognitiveservices/raiTopics/read":             "Microsoft.CognitiveServices/accounts/raiTopics/read",
+
+	// Compute: dedicated hosts live under hostGroups/; gallery images under
+	// galleries/; scale-set sub-resources under virtualMachineScaleSets/.
+	"Microsoft.Compute/dedicatedHostGroups/read":              "Microsoft.Compute/hostGroups/read",
+	"Microsoft.Compute/dedicatedHosts/read":                   "Microsoft.Compute/hostGroups/hosts/read",
+	"Microsoft.Compute/galleryImages/read":                    "Microsoft.Compute/galleries/images/read",
+	"Microsoft.Compute/galleryImageVersions/read":             "Microsoft.Compute/galleries/images/versions/read",
+	"Microsoft.Compute/virtualMachineScaleSetExtensions/read": "Microsoft.Compute/virtualMachineScaleSets/extensions/read",
+	"Microsoft.Compute/virtualMachineScaleSetVMs/read":        "Microsoft.Compute/virtualMachineScaleSets/virtualMachines/read",
+
+	// ContainerService: agent pools are nested under managedClusters/.
+	"Microsoft.ContainerService/agentPools/read": "Microsoft.ContainerService/managedClusters/agentPools/read",
+
+	// DBforPostgreSQL: the SDK ServersClient maps to the flexibleServers/ resource
+	// type (the configurations/databases/firewallRules sub-resources are handled by
+	// the existing PostgreSQL entries above, which already resolve to flexibleServers/).
+	"Microsoft.DBforPostgreSQL/servers/read":                    "Microsoft.DBforPostgreSQL/flexibleServers/read",
+	"Microsoft.DBforPostgreSQL/privateEndpointConnections/read": "Microsoft.DBforPostgreSQL/flexibleServers/privateEndpointConnections/read",
+
+	// DocumentDB: private endpoint connections are nested under databaseAccounts/;
+	// the SQLResources client reads SQL containers.
+	"Microsoft.DocumentDB/privateEndpointConnections/read": "Microsoft.DocumentDB/databaseAccounts/privateEndpointConnections/read",
+	"Microsoft.DocumentDB/sQLResources/read":               "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers/read",
+
+	// Mongo cluster operations live under the Microsoft.DocumentDB provider.
+	"Microsoft.Mongocluster/mongoClusters/read": "Microsoft.DocumentDB/mongoClusters/read",
+
+	// MachineLearningServices: sub-resources are nested under workspaces/.
+	"Microsoft.MachineLearningServices/compute/read":             "Microsoft.MachineLearningServices/workspaces/computes/read",
+	"Microsoft.MachineLearningServices/modelContainers/read":     "Microsoft.MachineLearningServices/workspaces/models/read",
+	"Microsoft.MachineLearningServices/onlineDeployments/read":   "Microsoft.MachineLearningServices/workspaces/onlineEndpoints/deployments/read",
+	"Microsoft.MachineLearningServices/onlineEndpoints/read":     "Microsoft.MachineLearningServices/workspaces/onlineEndpoints/read",
+	"Microsoft.MachineLearningServices/serverlessEndpoints/read": "Microsoft.MachineLearningServices/workspaces/serverlessEndpoints/read",
+
+	// Network: several SDK clients omit the parent resource path.
+	"Microsoft.Network/connectionMonitors/read":                "Microsoft.Network/networkWatchers/connectionMonitors/read",
+	"Microsoft.Network/expressRouteCircuitAuthorizations/read": "Microsoft.Network/expressRouteCircuits/authorizations/read",
+	"Microsoft.Network/expressRouteCircuitPeerings/read":       "Microsoft.Network/expressRouteCircuits/peerings/read",
+	"Microsoft.Network/hubRouteTables/read":                    "Microsoft.Network/virtualHubs/hubRouteTables/read",
+	"Microsoft.Network/hubVirtualNetworkConnections/read":      "Microsoft.Network/virtualHubs/hubVirtualNetworkConnections/read",
+	"Microsoft.Network/packetCaptures/read":                    "Microsoft.Network/networkWatchers/packetCaptures/read",
+	// Traffic Manager operations live under the Microsoft.Network provider.
+	"Microsoft.Trafficmanager/profiles/read": "Microsoft.Network/trafficManagerProfiles/read",
+
+	// Search: the ARM resource type is searchServices, not services.
+	"Microsoft.Search/services/read": "Microsoft.Search/searchServices/read",
+
+	// Security: Defender for Storage settings use the longer resource type name.
+	"Microsoft.Security/defenderForStorage/read": "Microsoft.Security/defenderForStorageSettings/read",
+
+	// Sql: server- and database-scoped sub-resources need their parent paths.
+	"Microsoft.Sql/dataMaskingPolicies/read":                  "Microsoft.Sql/servers/databases/dataMaskingPolicies/read",
+	"Microsoft.Sql/dataMaskingRules/read":                     "Microsoft.Sql/servers/databases/dataMaskingPolicies/rules/read",
+	"Microsoft.Sql/databaseVulnerabilityAssessmentScans/read": "Microsoft.Sql/servers/databases/vulnerabilityAssessments/scans/read",
+	"Microsoft.Sql/databaseVulnerabilityAssessments/read":     "Microsoft.Sql/servers/databases/vulnerabilityAssessments/read",
+	"Microsoft.Sql/failoverGroups/read":                       "Microsoft.Sql/servers/failoverGroups/read",
+	"Microsoft.Sql/geoBackupPolicies/read":                    "Microsoft.Sql/servers/databases/geoBackupPolicies/read",
+	"Microsoft.Sql/ledgerDigestUploads/read":                  "Microsoft.Sql/servers/databases/ledgerDigestUploads/read",
+	"Microsoft.Sql/managedDatabases/read":                     "Microsoft.Sql/managedInstances/databases/read",
+	"Microsoft.Sql/outboundFirewallRules/read":                "Microsoft.Sql/servers/outboundFirewallRules/read",
+	"Microsoft.Sql/privateEndpointConnections/read":           "Microsoft.Sql/servers/privateEndpointConnections/read",
+	"Microsoft.Sql/replicationLinks/read":                     "Microsoft.Sql/servers/replicationLinks/read",
+	"Microsoft.Sql/serverDevOpsAuditSettings/read":            "Microsoft.Sql/servers/devOpsAuditingSettings/read",
+	"Microsoft.Sql/serverKeys/read":                           "Microsoft.Sql/servers/keys/read",
+
+	// Storage: network security perimeter configs are nested under storageAccounts/.
+	"Microsoft.Storage/networkSecurityPerimeterConfigurations/read": "Microsoft.Storage/storageAccounts/networkSecurityPerimeterConfigurations/read",
 }
 
 // azurePermission constructs the RBAC permission string.
