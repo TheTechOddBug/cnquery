@@ -1375,7 +1375,55 @@ func parseBicepValue(v string) any {
 			return v[1 : len(v)-1]
 		}
 	}
+	// Bare `true`/`false` and numeric literals become typed values so policies
+	// can compare them naturally (`== true`, `>= 30`) instead of against the
+	// stringified form. Anything else (an expression like `resourceGroup().id`,
+	// a bare symbol) is returned as-is.
+	switch v {
+	case "true":
+		return true
+	case "false":
+		return false
+	}
+	if n, ok := parseBicepNumber(v); ok {
+		return n
+	}
 	return v
+}
+
+// parseBicepNumber parses a bare integer or float literal into a float64 (the
+// shape MQL uses for numbers inside a dict). Returns false for anything that
+// isn't a plain decimal literal so expressions — and the special float forms
+// `Inf`/`NaN` that `strconv.ParseFloat` would otherwise accept — stay raw
+// strings.
+func parseBicepNumber(v string) (float64, bool) {
+	if v == "" {
+		return 0, false
+	}
+	for i := 0; i < len(v); i++ {
+		c := v[i]
+		switch {
+		case c >= '0' && c <= '9', c == '.':
+		case (c == '-' || c == '+') && i == 0:
+		default:
+			return 0, false
+		}
+	}
+	if f, err := strconv.ParseFloat(v, 64); err == nil {
+		return f, true
+	}
+	return 0, false
+}
+
+// stripLiteralQuotes removes the surrounding single quotes from a Bicep string
+// literal (`'eastus'` -> `eastus`), leaving unquoted expressions
+// (`resourceGroup().location`) untouched. Mirrors how parameter default values
+// are unquoted, so equality checks like `name == "eastus"` work directly.
+func stripLiteralQuotes(s string) string {
+	if len(s) >= 2 && s[0] == '\'' && s[len(s)-1] == '\'' {
+		return s[1 : len(s)-1]
+	}
+	return s
 }
 
 func parseBicepArray(body string) []any {
