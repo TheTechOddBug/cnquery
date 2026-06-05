@@ -57,8 +57,23 @@ ansible.play @defaults("name") {
   vars map[string]dict
   // Tags used to select or skip the play with --tags / --skip-tags
   tags []string
-  // Roles to apply
+  // Names of roles applied by the play
   roles []string
+  // Roles applied by this play, with their application directives
+  //
+  // Each application carries the directives supplied at the call site (when,
+  // tags, vars) alongside the resolved role, so a play that applies a role
+  // conditionally or with parameters can be audited. The resolved role is
+  // empty when analyzing a standalone playbook file outside a project.
+  roleApplications() []ansible.play.roleApplication
+  // Files of variables loaded into the play via vars_files
+  varsFiles []string
+  // Variables prompted for interactively at runtime via vars_prompt
+  varsPrompt []dict
+  // Environment variables applied to every task in the play
+  environment map[string]dict
+  // Collection search order for unqualified module names
+  collections []string
   // Tasks executed before roles
   preTasks() []ansible.task
   // Tasks to execute
@@ -80,6 +95,18 @@ ansible.task @defaults("name"){
   name string
   // Module and arguments to execute
   action dict
+  // Module the task invokes
+  //
+  // The action key as written in the source — for example
+  // `ansible.builtin.copy` or `command` — so tasks can be selected by module
+  // without knowing the exact key in `action`. Empty for pure control-flow
+  // tasks such as blocks or includes.
+  module() string
+  // Arguments passed to the task's module
+  //
+  // The mapping under the module key, or the free-form argument string for the
+  // `action:` shorthand. Null when the task invokes no module.
+  moduleArgs() dict
   // Task-level variables
   vars map[string]dict
   // Tags used to select or skip the task with --tags / --skip-tags
@@ -146,6 +173,19 @@ ansible.task @defaults("name"){
   importTasks string
   // Dynamically include tasks at runtime
   includeTasks string
+  // Imported or included task files, resolved within the project
+  //
+  // Resolves the file referenced by `importTasks` or `includeTasks` to its
+  // parsed tasks when the path is a literal. A path built from a Jinja2
+  // expression cannot be followed during static analysis, so this is empty in
+  // that case and the raw string fields remain the source of truth.
+  importedTasks() []ansible.task
+  // Playbook imported or included by this task, resolved within the project
+  //
+  // Resolves the file referenced by `importPlaybook` or `includePlaybook` to
+  // its parsed playbook when the path is a literal. Null when the path is a
+  // Jinja2 expression that cannot be followed during static analysis.
+  importedPlaybook() ansible.playbook
   // Tasks in error handling block
   block() []ansible.task
   // Tasks to run on block failure
@@ -163,4 +203,327 @@ ansible.handler @defaults("name"){
   name string
   // Module and arguments to execute
   action dict
+}
+
+// Ansible project directory
+//
+// Entry point for static analysis of a whole Ansible project, rather than a
+// single playbook file. Discovers the project's playbooks, roles, inventory
+// and host/group variables, Galaxy requirements, ansible.cfg, and
+// vault-encrypted files, so audits can reason across the entire codebase
+// without executing anything against an inventory. Populated only when the
+// provider is pointed at a directory; a single file path yields the playbook
+// model through the `ansible` resource instead.
+ansible.project @defaults("path") {
+  // Absolute path of the project root directory
+  path string
+  // Playbook files discovered in the project
+  playbooks() []ansible.playbook
+  // Roles defined under the project's roles/ directory
+  roles() []ansible.role
+  // Static inventory and host/group variables
+  inventory() ansible.inventory
+  // External roles and collections declared in requirements.yml
+  requirements() ansible.galaxy.requirements
+  // Collections vendored under collections/ansible_collections/
+  collections() []ansible.collection
+  // Custom modules and plugins shipped in the project
+  plugins() []ansible.plugin
+  // The project's own collection manifest (galaxy.yml), when it is a collection
+  manifest() ansible.galaxy.manifest
+  // Parsed ansible.cfg settings
+  config() ansible.config
+  // Vault-encrypted files and inline encrypted variables detected in the project
+  vault() ansible.vault
+  // Path of the project's ansible-lint configuration, when present
+  lintConfig() string
+  // Names of Molecule test scenarios defined under molecule/
+  moleculeScenarios() []string
+}
+
+// Ansible playbook file
+//
+// Examine a single playbook file within a project. The `path` selects the file
+// and `plays` exposes the plays it defines — for example
+// `ansible.project.playbooks.where(path == /site.yml/).first.plays`.
+ansible.playbook @defaults("path") {
+  // Absolute path of the playbook file
+  path string
+  // Plays defined in the playbook
+  plays() []ansible.play
+}
+
+// Ansible role
+//
+// Examine a reusable role defined under the project's roles/ directory: the
+// tasks and handlers it runs, the default and role-scoped variables it sets,
+// its meta information (galaxy_info, minimum Ansible version), the roles it
+// depends on, and the templates and files it ships. The `name` selects the
+// role — for example `ansible.project.roles.where(name == "nginx").first`.
+ansible.role @defaults("name") {
+  // Role name (its directory name under roles/)
+  name string
+  // Absolute path of the role directory
+  path string
+  // Tasks defined in tasks/main.yml
+  tasks() []ansible.task
+  // Handlers defined in handlers/main.yml
+  handlers() []ansible.handler
+  // Default variables from defaults/main.yml
+  defaults map[string]dict
+  // Role-scoped variables from vars/main.yml
+  vars map[string]dict
+  // Role metadata from meta/main.yml
+  meta() ansible.role.meta
+  // Declared input contract from meta/argument_specs.yml
+  //
+  // Keyed by entry point (for example `main`); each entry describes the role's
+  // accepted options, their types, and whether they are required. Empty when
+  // the role declares no argument specs.
+  argumentSpecs dict
+  // Roles this role depends on, resolved within the project
+  //
+  // Resolves each dependency named in meta/main.yml to the matching role under
+  // the project's roles/ directory. Empty when a dependency points at an
+  // external role that is not vendored into the project.
+  dependencies() []ansible.role
+  // Relative paths of files under templates/
+  templates []string
+  // Relative paths of files under files/
+  files []string
+}
+
+// Ansible role metadata
+//
+// Examine the meta/main.yml of a role: the minimum Ansible version it declares,
+// the galaxy_info block describing authorship and platform support, and the
+// names of the roles it depends on.
+ansible.role.meta @defaults("minAnsibleVersion") {
+  // Minimum Ansible version the role supports
+  minAnsibleVersion string
+  // Galaxy metadata block (author, description, license, platforms)
+  galaxyInfo dict
+  // Names of roles this role depends on
+  dependencies []string
+}
+
+// Ansible inventory
+//
+// Examine the project's static inventory: the groups and hosts it defines and
+// the variables that apply to each, merged from inventory files and the
+// group_vars/ and host_vars/ directories. Dynamic inventory plugins are not
+// evaluated.
+ansible.inventory {
+  // Groups defined in the inventory
+  groups() []ansible.inventory.group
+  // Hosts defined in the inventory
+  hosts() []ansible.inventory.host
+}
+
+// Group of hosts in an Ansible inventory
+//
+// Examine a named inventory group: its member hosts, child groups, and the
+// variables applied to the group (from `[group:vars]` sections, YAML `vars`,
+// or group_vars/). The `name` selects the group — for example
+// `ansible.inventory.groups.where(name == "webservers").first`.
+ansible.inventory.group @defaults("name") {
+  // Group name
+  name string
+  // Names of hosts that belong to the group
+  hosts []string
+  // Names of child groups
+  children []string
+  // Variables applied to the group
+  vars map[string]dict
+}
+
+// Host in an Ansible inventory
+//
+// Examine a single inventory host: the groups it belongs to and the variables
+// applied to it (from inline inventory variables or host_vars/). The `name`
+// selects the host — for example
+// `ansible.inventory.hosts.where(name == "web1.example.com").first`.
+ansible.inventory.host @defaults("name") {
+  // Host name as it appears in the inventory
+  name string
+  // Names of groups the host belongs to
+  groups []string
+  // Variables applied to the host
+  vars map[string]dict
+}
+
+// Ansible Galaxy requirements
+//
+// Examine the external roles and collections a project pulls in through its
+// requirements.yml — the supply chain of third-party Ansible content, with the
+// source and pinned version of each dependency.
+ansible.galaxy.requirements @defaults("path") {
+  // Absolute path of the requirements file
+  path string
+  // External roles required by the project
+  roles() []ansible.galaxy.role
+  // External collections required by the project
+  collections() []ansible.galaxy.collection
+}
+
+// Ansible Galaxy role requirement
+//
+// Examine a single external role dependency declared in requirements.yml. The
+// `name` selects the entry; `src`, `version`, and `scm` describe where the role
+// is fetched from and which revision is pinned.
+ansible.galaxy.role @defaults("name") {
+  // Role name
+  name string
+  // Source of the role (Galaxy name, Git URL, or tarball URL)
+  src string
+  // Pinned version, tag, or branch
+  version string
+  // Source control system used to fetch the role (for example git)
+  scm string
+}
+
+// Ansible Galaxy collection requirement
+//
+// Examine a single external collection dependency declared in requirements.yml.
+// The `name` selects the entry; `version`, `source`, and `type` describe which
+// revision is pinned and where the collection is fetched from.
+ansible.galaxy.collection @defaults("name") {
+  // Collection name
+  name string
+  // Pinned version or version range
+  version string
+  // Source the collection is fetched from (for example a Galaxy server URL)
+  source string
+  // Dependency type (for example galaxy, git, file, or url)
+  type string
+}
+
+// Ansible configuration file
+//
+// Examine the project's ansible.cfg. The full file is available as `sections`,
+// and the security-relevant settings are surfaced directly with Ansible's
+// documented defaults applied: whether SSH host-key checking is enabled and
+// whether privilege escalation is on by default.
+ansible.config @defaults("path") {
+  // Absolute path of the ansible.cfg file
+  path string
+  // All configuration sections and their key/value pairs
+  sections map[string]dict
+  // Whether SSH host-key checking is enabled (defaults to true when unset)
+  hostKeyChecking bool
+  // Whether privilege escalation is enabled by default
+  become bool
+  // Default user to become for privilege escalation
+  becomeUser string
+}
+
+// Ansible vault encryption usage
+//
+// Examine where the project relies on Ansible Vault: fully encrypted files and
+// individual variables encrypted inline with a `!vault` tag. Contents are never
+// decrypted during static analysis, so each entry reports only its location and
+// the metadata carried in the vault header.
+ansible.vault {
+  // Fully vault-encrypted files detected in the project
+  files() []ansible.vault.file
+  // Variables encrypted inline with a !vault tag in otherwise-plaintext files
+  variables() []ansible.vault.variable
+}
+
+// Vault-encrypted file
+//
+// Examine a single fully vault-encrypted file. The `path` selects the file;
+// `format`, `cipher`, and `vaultId` come from the `$ANSIBLE_VAULT` header. The
+// file's plaintext is not available because static analysis has no vault
+// password.
+ansible.vault.file @defaults("path") {
+  // Absolute path of the encrypted file
+  path string
+  // Vault format version from the header (for example 1.1 or 1.2)
+  format string
+  // Cipher named in the header (for example AES256)
+  cipher string
+  // Vault-id label from the header, when present (format 1.2 and later)
+  vaultId string
+}
+
+// Inline vault-encrypted variable
+//
+// Examine a single variable encrypted in place with a `!vault` tag inside an
+// otherwise-plaintext file. The `key` is the variable's key path within the
+// file and `file` is the file that contains it.
+ansible.vault.variable @defaults("key") {
+  // Key path of the encrypted variable within its file
+  key string
+  // Absolute path of the file containing the encrypted variable
+  file string
+}
+
+// Role applied by a play
+//
+// Examine how a play applies a role: the role name, the conditional (`when`)
+// and tags that gate the application, the variables passed to the role at the
+// call site, and the resolved role itself for traversal into its tasks and
+// dependencies.
+ansible.play.roleApplication @defaults("name") {
+  // Name of the applied role
+  name string
+  // Condition gating the role application
+  when string
+  // Tags attached to the role application
+  tags []string
+  // Variables passed to the role at the application site
+  vars map[string]dict
+  // The applied role, resolved within the project
+  //
+  // Empty when analyzing a standalone playbook file, or when the name does not
+  // match a role under the project's roles/ directory.
+  role() ansible.role
+}
+
+// Collection vendored in the project
+//
+// Examine a collection installed under collections/ansible_collections/. The
+// `name` is the fully qualified `namespace.name` and selects the collection;
+// `version` and `path` describe which revision is installed and where.
+// Comparing these against the project's requirements reveals dependency drift.
+ansible.collection @defaults("name") {
+  // Fully qualified collection name (namespace.name)
+  name string
+  // Collection namespace
+  namespace string
+  // Installed version
+  version string
+  // Absolute path of the installed collection
+  path string
+}
+
+// Custom module or plugin in the project
+//
+// Examine custom code shipped inside the project — modules, module utilities,
+// and plugins (filter, lookup, action, callback, and so on). This is code that
+// executes during a run, so it forms part of the project's supply chain. The
+// `name` is the file name without extension and `type` is the plugin type.
+ansible.plugin @defaults("name type") {
+  // Plugin file name without extension
+  name string
+  // Plugin type (for example module, filter, lookup, action, callback)
+  type string
+  // Absolute path of the plugin file
+  path string
+}
+
+// Ansible collection manifest
+//
+// Examine the project's own galaxy.yml, present when the project is itself an
+// Ansible collection. Reports the collection's namespace, name, and version.
+ansible.galaxy.manifest @defaults("name") {
+  // Absolute path of the galaxy.yml file
+  path string
+  // Collection namespace
+  namespace string
+  // Collection name
+  name string
+  // Collection version
+  version string
 }
