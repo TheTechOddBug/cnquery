@@ -2,14 +2,12 @@ ACCOUNTADMIN
 AIBOM
 BXdl
 Beixb
-CEPHFS
 CPWn
 DATAUSER
 DRdf
 Duf
 FEBLx
 FWaa
-GLUSTERFS
 GOSUMDB
 HBFNV
 IBgt
@@ -19,7 +17,6 @@ JFi
 JWKS
 KVCACHE
 Laravel
-MAPRFS
 Mnfz
 NINEl
 NSGs
@@ -58,7 +55,6 @@ bwawxf
 cafd
 cbf
 ccf
-cephx
 cetypes
 chabc
 ciscocatalyst
@@ -135,6 +131,7 @@ noreply
 notif
 nsrecord
 nss
+nutanix
 oidc
 ollama
 opcplc
@@ -180,14 +177,11 @@ tokio
 transitives
 uami
 unifi
-vGPU
 vcpus
 vendored
 venv
 virtio
-vlan
 vllm
-vxlan
 wordpress
 worktree
 wrkspc
