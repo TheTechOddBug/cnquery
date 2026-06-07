@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -411,68 +412,11 @@ func (a *mqlAzureSubscriptionNetworkServiceWatcher) flowLogs() ([]any, error) {
 		if err != nil {
 			return nil, err
 		}
-		type mqlRetentionPolicy struct {
-			Enabled       bool `json:"enabled"`
-			RetentionDays int  `json:"retentionDays"`
-		}
-		type mqlFlowLogAnalytics struct {
-			Enabled             bool   `json:"allowedApplications"`
-			AnalyticsInterval   int    `json:"analyticsInterval"`
-			WorkspaceId         string `json:"workspaceResourceId"`
-			WorkspaceResourceId string `json:"workspaceId"`
-			WorkspaceRegion     string `json:"workspaceRegion"`
-		}
 		for _, flowLog := range page.Value {
-			var retentionPolicy mqlRetentionPolicy
-			if rp := flowLog.Properties.RetentionPolicy; rp != nil {
-				retentionPolicy = mqlRetentionPolicy{
-					Enabled:       convert.ToValue(rp.Enabled),
-					RetentionDays: int(convert.ToValue(rp.Days)),
-				}
+			if flowLog == nil {
+				continue
 			}
-			retentionPolicyDict, err := convert.JsonToDict(retentionPolicy)
-			if err != nil {
-				return nil, err
-			}
-			var flowLogAnalytics mqlFlowLogAnalytics
-			if fac := flowLog.Properties.FlowAnalyticsConfiguration; fac != nil && fac.NetworkWatcherFlowAnalyticsConfiguration != nil {
-				nwfac := fac.NetworkWatcherFlowAnalyticsConfiguration
-				flowLogAnalytics = mqlFlowLogAnalytics{
-					Enabled:             convert.ToValue(nwfac.Enabled),
-					AnalyticsInterval:   int(convert.ToValue(nwfac.TrafficAnalyticsInterval)),
-					WorkspaceRegion:     convert.ToValue(nwfac.WorkspaceRegion),
-					WorkspaceResourceId: convert.ToValue(nwfac.WorkspaceResourceID),
-					WorkspaceId:         convert.ToValue(nwfac.WorkspaceID),
-				}
-			}
-			flowLogAnalyticsDict, err := convert.JsonToDict(flowLogAnalytics)
-			if err != nil {
-				return nil, err
-			}
-			var formatType *string
-			var formatVersion *int32
-			if f := flowLog.Properties.Format; f != nil {
-				formatType = (*string)(f.Type)
-				formatVersion = f.Version
-			}
-			mqlFlowLog, err := CreateResource(a.MqlRuntime, "azure.subscription.networkService.watcher.flowlog",
-				map[string]*llx.RawData{
-					"id":                 llx.StringDataPtr(flowLog.ID),
-					"name":               llx.StringDataPtr(flowLog.Name),
-					"location":           llx.StringDataPtr(flowLog.Location),
-					"tags":               llx.MapData(convert.PtrMapStrToInterface(flowLog.Tags), types.String),
-					"type":               llx.StringDataPtr(flowLog.Type),
-					"etag":               llx.StringDataPtr(flowLog.Etag),
-					"retentionPolicy":    llx.DictData(retentionPolicyDict),
-					"format":             llx.StringDataPtr(formatType),
-					"version":            llx.IntDataDefault(formatVersion, 0),
-					"enabled":            llx.BoolDataPtr(flowLog.Properties.Enabled),
-					"storageAccountId":   llx.StringDataPtr(flowLog.Properties.StorageID),
-					"targetResourceId":   llx.StringDataPtr(flowLog.Properties.TargetResourceID),
-					"targetResourceGuid": llx.StringDataPtr(flowLog.Properties.TargetResourceGUID),
-					"provisioningState":  llx.StringDataPtr((*string)(flowLog.Properties.ProvisioningState)),
-					"analytics":          llx.DictData(flowLogAnalyticsDict),
-				})
+			mqlFlowLog, err := flowLogToMql(a.MqlRuntime, *flowLog)
 			if err != nil {
 				return nil, err
 			}
@@ -481,6 +425,79 @@ func (a *mqlAzureSubscriptionNetworkServiceWatcher) flowLogs() ([]any, error) {
 	}
 
 	return res, nil
+}
+
+func flowLogToMql(runtime *plugin.Runtime, flowLog network.FlowLog) (*mqlAzureSubscriptionNetworkServiceWatcherFlowlog, error) {
+	type mqlRetentionPolicy struct {
+		Enabled       bool `json:"enabled"`
+		RetentionDays int  `json:"retentionDays"`
+	}
+	type mqlFlowLogAnalytics struct {
+		Enabled             bool   `json:"allowedApplications"`
+		AnalyticsInterval   int    `json:"analyticsInterval"`
+		WorkspaceId         string `json:"workspaceResourceId"`
+		WorkspaceResourceId string `json:"workspaceId"`
+		WorkspaceRegion     string `json:"workspaceRegion"`
+	}
+
+	args := map[string]*llx.RawData{
+		"id":       llx.StringDataPtr(flowLog.ID),
+		"name":     llx.StringDataPtr(flowLog.Name),
+		"location": llx.StringDataPtr(flowLog.Location),
+		"tags":     llx.MapData(convert.PtrMapStrToInterface(flowLog.Tags), types.String),
+		"type":     llx.StringDataPtr(flowLog.Type),
+		"etag":     llx.StringDataPtr(flowLog.Etag),
+	}
+
+	if props := flowLog.Properties; props != nil {
+		var retentionPolicy mqlRetentionPolicy
+		if rp := props.RetentionPolicy; rp != nil {
+			retentionPolicy = mqlRetentionPolicy{
+				Enabled:       convert.ToValue(rp.Enabled),
+				RetentionDays: int(convert.ToValue(rp.Days)),
+			}
+		}
+		retentionPolicyDict, err := convert.JsonToDict(retentionPolicy)
+		if err != nil {
+			return nil, err
+		}
+		var flowLogAnalytics mqlFlowLogAnalytics
+		if fac := props.FlowAnalyticsConfiguration; fac != nil && fac.NetworkWatcherFlowAnalyticsConfiguration != nil {
+			nwfac := fac.NetworkWatcherFlowAnalyticsConfiguration
+			flowLogAnalytics = mqlFlowLogAnalytics{
+				Enabled:             convert.ToValue(nwfac.Enabled),
+				AnalyticsInterval:   int(convert.ToValue(nwfac.TrafficAnalyticsInterval)),
+				WorkspaceRegion:     convert.ToValue(nwfac.WorkspaceRegion),
+				WorkspaceResourceId: convert.ToValue(nwfac.WorkspaceResourceID),
+				WorkspaceId:         convert.ToValue(nwfac.WorkspaceID),
+			}
+		}
+		flowLogAnalyticsDict, err := convert.JsonToDict(flowLogAnalytics)
+		if err != nil {
+			return nil, err
+		}
+		var formatType *string
+		var formatVersion *int32
+		if f := props.Format; f != nil {
+			formatType = (*string)(f.Type)
+			formatVersion = f.Version
+		}
+		args["retentionPolicy"] = llx.DictData(retentionPolicyDict)
+		args["format"] = llx.StringDataPtr(formatType)
+		args["version"] = llx.IntDataDefault(formatVersion, 0)
+		args["enabled"] = llx.BoolDataPtr(props.Enabled)
+		args["storageAccountId"] = llx.StringDataPtr(props.StorageID)
+		args["targetResourceId"] = llx.StringDataPtr(props.TargetResourceID)
+		args["targetResourceGuid"] = llx.StringDataPtr(props.TargetResourceGUID)
+		args["provisioningState"] = llx.StringDataPtr((*string)(props.ProvisioningState))
+		args["analytics"] = llx.DictData(flowLogAnalyticsDict)
+	}
+
+	mqlFlowLog, err := CreateResource(runtime, "azure.subscription.networkService.watcher.flowlog", args)
+	if err != nil {
+		return nil, err
+	}
+	return mqlFlowLog.(*mqlAzureSubscriptionNetworkServiceWatcherFlowlog), nil
 }
 
 func (a *mqlAzureSubscriptionNetworkService) loadBalancers() ([]any, error) {
@@ -3778,6 +3795,116 @@ func azureSecGroupToMql(runtime *plugin.Runtime, secGroup network.SecurityGroup)
 	mqlSecGroup := res.(*mqlAzureSubscriptionNetworkServiceSecurityGroup)
 	mqlSecGroup.cacheProperties = secGroup.Properties
 	return mqlSecGroup, nil
+}
+
+// flowLog resolves the Network Watcher flow log whose target resource is this
+// NSG. Flow logs are child resources of Network Watchers, so rather than
+// enumerating every watcher for each NSG (an N+1 problem when querying
+// `securityGroups { flowLog }`), it resolves the per-subscription
+// networkService singleton and reuses its cached watcher→flow-log index.
+// Returns null when no flow log targets the NSG.
+func (a *mqlAzureSubscriptionNetworkServiceSecurityGroup) flowLog() (*mqlAzureSubscriptionNetworkServiceWatcherFlowlog, error) {
+	nsgID := a.Id.Data
+	resourceID, err := ParseResourceID(nsgID)
+	if err != nil {
+		return nil, err
+	}
+
+	netRes, err := CreateResource(a.MqlRuntime, "azure.subscription.networkService", map[string]*llx.RawData{
+		"subscriptionId": llx.StringData(resourceID.SubscriptionID),
+	})
+	if err != nil {
+		return nil, err
+	}
+	netService := netRes.(*mqlAzureSubscriptionNetworkService)
+
+	index, err := netService.flowLogIndexByTargetResourceId()
+	if err != nil {
+		return nil, err
+	}
+	if flowLog, ok := index[strings.ToLower(nsgID)]; ok {
+		return flowLog, nil
+	}
+
+	// no flow log targets this NSG
+	a.FlowLog.State = plugin.StateIsSet | plugin.StateIsNull
+	return nil, nil
+}
+
+type mqlAzureSubscriptionNetworkServiceInternal struct {
+	flowLogIndexOnce sync.Once
+	flowLogIndex     map[string]*mqlAzureSubscriptionNetworkServiceWatcherFlowlog
+	flowLogIndexErr  error
+}
+
+// flowLogIndexByTargetResourceId lazily builds, once per networkService
+// instance, a map from a (lowercased) target resource id to the Network Watcher
+// flow log that targets it. The subscription's watchers and their flow logs are
+// enumerated a single time so that per-NSG lookups are in-memory.
+func (a *mqlAzureSubscriptionNetworkService) flowLogIndexByTargetResourceId() (map[string]*mqlAzureSubscriptionNetworkServiceWatcherFlowlog, error) {
+	a.flowLogIndexOnce.Do(func() {
+		conn := a.MqlRuntime.Connection.(*connection.AzureConnection)
+		ctx := context.Background()
+		token := conn.Token()
+		subId := a.SubscriptionId.Data
+
+		index := map[string]*mqlAzureSubscriptionNetworkServiceWatcherFlowlog{}
+
+		watchersClient, err := network.NewWatchersClient(subId, token, &arm.ClientOptions{
+			ClientOptions: conn.ClientOptions(),
+		})
+		if err != nil {
+			a.flowLogIndexErr = err
+			return
+		}
+		flowLogsClient, err := network.NewFlowLogsClient(subId, token, &arm.ClientOptions{
+			ClientOptions: conn.ClientOptions(),
+		})
+		if err != nil {
+			a.flowLogIndexErr = err
+			return
+		}
+
+		watcherPager := watchersClient.NewListAllPager(&network.WatchersClientListAllOptions{})
+		for watcherPager.More() {
+			page, err := watcherPager.NextPage(ctx)
+			if err != nil {
+				a.flowLogIndexErr = err
+				return
+			}
+			for _, watcher := range page.Value {
+				if watcher == nil || watcher.ID == nil || watcher.Name == nil {
+					continue
+				}
+				watcherID, err := ParseResourceID(*watcher.ID)
+				if err != nil {
+					a.flowLogIndexErr = err
+					return
+				}
+				flowLogPager := flowLogsClient.NewListPager(watcherID.ResourceGroup, *watcher.Name, &network.FlowLogsClientListOptions{})
+				for flowLogPager.More() {
+					flowLogPage, err := flowLogPager.NextPage(ctx)
+					if err != nil {
+						a.flowLogIndexErr = err
+						return
+					}
+					for _, flowLog := range flowLogPage.Value {
+						if flowLog == nil || flowLog.Properties == nil || flowLog.Properties.TargetResourceID == nil {
+							continue
+						}
+						mqlFlowLog, err := flowLogToMql(a.MqlRuntime, *flowLog)
+						if err != nil {
+							a.flowLogIndexErr = err
+							return
+						}
+						index[strings.ToLower(*flowLog.Properties.TargetResourceID)] = mqlFlowLog
+					}
+				}
+			}
+		}
+		a.flowLogIndex = index
+	})
+	return a.flowLogIndex, a.flowLogIndexErr
 }
 
 func (a *mqlAzureSubscriptionNetworkServiceSecurityGroup) interfaces() ([]any, error) {
