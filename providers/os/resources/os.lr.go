@@ -5344,6 +5344,12 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	"auditpol.entry.exclusionsetting": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAuditpolEntry).GetExclusionsetting()).ToDataRes(types.String)
 	},
+	"auditpol.entry.success": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAuditpolEntry).GetSuccess()).ToDataRes(types.Bool)
+	},
+	"auditpol.entry.failure": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAuditpolEntry).GetFailure()).ToDataRes(types.Bool)
+	},
 	"secpol.systemaccess": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlSecpol).GetSystemaccess()).ToDataRes(types.Map(types.String, types.String))
 	},
@@ -14493,6 +14499,14 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 	},
 	"auditpol.entry.exclusionsetting": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlAuditpolEntry).Exclusionsetting, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"auditpol.entry.success": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAuditpolEntry).Success, ok = plugin.RawToTValue[bool](v.Value, v.Error)
+		return
+	},
+	"auditpol.entry.failure": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAuditpolEntry).Failure, ok = plugin.RawToTValue[bool](v.Value, v.Error)
 		return
 	},
 	"secpol.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
@@ -35994,6 +36008,8 @@ type mqlAuditpolEntry struct {
 	Subcategoryguid  plugin.TValue[string]
 	Inclusionsetting plugin.TValue[string]
 	Exclusionsetting plugin.TValue[string]
+	Success          plugin.TValue[bool]
+	Failure          plugin.TValue[bool]
 }
 
 // createAuditpolEntry creates a new instance of this resource
@@ -36055,6 +36071,18 @@ func (c *mqlAuditpolEntry) GetInclusionsetting() *plugin.TValue[string] {
 
 func (c *mqlAuditpolEntry) GetExclusionsetting() *plugin.TValue[string] {
 	return &c.Exclusionsetting
+}
+
+func (c *mqlAuditpolEntry) GetSuccess() *plugin.TValue[bool] {
+	return plugin.GetOrCompute[bool](&c.Success, func() (bool, error) {
+		return c.success()
+	})
+}
+
+func (c *mqlAuditpolEntry) GetFailure() *plugin.TValue[bool] {
+	return plugin.GetOrCompute[bool](&c.Failure, func() (bool, error) {
+		return c.failure()
+	})
 }
 
 // mqlSecpol for the secpol resource
