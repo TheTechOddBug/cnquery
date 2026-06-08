@@ -46,6 +46,10 @@ type mqlDigitaloceanInternal struct {
 	k8sClusterIndex     map[string]*mqlDigitaloceanKubernetesCluster
 	k8sClusterIndexErr  error
 
+	loadBalancerIndexOnce sync.Once
+	loadBalancerIndex     map[string]*mqlDigitaloceanLoadBalancer
+	loadBalancerIndexErr  error
+
 	firewallIndexOnce sync.Once
 	firewallByDroplet map[int64][]*mqlDigitaloceanFirewall
 	firewallByTag     map[string][]*mqlDigitaloceanFirewall
@@ -160,7 +164,7 @@ func (r *mqlDigitalocean) certificateByID(id string) (*mqlDigitaloceanCertificat
 	return r.certificateIndex[id], nil
 }
 
-func (r *mqlDigitalocean) kubernetesClusterByID(id string) (*mqlDigitaloceanKubernetesCluster, error) {
+func (r *mqlDigitalocean) ensureK8sClusterIndex() error {
 	r.k8sClusterIndexOnce.Do(func() {
 		clusters := r.GetKubernetesClusters()
 		if clusters.Error != nil {
@@ -174,8 +178,12 @@ func (r *mqlDigitalocean) kubernetesClusterByID(id string) (*mqlDigitaloceanKube
 		}
 		r.k8sClusterIndex = idx
 	})
-	if r.k8sClusterIndexErr != nil {
-		return nil, r.k8sClusterIndexErr
+	return r.k8sClusterIndexErr
+}
+
+func (r *mqlDigitalocean) kubernetesClusterByID(id string) (*mqlDigitaloceanKubernetesCluster, error) {
+	if err := r.ensureK8sClusterIndex(); err != nil {
+		return nil, err
 	}
 	return r.k8sClusterIndex[id], nil
 }
@@ -208,6 +216,59 @@ func (r *mqlDigitalocean) dropletByIDs(ids []any) ([]any, error) {
 		}
 		if d, ok := r.dropletIndex[i]; ok {
 			out = append(out, d)
+		}
+	}
+	return out, nil
+}
+
+func (r *mqlDigitalocean) loadBalancerByUIDs(uids []any) ([]any, error) {
+	if len(uids) == 0 {
+		return []any{}, nil
+	}
+	r.loadBalancerIndexOnce.Do(func() {
+		lbs := r.GetLoadBalancers()
+		if lbs.Error != nil {
+			r.loadBalancerIndexErr = lbs.Error
+			return
+		}
+		idx := make(map[string]*mqlDigitaloceanLoadBalancer, len(lbs.Data))
+		for _, lb := range lbs.Data {
+			mlb := lb.(*mqlDigitaloceanLoadBalancer)
+			idx[mlb.Id.Data] = mlb
+		}
+		r.loadBalancerIndex = idx
+	})
+	if r.loadBalancerIndexErr != nil {
+		return nil, r.loadBalancerIndexErr
+	}
+	out := make([]any, 0, len(uids))
+	for _, uid := range uids {
+		s, ok := uid.(string)
+		if !ok {
+			continue
+		}
+		if lb, ok := r.loadBalancerIndex[s]; ok {
+			out = append(out, lb)
+		}
+	}
+	return out, nil
+}
+
+func (r *mqlDigitalocean) kubernetesClustersByIDs(ids []any) ([]any, error) {
+	if len(ids) == 0 {
+		return []any{}, nil
+	}
+	if err := r.ensureK8sClusterIndex(); err != nil {
+		return nil, err
+	}
+	out := make([]any, 0, len(ids))
+	for _, id := range ids {
+		s, ok := id.(string)
+		if !ok {
+			continue
+		}
+		if c, ok := r.k8sClusterIndex[s]; ok {
+			out = append(out, c)
 		}
 	}
 	return out, nil
