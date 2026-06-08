@@ -5,8 +5,10 @@ package resources
 
 import (
 	"context"
+	"strings"
 
 	"go.mondoo.com/mql/v13/llx"
+	"go.mondoo.com/mql/v13/providers-sdk/v1/plugin"
 	"go.mondoo.com/mql/v13/providers-sdk/v1/util/convert"
 	"go.mondoo.com/mql/v13/providers/gcp/connection"
 	"go.mondoo.com/mql/v13/types"
@@ -14,6 +16,54 @@ import (
 	"google.golang.org/api/essentialcontacts/v1"
 	"google.golang.org/api/option"
 )
+
+// essentialContactsForParent lists Essential Contacts for a resource parent of
+// the form "projects/{id}", "folders/{id}", or "organizations/{id}" and builds
+// the corresponding gcp.essentialContact resources.
+func essentialContactsForParent(runtime *plugin.Runtime, conn *connection.GcpConnection, parent string) ([]any, error) {
+	client, err := conn.Client(essentialcontacts.CloudPlatformScope)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx := context.Background()
+	contactSvc, err := essentialcontacts.NewService(ctx, option.WithHTTPClient(client))
+	if err != nil {
+		return nil, err
+	}
+
+	var mqlContacts []any
+	process := func(page *essentialcontacts.GoogleCloudEssentialcontactsV1ListContactsResponse) error {
+		for _, c := range page.Contacts {
+			mqlC, err := CreateResource(runtime, "gcp.essentialContact", map[string]*llx.RawData{
+				"resourcePath":           llx.StringData(c.Name),
+				"email":                  llx.StringData(c.Email),
+				"languageTag":            llx.StringData(c.LanguageTag),
+				"notificationCategories": llx.ArrayData(convert.SliceAnyToInterface(c.NotificationCategorySubscriptions), types.String),
+				"validated":              llx.TimeDataPtr(parseTime(c.ValidateTime)),
+				"validationState":        llx.StringData(c.ValidationState),
+			})
+			if err != nil {
+				return err
+			}
+			mqlContacts = append(mqlContacts, mqlC)
+		}
+		return nil
+	}
+
+	switch {
+	case strings.HasPrefix(parent, "organizations/"):
+		err = contactSvc.Organizations.Contacts.List(parent).Pages(ctx, process)
+	case strings.HasPrefix(parent, "folders/"):
+		err = contactSvc.Folders.Contacts.List(parent).Pages(ctx, process)
+	default:
+		err = contactSvc.Projects.Contacts.List(parent).Pages(ctx, process)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return mqlContacts, nil
+}
 
 func (g *mqlGcpProject) essentialContacts() ([]any, error) {
 	conn := g.MqlRuntime.Connection.(*connection.GcpConnection)
@@ -31,39 +81,31 @@ func (g *mqlGcpProject) essentialContacts() ([]any, error) {
 		return nil, nil
 	}
 
-	client, err := conn.Client(essentialcontacts.CloudPlatformScope)
-	if err != nil {
-		return nil, err
-	}
+	return essentialContactsForParent(g.MqlRuntime, conn, "projects/"+projectId)
+}
 
-	ctx := context.Background()
-
-	contactSvc, err := essentialcontacts.NewService(ctx, option.WithHTTPClient(client))
-	if err != nil {
-		return nil, err
+func (g *mqlGcpOrganization) essentialContacts() ([]any, error) {
+	if g.Id.Error != nil {
+		return nil, g.Id.Error
 	}
-
-	var mqlContacts []any
-	if err := contactSvc.Projects.Contacts.List("projects/"+projectId).Pages(ctx, func(page *essentialcontacts.GoogleCloudEssentialcontactsV1ListContactsResponse) error {
-		for _, c := range page.Contacts {
-			mqlC, err := CreateResource(g.MqlRuntime, "gcp.essentialContact", map[string]*llx.RawData{
-				"resourcePath":           llx.StringData(c.Name),
-				"email":                  llx.StringData(c.Email),
-				"languageTag":            llx.StringData(c.LanguageTag),
-				"notificationCategories": llx.ArrayData(convert.SliceAnyToInterface(c.NotificationCategorySubscriptions), types.String),
-				"validated":              llx.TimeDataPtr(parseTime(c.ValidateTime)),
-				"validationState":        llx.StringData(c.ValidationState),
-			})
-			if err != nil {
-				return err
-			}
-			mqlContacts = append(mqlContacts, mqlC)
-		}
-		return nil
-	}); err != nil {
-		return nil, err
+	// Id is normally "organizations/{id}" (set from org.Name); guard against a
+	// bare id so the parent path is never double-prefixed.
+	parent := g.Id.Data
+	if !strings.HasPrefix(parent, "organizations/") {
+		parent = "organizations/" + parent
 	}
-	return mqlContacts, nil
+	conn := g.MqlRuntime.Connection.(*connection.GcpConnection)
+	return essentialContactsForParent(g.MqlRuntime, conn, parent)
+}
+
+func (g *mqlGcpFolder) essentialContacts() ([]any, error) {
+	if g.Id.Error != nil {
+		return nil, g.Id.Error
+	}
+	// Folder Id is "folders/{id}" when discovered via listing but bare "{id}"
+	// when resolved directly; folderResourceName normalizes both.
+	conn := g.MqlRuntime.Connection.(*connection.GcpConnection)
+	return essentialContactsForParent(g.MqlRuntime, conn, folderResourceName(g.Id.Data))
 }
 
 func (g *mqlGcpEssentialContact) id() (string, error) {
