@@ -7,8 +7,10 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/microsoft/kiota-abstractions-go/serialization"
 	"github.com/microsoftgraph/msgraph-sdk-go/models"
 	"github.com/microsoftgraph/msgraph-sdk-go/policies"
 	"go.mondoo.com/mql/v13/llx"
@@ -616,6 +618,126 @@ func (a *mqlMicrosoftCrossTenantAccessPolicyDefault) invitationRedemptionIdentit
 	}
 
 	return a.cachedInvitationRedemptionIdentityProviderConfiguration, nil
+}
+
+// https://learn.microsoft.com/en-us/graph/api/tenantappmanagementpolicy-get?view=graph-rest-1.0
+func (a *mqlMicrosoftPolicies) defaultAppManagementPolicy() (*mqlMicrosoftDefaultAppManagementPolicy, error) {
+	conn := a.MqlRuntime.Connection.(*connection.Ms365Connection)
+	graphClient, err := conn.GraphClient()
+	if err != nil {
+		return nil, err
+	}
+
+	policy, err := graphClient.Policies().DefaultAppManagementPolicy().Get(context.Background(), nil)
+	if err != nil {
+		return nil, transformError(err)
+	}
+
+	policyId := ""
+	if policy.GetId() != nil {
+		policyId = *policy.GetId()
+	}
+
+	appRestrictions, err := newAppManagementConfiguration(a.MqlRuntime, policy.GetApplicationRestrictions(), policyId+"/applicationRestrictions")
+	if err != nil {
+		return nil, err
+	}
+	spRestrictions, err := newAppManagementConfiguration(a.MqlRuntime, policy.GetServicePrincipalRestrictions(), policyId+"/servicePrincipalRestrictions")
+	if err != nil {
+		return nil, err
+	}
+
+	resource, err := CreateResource(a.MqlRuntime, "microsoft.defaultAppManagementPolicy",
+		map[string]*llx.RawData{
+			"__id":                         llx.StringData(policyId),
+			"displayName":                  llx.StringDataPtr(policy.GetDisplayName()),
+			"description":                  llx.StringDataPtr(policy.GetDescription()),
+			"isEnabled":                    llx.BoolDataPtr(policy.GetIsEnabled()),
+			"applicationRestrictions":      llx.ResourceData(appRestrictions, "microsoft.defaultAppManagementPolicy.appManagementConfiguration"),
+			"servicePrincipalRestrictions": llx.ResourceData(spRestrictions, "microsoft.defaultAppManagementPolicy.appManagementConfiguration"),
+		})
+	if err != nil {
+		return nil, err
+	}
+
+	return resource.(*mqlMicrosoftDefaultAppManagementPolicy), nil
+}
+
+func initMicrosoftDefaultAppManagementPolicy(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error) {
+	// Create the parent policies resource and call its method
+	policiesResource, err := CreateResource(runtime, ResourceMicrosoftPolicies, map[string]*llx.RawData{})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	policy, err := policiesResource.(*mqlMicrosoftPolicies).defaultAppManagementPolicy()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return nil, policy, nil
+}
+
+// credentialRestrictionConfig captures the getters shared by the password and
+// key credential configuration types, whose only differing getter is the
+// restriction type (its enum type differs between the two).
+type credentialRestrictionConfig interface {
+	GetMaxLifetime() *serialization.ISODuration
+	GetState() *models.AppManagementRestrictionState
+	GetRestrictForAppsCreatedAfterDateTime() *time.Time
+}
+
+func mapCredentialRestrictions[T credentialRestrictionConfig](creds []T, restrictionType func(T) string) []any {
+	restrictions := []any{}
+	for _, c := range creds {
+		d := map[string]any{}
+		if rt := restrictionType(c); rt != "" {
+			d["restrictionType"] = rt
+		}
+		if c.GetMaxLifetime() != nil {
+			d["maxLifetime"] = c.GetMaxLifetime().String()
+		}
+		if c.GetState() != nil {
+			d["state"] = c.GetState().String()
+		}
+		if c.GetRestrictForAppsCreatedAfterDateTime() != nil {
+			d["restrictForAppsCreatedAfterDateTime"] = *c.GetRestrictForAppsCreatedAfterDateTime()
+		}
+		restrictions = append(restrictions, d)
+	}
+	return restrictions
+}
+
+func newAppManagementConfiguration(runtime *plugin.Runtime, config models.AppManagementConfigurationable, id string) (*mqlMicrosoftDefaultAppManagementPolicyAppManagementConfiguration, error) {
+	passwordCredentials := []any{}
+	keyCredentials := []any{}
+
+	if config != nil {
+		passwordCredentials = mapCredentialRestrictions(config.GetPasswordCredentials(), func(c models.PasswordCredentialConfigurationable) string {
+			if c.GetRestrictionType() != nil {
+				return c.GetRestrictionType().String()
+			}
+			return ""
+		})
+		keyCredentials = mapCredentialRestrictions(config.GetKeyCredentials(), func(c models.KeyCredentialConfigurationable) string {
+			if c.GetRestrictionType() != nil {
+				return c.GetRestrictionType().String()
+			}
+			return ""
+		})
+	}
+
+	resource, err := CreateResource(runtime, "microsoft.defaultAppManagementPolicy.appManagementConfiguration",
+		map[string]*llx.RawData{
+			"__id":                llx.StringData(id),
+			"passwordCredentials": llx.ArrayData(passwordCredentials, types.Dict),
+			"keyCredentials":      llx.ArrayData(keyCredentials, types.Dict),
+		})
+	if err != nil {
+		return nil, err
+	}
+
+	return resource.(*mqlMicrosoftDefaultAppManagementPolicyAppManagementConfiguration), nil
 }
 
 func newB2BSetting(runtime *plugin.Runtime, setting models.CrossTenantAccessPolicyB2BSettingable, settingId string) (*mqlMicrosoftCrossTenantAccessPolicyDefaultB2bSetting, error) {
