@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/rs/zerolog/log"
 	"go.mondoo.com/mql/v13/llx"
 	"go.mondoo.com/mql/v13/providers-sdk/v1/plugin"
 	"go.mondoo.com/mql/v13/providers-sdk/v1/util/convert"
@@ -316,6 +317,63 @@ func (g *mqlGcpProjectComputeServiceTargetHttpsProxy) sslPolicy() (*mqlGcpProjec
 		return nil, nil
 	}
 	return getSslPolicyByUrl(url, g.MqlRuntime)
+}
+
+func (g *mqlGcpProjectComputeServiceTargetHttpsProxy) sslCertificates() ([]any, error) {
+	return resolveSslCertificatesByUrl(g.SslCertificateUrls, g.MqlRuntime)
+}
+
+func (g *mqlGcpProjectComputeServiceTargetSslProxy) sslCertificates() ([]any, error) {
+	return resolveSslCertificatesByUrl(g.SslCertificateUrls, g.MqlRuntime)
+}
+
+// resolveSslCertificatesByUrl resolves a proxy's SSL certificate self-link URLs
+// to typed sslCertificate resources by matching them against the project's
+// certificates, which are listed once.
+func resolveSslCertificatesByUrl(urls plugin.TValue[[]any], runtime *plugin.Runtime) ([]any, error) {
+	if urls.Error != nil {
+		return nil, urls.Error
+	}
+	if len(urls.Data) == 0 {
+		return []any{}, nil
+	}
+
+	firstURL, _ := urls.Data[0].(string)
+	// Derive the project from the certificate self-link. projectFromResourceName
+	// searches for the "projects" segment, so it is robust to the API host and
+	// version prefix (v1/beta) rather than relying on a fixed path offset.
+	projectId := projectFromResourceName(firstURL)
+	if projectId == "" {
+		log.Warn().Str("url", firstURL).Msg("could not determine project from ssl certificate url")
+		return []any{}, nil
+	}
+
+	res, err := CreateResource(runtime, "gcp.project.computeService", map[string]*llx.RawData{
+		"projectId": llx.StringData(projectId),
+	})
+	if err != nil {
+		return nil, err
+	}
+	certs := res.(*mqlGcpProjectComputeService).GetSslCertificates()
+	if certs.Error != nil {
+		return nil, certs.Error
+	}
+
+	bySelfLink := make(map[string]*mqlGcpProjectComputeServiceSslCertificate, len(certs.Data))
+	for _, c := range certs.Data {
+		cert := c.(*mqlGcpProjectComputeServiceSslCertificate)
+		bySelfLink[cert.SelfLink.Data] = cert
+	}
+
+	out := make([]any, 0, len(urls.Data))
+	for _, u := range urls.Data {
+		if urlStr, ok := u.(string); ok {
+			if cert, found := bySelfLink[urlStr]; found {
+				out = append(out, cert)
+			}
+		}
+	}
+	return out, nil
 }
 
 // Helper to resolve URL map references
