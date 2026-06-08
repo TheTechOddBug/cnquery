@@ -5,6 +5,8 @@ package resources
 
 import (
 	"context"
+	"fmt"
+	"slices"
 	"strconv"
 
 	"github.com/aws/aws-sdk-go-v2/service/lightsail"
@@ -186,6 +188,34 @@ func (a *mqlAwsLightsailInstance) firewallRules() ([]any, error) {
 		}
 		if p.CommonName != nil {
 			rule["commonName"] = *p.CommonName
+		}
+		res = append(res, rule)
+	}
+	return res, nil
+}
+
+func (a *mqlAwsLightsailInstance) inboundRules() ([]any, error) {
+	if a.cacheNetworking == nil {
+		return []any{}, nil
+	}
+	res := make([]any, 0, len(a.cacheNetworking.Ports))
+	for _, p := range a.cacheNetworking.Ports {
+		publicAccess := slices.Contains(p.Cidrs, "0.0.0.0/0") || slices.Contains(p.Ipv6Cidrs, "::/0")
+		// Lightsail returns one rule per protocol + port range, so that triple is
+		// a stable natural key — preferable to a list index, which would shift the
+		// cached identity if the API ever reorders the rules.
+		rule, err := CreateResource(a.MqlRuntime, "aws.lightsail.instance.inboundRule",
+			map[string]*llx.RawData{
+				"__id":         llx.StringData(fmt.Sprintf("%s/inboundRule/%s/%d-%d", a.Arn.Data, string(p.Protocol), p.FromPort, p.ToPort)),
+				"fromPort":     llx.IntData(int64(p.FromPort)),
+				"toPort":       llx.IntData(int64(p.ToPort)),
+				"protocol":     llx.StringData(string(p.Protocol)),
+				"cidrs":        llx.ArrayData(stringsToInterface(p.Cidrs), types.String),
+				"ipv6Cidrs":    llx.ArrayData(stringsToInterface(p.Ipv6Cidrs), types.String),
+				"publicAccess": llx.BoolData(publicAccess),
+			})
+		if err != nil {
+			return nil, err
 		}
 		res = append(res, rule)
 	}
