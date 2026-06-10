@@ -2498,6 +2498,9 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	"azure.subscription.computeService.vm.disablePasswordAuthentication": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAzureSubscriptionComputeServiceVm).GetDisablePasswordAuthentication()).ToDataRes(types.Bool)
 	},
+	"azure.subscription.computeService.vm.osType": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAzureSubscriptionComputeServiceVm).GetOsType()).ToDataRes(types.String)
+	},
 	"azure.subscription.computeService.vm.provisionVMAgent": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAzureSubscriptionComputeServiceVm).GetProvisionVMAgent()).ToDataRes(types.Bool)
 	},
@@ -15781,6 +15784,10 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 	},
 	"azure.subscription.computeService.vm.disablePasswordAuthentication": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlAzureSubscriptionComputeServiceVm).DisablePasswordAuthentication, ok = plugin.RawToTValue[bool](v.Value, v.Error)
+		return
+	},
+	"azure.subscription.computeService.vm.osType": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAzureSubscriptionComputeServiceVm).OsType, ok = plugin.RawToTValue[string](v.Value, v.Error)
 		return
 	},
 	"azure.subscription.computeService.vm.provisionVMAgent": func(r plugin.Resource, v *llx.RawData) (ok bool) {
@@ -35758,6 +35765,7 @@ type mqlAzureSubscriptionComputeServiceVm struct {
 	TimeCreated                   plugin.TValue[*time.Time]
 	SshPublicKeys                 plugin.TValue[[]any]
 	DisablePasswordAuthentication plugin.TValue[bool]
+	OsType                        plugin.TValue[string]
 	ProvisionVMAgent              plugin.TValue[bool]
 	EnableAutomaticUpdates        plugin.TValue[bool]
 	PatchMode                     plugin.TValue[string]
@@ -36035,6 +36043,10 @@ func (c *mqlAzureSubscriptionComputeServiceVm) GetSshPublicKeys() *plugin.TValue
 
 func (c *mqlAzureSubscriptionComputeServiceVm) GetDisablePasswordAuthentication() *plugin.TValue[bool] {
 	return &c.DisablePasswordAuthentication
+}
+
+func (c *mqlAzureSubscriptionComputeServiceVm) GetOsType() *plugin.TValue[string] {
+	return &c.OsType
 }
 
 func (c *mqlAzureSubscriptionComputeServiceVm) GetProvisionVMAgent() *plugin.TValue[bool] {

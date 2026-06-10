@@ -42,6 +42,17 @@ func (a *mqlAzureSubscriptionComputeService) id() (string, error) {
 	return "azure.subscription.compute/" + a.SubscriptionId.Data, nil
 }
 
+// vmOsType returns the OS type of a virtual machine's OS disk ("Linux" or
+// "Windows"), or nil when the properties, storage profile, or OS disk are
+// absent — guarding the three-level nil chain so a partially-populated VM
+// doesn't panic.
+func vmOsType(props *compute.VirtualMachineProperties) *string {
+	if props == nil || props.StorageProfile == nil || props.StorageProfile.OSDisk == nil {
+		return nil
+	}
+	return stringEnumPtr(props.StorageProfile.OSDisk.OSType)
+}
+
 func getState(vm compute.VirtualMachineInstanceView) string {
 	if vm.Statuses == nil {
 		return "unknown"
@@ -205,6 +216,7 @@ func vmToMql(runtime *plugin.Runtime, vm compute.VirtualMachine) (*mqlAzureSubsc
 
 	var bootDiagnosticsEnabled bool
 	var bootDiagnosticsStorageUri, userData string
+	osType := vmOsType(vm.Properties)
 	if vm.Properties != nil {
 		if dp := vm.Properties.DiagnosticsProfile; dp != nil && dp.BootDiagnostics != nil {
 			if dp.BootDiagnostics.Enabled != nil {
@@ -260,6 +272,7 @@ func vmToMql(runtime *plugin.Runtime, vm compute.VirtualMachine) (*mqlAzureSubsc
 			"timeCreated":                   llx.TimeDataPtr(timeCreated),
 			"sshPublicKeys":                 llx.ArrayData(sshPublicKeys, types.Dict),
 			"disablePasswordAuthentication": llx.BoolDataPtr(disablePasswordAuth),
+			"osType":                        llx.StringDataPtr(osType),
 			"provisionVMAgent":              llx.BoolDataPtr(provisionVMAgent),
 			"enableAutomaticUpdates":        llx.BoolDataPtr(enableAutomaticUpdates),
 			"patchMode":                     llx.StringData(patchMode),
