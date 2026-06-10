@@ -6872,6 +6872,9 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	"azure.subscription.webService.appsiteconfig.properties": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAzureSubscriptionWebServiceAppsiteconfig).GetProperties()).ToDataRes(types.Dict)
 	},
+	"azure.subscription.webService.appsiteconfig.corsAllowedOrigins": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAzureSubscriptionWebServiceAppsiteconfig).GetCorsAllowedOrigins()).ToDataRes(types.Array(types.String))
+	},
 	"azure.subscription.webService.appsiteconfig.minTlsVersion": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAzureSubscriptionWebServiceAppsiteconfig).GetMinTlsVersion()).ToDataRes(types.String)
 	},
@@ -22098,6 +22101,10 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 	},
 	"azure.subscription.webService.appsiteconfig.properties": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlAzureSubscriptionWebServiceAppsiteconfig).Properties, ok = plugin.RawToTValue[any](v.Value, v.Error)
+		return
+	},
+	"azure.subscription.webService.appsiteconfig.corsAllowedOrigins": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAzureSubscriptionWebServiceAppsiteconfig).CorsAllowedOrigins, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
 		return
 	},
 	"azure.subscription.webService.appsiteconfig.minTlsVersion": func(r plugin.Resource, v *llx.RawData) (ok bool) {
@@ -50396,6 +50403,7 @@ type mqlAzureSubscriptionWebServiceAppsiteconfig struct {
 	Kind                                plugin.TValue[string]
 	Type                                plugin.TValue[string]
 	Properties                          plugin.TValue[any]
+	CorsAllowedOrigins                  plugin.TValue[[]any]
 	MinTlsVersion                       plugin.TValue[string]
 	FtpsState                           plugin.TValue[string]
 	RemoteDebuggingEnabled              plugin.TValue[bool]
@@ -50467,6 +50475,10 @@ func (c *mqlAzureSubscriptionWebServiceAppsiteconfig) GetType() *plugin.TValue[s
 
 func (c *mqlAzureSubscriptionWebServiceAppsiteconfig) GetProperties() *plugin.TValue[any] {
 	return &c.Properties
+}
+
+func (c *mqlAzureSubscriptionWebServiceAppsiteconfig) GetCorsAllowedOrigins() *plugin.TValue[[]any] {
+	return &c.CorsAllowedOrigins
 }
 
 func (c *mqlAzureSubscriptionWebServiceAppsiteconfig) GetMinTlsVersion() *plugin.TValue[string] {
