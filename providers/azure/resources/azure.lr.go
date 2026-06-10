@@ -12242,6 +12242,9 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	"azure.subscription.functionsService.functionApp.keyVaultReferenceIdentity": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAzureSubscriptionFunctionsServiceFunctionApp).GetKeyVaultReferenceIdentity()).ToDataRes(types.String)
 	},
+	"azure.subscription.functionsService.functionApp.publicNetworkAccess": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAzureSubscriptionFunctionsServiceFunctionApp).GetPublicNetworkAccess()).ToDataRes(types.String)
+	},
 	"azure.subscription.functionsService.functionApp.properties": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAzureSubscriptionFunctionsServiceFunctionApp).GetProperties()).ToDataRes(types.Dict)
 	},
@@ -29960,6 +29963,10 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 	},
 	"azure.subscription.functionsService.functionApp.keyVaultReferenceIdentity": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlAzureSubscriptionFunctionsServiceFunctionApp).KeyVaultReferenceIdentity, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"azure.subscription.functionsService.functionApp.publicNetworkAccess": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAzureSubscriptionFunctionsServiceFunctionApp).PublicNetworkAccess, ok = plugin.RawToTValue[string](v.Value, v.Error)
 		return
 	},
 	"azure.subscription.functionsService.functionApp.properties": func(r plugin.Resource, v *llx.RawData) (ok bool) {
@@ -69361,6 +69368,7 @@ type mqlAzureSubscriptionFunctionsServiceFunctionApp struct {
 	ClientCertMode            plugin.TValue[string]
 	ManagedServiceIdentityId  plugin.TValue[string]
 	KeyVaultReferenceIdentity plugin.TValue[string]
+	PublicNetworkAccess       plugin.TValue[string]
 	Properties                plugin.TValue[any]
 	Configuration             plugin.TValue[*mqlAzureSubscriptionWebServiceAppsiteconfig]
 	Functions                 plugin.TValue[[]any]
@@ -69451,6 +69459,10 @@ func (c *mqlAzureSubscriptionFunctionsServiceFunctionApp) GetManagedServiceIdent
 
 func (c *mqlAzureSubscriptionFunctionsServiceFunctionApp) GetKeyVaultReferenceIdentity() *plugin.TValue[string] {
 	return &c.KeyVaultReferenceIdentity
+}
+
+func (c *mqlAzureSubscriptionFunctionsServiceFunctionApp) GetPublicNetworkAccess() *plugin.TValue[string] {
+	return &c.PublicNetworkAccess
 }
 
 func (c *mqlAzureSubscriptionFunctionsServiceFunctionApp) GetProperties() *plugin.TValue[any] {
