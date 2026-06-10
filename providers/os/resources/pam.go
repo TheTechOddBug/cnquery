@@ -6,6 +6,7 @@ package resources
 import (
 	"errors"
 	"io"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -324,7 +325,13 @@ func (m *mqlPamModule) id() (string, error) {
 	return "pam.module/" + m.Name.Data, nil
 }
 
-func (s *mqlPamConf) modules(entries map[string]any) ([]any, error) {
+// buildPamModules aggregates the given service entries by canonical module
+// name and returns one pam.module resource per distinct module, in first-seen
+// order. idScope namespaces the cache key: pass "" for the global view across
+// all services, or a service name so a per-service module
+// (e.g. pam.module/su/pam_wheel) does not collide with the global aggregation
+// (pam.module/pam_wheel), which can have different enabled/params values.
+func buildPamModules(runtime *plugin.Runtime, entries map[string]any, idScope string) ([]any, error) {
 	// Collect entries grouped by canonical module name, preserving source
 	// order across files for last-write-wins option aggregation.
 	type moduleAgg struct {
@@ -381,16 +388,114 @@ func (s *mqlPamConf) modules(entries map[string]any) ([]any, error) {
 	for _, name := range order {
 		agg := byName[name]
 		params := aggregatePamParams(agg.optionSets...)
-		res, err := CreateResource(s.MqlRuntime, "pam.module", map[string]*llx.RawData{
+		modArgs := map[string]*llx.RawData{
 			"name":    llx.StringData(agg.name),
 			"params":  llx.MapData(params, types.String),
 			"enabled": llx.BoolData(agg.anyEnabled),
 			"entries": llx.ArrayData(agg.entries, types.Resource("pam.conf.serviceEntry")),
-		})
+		}
+		if idScope != "" {
+			modArgs["__id"] = llx.StringData("pam.module/" + idScope + "/" + agg.name)
+		}
+		res, err := CreateResource(runtime, "pam.module", modArgs)
 		if err != nil {
 			return nil, err
 		}
 		out = append(out, res)
+	}
+	return out, nil
+}
+
+func (s *mqlPamConf) modules(entries map[string]any) ([]any, error) {
+	return buildPamModules(s.MqlRuntime, entries, "")
+}
+
+// initPamConfService selects a single PAM service by name and caches its
+// parsed entries. The name matches the file under /etc/pam.d (e.g. "su" ->
+// /etc/pam.d/su) or the service column in the single-file /etc/pam.conf. When
+// no such service is configured the resource is returned with an empty path
+// and no entries rather than an error, so audits can branch on it cleanly.
+func initPamConfService(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error) {
+	nameRaw := args["name"]
+	if nameRaw == nil {
+		return nil, nil, errors.New("pam.conf.service requires a 'name'")
+	}
+	name, ok := nameRaw.Value.(string)
+	if !ok {
+		return nil, nil, errors.New("wrong type for 'name', it must be a string")
+	}
+
+	conf, err := CreateResource(runtime, "pam.conf", map[string]*llx.RawData{})
+	if err != nil {
+		return nil, nil, err
+	}
+	pamConf := conf.(*mqlPamConf)
+
+	// No PAM configuration on this host: return an empty service rather than
+	// erroring, mirroring pam.conf.exists, so audits don't blow up.
+	exists := pamConf.GetExists()
+	if exists.Error != nil {
+		return nil, nil, exists.Error
+	}
+	if !exists.Data {
+		args["name"] = llx.StringData(name)
+		args["path"] = llx.StringData("")
+		args["entries"] = llx.ArrayData([]any{}, types.Resource("pam.conf.serviceEntry"))
+		return args, nil, nil
+	}
+
+	entries := pamConf.GetEntries()
+	if entries.Error != nil {
+		return nil, nil, entries.Error
+	}
+
+	// entries is keyed by the /etc/pam.d/<name> file path, or by the bare
+	// service name for single-file /etc/pam.conf. filepath.Base matches both.
+	path := ""
+	serviceEntries := []any{}
+	for key, raw := range entries.Data {
+		if filepath.Base(key) != name {
+			continue
+		}
+		if list, ok := raw.([]any); ok {
+			serviceEntries = list
+		}
+		if strings.Contains(key, "/") {
+			path = key
+		} else {
+			path = defaultPamConf
+		}
+		break
+	}
+
+	args["name"] = llx.StringData(name)
+	args["path"] = llx.StringData(path)
+	args["entries"] = llx.ArrayData(serviceEntries, types.Resource("pam.conf.serviceEntry"))
+	return args, nil, nil
+}
+
+func (s *mqlPamConfService) id() (string, error) {
+	return "pam.conf.service/" + s.Name.Data, nil
+}
+
+func (s *mqlPamConfService) modules() (map[string]any, error) {
+	entries := s.GetEntries()
+	if entries.Error != nil {
+		return nil, entries.Error
+	}
+
+	// Scope the shared aggregator to this single service and key the result
+	// by canonical module name so callers can write modules["pam_wheel"].
+	scoped := map[string]any{s.Name.Data: entries.Data}
+	mods, err := buildPamModules(s.MqlRuntime, scoped, s.Name.Data)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make(map[string]any, len(mods))
+	for _, m := range mods {
+		mod := m.(*mqlPamModule)
+		out[mod.Name.Data] = mod
 	}
 	return out, nil
 }
@@ -423,12 +528,36 @@ func (s *mqlPamConf) entries(files []any) (map[string]any, error) {
 	}
 
 	services := map[string]any{}
-	for basename, content := range contents {
+	for filePath, content := range contents {
+		// Files directly under /etc/pam.d carry one service each (the file
+		// name is the service). The legacy single-file /etc/pam.conf instead
+		// prefixes every line with the service name, so its lines have one
+		// extra leading column. Detect the layout by whether the file lives
+		// in the pam.d directory and group single-file lines by that column.
+		singleFile := filepath.Dir(filePath) != defaultPamDir
+		if !singleFile {
+			// Preserve the empty-service key so e.g.
+			// pam.conf.entries["/etc/pam.d/su"] stays an empty list rather
+			// than null when the file has no parsable entries.
+			if _, ok := services[filePath]; !ok {
+				services[filePath] = []any{}
+			}
+		}
+
 		lines := strings.Split(content, "\n")
-		settings := []any{}
-		var line string
 		for i := range lines {
-			line = lines[i]
+			line := lines[i]
+			service := filePath
+
+			if singleFile {
+				fields := strings.Fields(pam.StripComments(line))
+				if len(fields) < 2 {
+					// Blank/comment line or one with no module reference.
+					continue
+				}
+				service = fields[0]
+				line = strings.Join(fields[1:], " ")
+			}
 
 			entry, err := pam.ParseLine(line)
 			if err != nil {
@@ -441,7 +570,7 @@ func (s *mqlPamConf) entries(files []any) (map[string]any, error) {
 			}
 
 			pamEntry, err := CreateResource(s.MqlRuntime, "pam.conf.serviceEntry", map[string]*llx.RawData{
-				"service":    llx.StringData(basename),
+				"service":    llx.StringData(service),
 				"lineNumber": llx.IntData(int64(i)), // Used for ID
 				"pamType":    llx.StringData(entry.PamType),
 				"control":    llx.StringData(entry.Control),
@@ -451,11 +580,10 @@ func (s *mqlPamConf) entries(files []any) (map[string]any, error) {
 			if err != nil {
 				return nil, err
 			}
-			settings = append(settings, pamEntry.(*mqlPamConfServiceEntry))
 
+			list, _ := services[service].([]any)
+			services[service] = append(list, pamEntry.(*mqlPamConfServiceEntry))
 		}
-
-		services[basename] = settings
 	}
 
 	return services, nil
