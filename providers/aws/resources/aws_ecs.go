@@ -764,12 +764,28 @@ func (a *mqlAwsEcs) getECSTaskDefinitions(conn *connection.AwsConnection) []*job
 					return nil, errors.Wrap(err, "could not gather ecs task definition information")
 				}
 				for _, taskDefArn := range resp.TaskDefinitionArns {
-					mqlTaskDef, err := CreateResource(a.MqlRuntime, "aws.ecs.taskDefinition",
-						map[string]*llx.RawData{
-							"__id":   llx.StringData(taskDefArn),
-							"arn":    llx.StringData(taskDefArn),
-							"region": llx.StringData(region),
-						})
+					args := map[string]*llx.RawData{
+						"__id":   llx.StringData(taskDefArn),
+						"arn":    llx.StringData(taskDefArn),
+						"region": llx.StringData(region),
+					}
+					// Only fetch tags eagerly when tag-based filters are configured
+					if conn.Filters.General.HasTags() {
+						tagsResp, err := svc.ListTagsForResource(ctx, &ecsservice.ListTagsForResourceInput{ResourceArn: &taskDefArn})
+						if err == nil {
+							tagsMap := ecsTagsToMap(tagsResp.Tags)
+							if conn.Filters.General.IsFilteredOutByTags(mapStringInterfaceToStringString(tagsMap)) {
+								log.Debug().Str("taskDefinition", taskDefArn).Msg("excluding ecs task definition due to tag filters")
+								continue
+							}
+							// reuse the fetched tags so discovery labels don't refetch
+							args["tags"] = llx.MapData(tagsMap, types.String)
+						} else {
+							log.Warn().Err(err).Str("taskDefinition", taskDefArn).Msg("could not get tags for ecs task definition")
+						}
+					}
+
+					mqlTaskDef, err := CreateResource(a.MqlRuntime, ResourceAwsEcsTaskDefinition, args)
 					if err != nil {
 						return nil, err
 					}
