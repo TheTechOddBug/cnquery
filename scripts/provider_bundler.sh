@@ -12,8 +12,8 @@ PROVIDER_PATH=$REPOROOT/providers/$PROVIDER_NAME
 PROVIDER_DIST=$PROVIDER_PATH/dist
 BUNDLE_DIST=$REPOROOT/dist
 
-# Maximum number of parallel arch builds (default: all 11 at once)
-MAX_PARALLEL=${MAX_PARALLEL:-11}
+# Maximum number of parallel arch builds (default: 1 — serial builds are faster due to reduced CPU/IO contention)
+MAX_PARALLEL=${MAX_PARALLEL:-1}
 
 cd $REPOROOT
 

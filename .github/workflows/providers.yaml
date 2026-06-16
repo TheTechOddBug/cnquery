@@ -21,6 +21,10 @@ on:
         required: false
         default: false
         type: boolean
+      max_parallel:
+        description: "Max parallel arch builds per provider (leave empty to auto-detect from physical cores)"
+        type: number
+        required: false
 
 permissions:
   contents: read
@@ -32,7 +36,7 @@ env:
 jobs:
   scoping:
     name: "Scoping"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     timeout-minutes: 10
     outputs:
       providers: ${{ steps.providers.outputs.providers }}
@@ -102,7 +106,7 @@ jobs:
   provider-build:
     name: "${{ matrix.provider }}"
     runs-on:
-      group: Default
+      group: arc-runners
     environment: prod
     timeout-minutes: 120
     permissions:
@@ -113,7 +117,7 @@ jobs:
     if: ${{ needs.scoping.outputs.build_list != '[]' }}
     strategy:
       fail-fast: false
-      max-parallel: 2
+      max-parallel: 4
       matrix:
         provider: ${{ fromJSON(needs.scoping.outputs.build_list) }}
     steps:
@@ -185,6 +189,7 @@ jobs:
           TSIGN_ACCOUNT_NAME: ${{ vars.TSIGN_ACCOUNT_NAME }}
           TSIGN_CERT_PROFILE_NAME: ${{ github.event.inputs.use-test-cert == 'true' && vars.TSIGN_TEST_CERT_PROFILE_NAME || vars.TSIGN_CERT_PROFILE_NAME }}
           TSIGN_ACCESS_TOKEN: ${{ steps.get_token.outputs.TSIGN_ACCESS_TOKEN }}
+          MAX_PARALLEL: ${{ inputs.max_parallel }}
 
       - name: "Publish Provider"
         if: ${{ ! inputs.skip_publish }}
