@@ -389,6 +389,17 @@ func getFlagValueFromConfig(flag plugin.Flag) *llx.Primitive {
 	}
 }
 
+// lookupFlagEnv checks for a MONDOO_<FLAG> environment variable directly,
+// bypassing viper. This avoids picking up config-file values that happen
+// to share the same key name (e.g. a provider's --token flag vs. the
+// platform SA token in mondoo.yml).
+func lookupFlagEnv(flag plugin.Flag) (envKey string, val string, ok bool) {
+	replacer := strings.NewReplacer("-", "_", ".", "_")
+	envKey = "MONDOO_" + strings.ToUpper(replacer.Replace(flag.Long))
+	val, ok = os.LookupEnv(envKey)
+	return envKey, val, ok
+}
+
 func getFlagValueFromCobra(flag plugin.Flag, cmd *cobra.Command) *llx.Primitive {
 	var err error
 	switch flag.Type {
@@ -512,16 +523,19 @@ func setConnector(provider *plugin.Provider, connector *plugin.Connector, run fu
 				}
 			} else if flag.ConfigEntry == "" {
 				// No explicit config mapping. Use cobra when the user
-				// passed the flag on the CLI; otherwise fall back to
-				// viper so that env vars (MONDOO_<FLAG>) still work.
-				// We do NOT bind the cobra flag to viper (see PreRun)
-				// to avoid overwriting top-level config keys.
+				// passed the flag on the CLI; otherwise check for a
+				// MONDOO_<FLAG> env var directly (not through viper,
+				// since viper.GetString would also pick up config-file
+				// values that happen to share the same key name).
 				if cmd.Flags().Changed(flag.Long) {
 					if v := getFlagValueFromCobra(flag, cmd); v != nil {
 						flagVals[flag.Long] = v
 					}
-				} else {
-					if v := getFlagValueFromConfig(flag); v != nil {
+				} else if envKey, envVal, ok := lookupFlagEnv(flag); ok {
+					if err := cmd.Flags().Set(flag.Long, envVal); err != nil {
+						log.Warn().Err(err).Str("flag", flag.Long).Str("env", envKey).Msg("invalid env value for flag")
+					}
+					if v := getFlagValueFromCobra(flag, cmd); v != nil {
 						flagVals[flag.Long] = v
 					}
 				}
