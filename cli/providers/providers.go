@@ -437,17 +437,18 @@ func setConnector(provider *plugin.Provider, connector *plugin.Connector, run fu
 		// Flags are provided by the connector.
 		for i := range allFlags {
 			flag := allFlags[i]
-			if flag.ConfigEntry == "-" {
+			// Skip flags that opt out of config binding ("-") and flags
+			// that have no explicit config entry. Binding flags with no
+			// ConfigEntry would use the flag name as the viper key, which
+			// can collide with top-level config keys (e.g. a provider's
+			// --token flag overwrites the platform service-account token,
+			// causing 401 on upstream API calls).
+			if flag.ConfigEntry == "-" || flag.ConfigEntry == "" {
 				log.Debug().Msg("skipping config binding for " + flag.Long)
 				continue
 			}
 
-			flagName := flag.ConfigEntry
-			if flagName == "" {
-				flagName = flag.Long
-			}
-
-			_ = viper.BindPFlag(flagName, cmd.Flags().Lookup(flag.Long))
+			_ = viper.BindPFlag(flag.ConfigEntry, cmd.Flags().Lookup(flag.Long))
 		}
 	}
 
@@ -504,11 +505,25 @@ func setConnector(provider *plugin.Provider, connector *plugin.Connector, run fu
 				continue
 			}
 
-			// if the provider flag was configured to avoid using the config,
-			// we should instead fetch the flag value from `cobra` directly.
 			if flag.ConfigEntry == "-" {
+				// Opted out of config entirely — read from cobra only.
 				if v := getFlagValueFromCobra(flag, cmd); v != nil {
 					flagVals[flag.Long] = v
+				}
+			} else if flag.ConfigEntry == "" {
+				// No explicit config mapping. Use cobra when the user
+				// passed the flag on the CLI; otherwise fall back to
+				// viper so that env vars (MONDOO_<FLAG>) still work.
+				// We do NOT bind the cobra flag to viper (see PreRun)
+				// to avoid overwriting top-level config keys.
+				if cmd.Flags().Changed(flag.Long) {
+					if v := getFlagValueFromCobra(flag, cmd); v != nil {
+						flagVals[flag.Long] = v
+					}
+				} else {
+					if v := getFlagValueFromConfig(flag); v != nil {
+						flagVals[flag.Long] = v
+					}
 				}
 			} else {
 				if v := getFlagValueFromConfig(flag); v != nil {
