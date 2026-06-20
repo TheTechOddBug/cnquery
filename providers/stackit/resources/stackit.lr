@@ -463,6 +463,8 @@ private stackit.loadBalancer @defaults("name status externalAddress") {
   options dict
   // Errors reported during creation/operation [{type, description}]
   errors []dict
+  // Internet-exposure breakdown (public address combined with the access-control allow-list)
+  exposure() stackit.network.exposure
 }
 
 // STACKIT load balancer listener
@@ -930,6 +932,13 @@ private stackit.postgresFlex.instance @defaults("id name version status") {
   backupSchedule() string
   // Free-form operator-tunable options (lazy-loaded from the detail API)
   options() map[string]string
+  // Whether the instance accepts connections from any address
+  //
+  // True only when the connection ACL explicitly admits a default route
+  // (0.0.0.0/0 or ::/0). An empty ACL is not flagged: the Flex API exposes no
+  // public-endpoint indicator, so an unpopulated ACL cannot be assumed to be
+  // internet-reachable.
+  internetReachable() bool
 }
 
 // STACKIT MongoDB Flex namespace
@@ -971,6 +980,13 @@ private stackit.mongoDbFlex.instance @defaults("id name version status") {
   acl() []string
   // Free-form operator-tunable options (lazy-loaded from the detail API)
   options() map[string]string
+  // Whether the instance accepts connections from any address
+  //
+  // True only when the connection ACL explicitly admits a default route
+  // (0.0.0.0/0 or ::/0). An empty ACL is not flagged: the Flex API exposes no
+  // public-endpoint indicator, so an unpopulated ACL cannot be assumed to be
+  // internet-reachable.
+  internetReachable() bool
 }
 
 // STACKIT SQLServer Flex namespace
@@ -1012,6 +1028,13 @@ private stackit.sqlServerFlex.instance @defaults("id name version status") {
   backupSchedule() string
   // Free-form operator-tunable options (lazy-loaded from the detail API)
   options() map[string]string
+  // Whether the instance accepts connections from any address
+  //
+  // True only when the connection ACL explicitly admits a default route
+  // (0.0.0.0/0 or ::/0). An empty ACL is not flagged: the Flex API exposes no
+  // public-endpoint indicator, so an unpopulated ACL cannot be assumed to be
+  // internet-reachable.
+  internetReachable() bool
 }
 
 // STACKIT OpenSearch namespace
@@ -1054,6 +1077,12 @@ private stackit.openSearch.instance @defaults("id name status planName") {
   imageUrl string
   // Connection parameters returned by the API (free-form)
   parameters dict
+  // Whether the instance accepts connections from any address
+  //
+  // True when the instance's parameters enable public access and the
+  // source-IP allow-list (`sgw_acl`) is empty or admits any address
+  // (0.0.0.0/0 or ::/0), making the instance reachable from the internet.
+  internetReachable() bool
 }
 
 // STACKIT MariaDB namespace
@@ -1094,6 +1123,12 @@ private stackit.mariaDb.instance @defaults("id name status planName") {
   imageUrl string
   // Connection parameters returned by the API
   parameters dict
+  // Whether the instance accepts connections from any address
+  //
+  // True when the instance's parameters enable public access and the
+  // source-IP allow-list (`sgw_acl`) is empty or admits any address
+  // (0.0.0.0/0 or ::/0), making the instance reachable from the internet.
+  internetReachable() bool
 }
 
 // STACKIT Redis namespace
@@ -1134,6 +1169,12 @@ private stackit.redis.instance @defaults("id name status planName") {
   imageUrl string
   // Connection parameters returned by the API
   parameters dict
+  // Whether the instance accepts connections from any address
+  //
+  // True when the instance's parameters enable public access and the
+  // source-IP allow-list (`sgw_acl`) is empty or admits any address
+  // (0.0.0.0/0 or ::/0), making the instance reachable from the internet.
+  internetReachable() bool
 }
 
 // STACKIT RabbitMQ namespace
@@ -1174,6 +1215,12 @@ private stackit.rabbitMq.instance @defaults("id name status planName") {
   imageUrl string
   // Connection parameters returned by the API
   parameters dict
+  // Whether the instance accepts connections from any address
+  //
+  // True when the instance's parameters enable public access and the
+  // source-IP allow-list (`sgw_acl`) is empty or admits any address
+  // (0.0.0.0/0 or ::/0), making the instance reachable from the internet.
+  internetReachable() bool
 }
 
 // STACKIT LogMe namespace
@@ -1214,6 +1261,12 @@ private stackit.logMe.instance @defaults("id name status planName") {
   imageUrl string
   // Connection parameters returned by the API
   parameters dict
+  // Whether the instance accepts connections from any address
+  //
+  // True when the instance's parameters enable public access and the
+  // source-IP allow-list (`sgw_acl`) is empty or admits any address
+  // (0.0.0.0/0 or ::/0), making the instance reachable from the internet.
+  internetReachable() bool
 }
 
 // STACKIT Secrets Manager namespace
@@ -1549,6 +1602,8 @@ private stackit.alb.loadBalancer @defaults("name status externalAddress") {
   disableTargetSecurityGroupAssignment bool
   // User-defined labels
   labels map[string]string
+  // Internet-exposure breakdown (public address combined with the access-control allow-list)
+  exposure() stackit.network.exposure
 }
 
 // STACKIT KMS namespace
