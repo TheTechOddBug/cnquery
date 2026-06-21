@@ -3261,6 +3261,17 @@ windows.spooler.rpcAuthnLevelPrivacyEnabled 13.29.1
 windows.spooler.startMode 13.29.1
 windows.spooler.webPnpDownloadDisabled 13.29.1
 windows.spooler.windowsProtectedPrintGroupPolicyState 13.29.1
+windows.telemetry 13.29.1
+windows.telemetry.allowTelemetry 13.29.1
+windows.telemetry.disableCloudOptimizedContent 13.29.1
+windows.telemetry.disableConsumerAccountStateContent 13.29.1
+windows.telemetry.disableEnterpriseAuthProxy 13.29.1
+windows.telemetry.disableOneSettingsDownloads 13.29.1
+windows.telemetry.disableWindowsConsumerFeatures 13.29.1
+windows.telemetry.doNotShowFeedbackNotifications 13.29.1
+windows.telemetry.enableOneSettingsAuditing 13.29.1
+windows.telemetry.limitDiagnosticLogCollection 13.29.1
+windows.telemetry.limitDumpCollection 13.29.1
 windows.tpm 13.22.2
 windows.tpm.activated 13.22.2
 windows.tpm.enabled 13.22.2

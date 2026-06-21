@@ -354,6 +354,7 @@ const (
 	ResourceWindowsSpoolerPointAndPrint                   string = "windows.spooler.pointAndPrint"
 	ResourceWindowsSpoolerRpc                             string = "windows.spooler.rpc"
 	ResourceWindowsSpoolerIpp                             string = "windows.spooler.ipp"
+	ResourceWindowsTelemetry                              string = "windows.telemetry"
 	ResourceWindowsTpm                                    string = "windows.tpm"
 	ResourceWindowsAuditPolicy                            string = "windows.auditPolicy"
 	ResourceWindowsAuditPolicySubcategory                 string = "windows.auditPolicy.subcategory"
@@ -1847,6 +1848,10 @@ func init() {
 		"windows.spooler.ipp": {
 			// to override args, implement: initWindowsSpoolerIpp(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error)
 			Create: createWindowsSpoolerIpp,
+		},
+		"windows.telemetry": {
+			// to override args, implement: initWindowsTelemetry(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error)
+			Create: createWindowsTelemetry,
 		},
 		"windows.tpm": {
 			// to override args, implement: initWindowsTpm(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error)
@@ -8801,6 +8806,36 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	},
 	"windows.spooler.ipp.blockCertCNInvalid": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlWindowsSpoolerIpp).GetBlockCertCNInvalid()).ToDataRes(types.Bool)
+	},
+	"windows.telemetry.allowTelemetry": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlWindowsTelemetry).GetAllowTelemetry()).ToDataRes(types.Int)
+	},
+	"windows.telemetry.disableEnterpriseAuthProxy": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlWindowsTelemetry).GetDisableEnterpriseAuthProxy()).ToDataRes(types.Int)
+	},
+	"windows.telemetry.disableOneSettingsDownloads": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlWindowsTelemetry).GetDisableOneSettingsDownloads()).ToDataRes(types.Int)
+	},
+	"windows.telemetry.doNotShowFeedbackNotifications": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlWindowsTelemetry).GetDoNotShowFeedbackNotifications()).ToDataRes(types.Int)
+	},
+	"windows.telemetry.enableOneSettingsAuditing": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlWindowsTelemetry).GetEnableOneSettingsAuditing()).ToDataRes(types.Int)
+	},
+	"windows.telemetry.limitDiagnosticLogCollection": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlWindowsTelemetry).GetLimitDiagnosticLogCollection()).ToDataRes(types.Int)
+	},
+	"windows.telemetry.limitDumpCollection": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlWindowsTelemetry).GetLimitDumpCollection()).ToDataRes(types.Int)
+	},
+	"windows.telemetry.disableCloudOptimizedContent": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlWindowsTelemetry).GetDisableCloudOptimizedContent()).ToDataRes(types.Int)
+	},
+	"windows.telemetry.disableConsumerAccountStateContent": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlWindowsTelemetry).GetDisableConsumerAccountStateContent()).ToDataRes(types.Int)
+	},
+	"windows.telemetry.disableWindowsConsumerFeatures": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlWindowsTelemetry).GetDisableWindowsConsumerFeatures()).ToDataRes(types.Int)
 	},
 	"windows.tpm.present": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlWindowsTpm).GetPresent()).ToDataRes(types.Bool)
@@ -21247,6 +21282,50 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 	},
 	"windows.spooler.ipp.blockCertCNInvalid": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlWindowsSpoolerIpp).BlockCertCNInvalid, ok = plugin.RawToTValue[bool](v.Value, v.Error)
+		return
+	},
+	"windows.telemetry.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlWindowsTelemetry).__id, ok = v.Value.(string)
+		return
+	},
+	"windows.telemetry.allowTelemetry": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlWindowsTelemetry).AllowTelemetry, ok = plugin.RawToTValue[int64](v.Value, v.Error)
+		return
+	},
+	"windows.telemetry.disableEnterpriseAuthProxy": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlWindowsTelemetry).DisableEnterpriseAuthProxy, ok = plugin.RawToTValue[int64](v.Value, v.Error)
+		return
+	},
+	"windows.telemetry.disableOneSettingsDownloads": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlWindowsTelemetry).DisableOneSettingsDownloads, ok = plugin.RawToTValue[int64](v.Value, v.Error)
+		return
+	},
+	"windows.telemetry.doNotShowFeedbackNotifications": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlWindowsTelemetry).DoNotShowFeedbackNotifications, ok = plugin.RawToTValue[int64](v.Value, v.Error)
+		return
+	},
+	"windows.telemetry.enableOneSettingsAuditing": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlWindowsTelemetry).EnableOneSettingsAuditing, ok = plugin.RawToTValue[int64](v.Value, v.Error)
+		return
+	},
+	"windows.telemetry.limitDiagnosticLogCollection": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlWindowsTelemetry).LimitDiagnosticLogCollection, ok = plugin.RawToTValue[int64](v.Value, v.Error)
+		return
+	},
+	"windows.telemetry.limitDumpCollection": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlWindowsTelemetry).LimitDumpCollection, ok = plugin.RawToTValue[int64](v.Value, v.Error)
+		return
+	},
+	"windows.telemetry.disableCloudOptimizedContent": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlWindowsTelemetry).DisableCloudOptimizedContent, ok = plugin.RawToTValue[int64](v.Value, v.Error)
+		return
+	},
+	"windows.telemetry.disableConsumerAccountStateContent": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlWindowsTelemetry).DisableConsumerAccountStateContent, ok = plugin.RawToTValue[int64](v.Value, v.Error)
+		return
+	},
+	"windows.telemetry.disableWindowsConsumerFeatures": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlWindowsTelemetry).DisableWindowsConsumerFeatures, ok = plugin.RawToTValue[int64](v.Value, v.Error)
 		return
 	},
 	"windows.tpm.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
@@ -55945,6 +56024,120 @@ func (c *mqlWindowsSpoolerIpp) GetBlockCertDateInvalid() *plugin.TValue[bool] {
 
 func (c *mqlWindowsSpoolerIpp) GetBlockCertCNInvalid() *plugin.TValue[bool] {
 	return &c.BlockCertCNInvalid
+}
+
+// mqlWindowsTelemetry for the windows.telemetry resource
+type mqlWindowsTelemetry struct {
+	MqlRuntime *plugin.Runtime
+	__id       string
+	// optional: if you define mqlWindowsTelemetryInternal it will be used here
+	AllowTelemetry                     plugin.TValue[int64]
+	DisableEnterpriseAuthProxy         plugin.TValue[int64]
+	DisableOneSettingsDownloads        plugin.TValue[int64]
+	DoNotShowFeedbackNotifications     plugin.TValue[int64]
+	EnableOneSettingsAuditing          plugin.TValue[int64]
+	LimitDiagnosticLogCollection       plugin.TValue[int64]
+	LimitDumpCollection                plugin.TValue[int64]
+	DisableCloudOptimizedContent       plugin.TValue[int64]
+	DisableConsumerAccountStateContent plugin.TValue[int64]
+	DisableWindowsConsumerFeatures     plugin.TValue[int64]
+}
+
+// createWindowsTelemetry creates a new instance of this resource
+func createWindowsTelemetry(runtime *plugin.Runtime, args map[string]*llx.RawData) (plugin.Resource, error) {
+	res := &mqlWindowsTelemetry{
+		MqlRuntime: runtime,
+	}
+
+	err := SetAllData(res, args)
+	if err != nil {
+		return res, err
+	}
+
+	if res.__id == "" {
+		res.__id, err = res.id()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if runtime.HasRecording {
+		args, err = runtime.ResourceFromRecording("windows.telemetry", res.__id)
+		if err != nil || args == nil {
+			return res, err
+		}
+		return res, SetAllData(res, args)
+	}
+
+	return res, nil
+}
+
+func (c *mqlWindowsTelemetry) MqlName() string {
+	return "windows.telemetry"
+}
+
+func (c *mqlWindowsTelemetry) MqlID() string {
+	return c.__id
+}
+
+func (c *mqlWindowsTelemetry) GetAllowTelemetry() *plugin.TValue[int64] {
+	return plugin.GetOrCompute[int64](&c.AllowTelemetry, func() (int64, error) {
+		return c.allowTelemetry()
+	})
+}
+
+func (c *mqlWindowsTelemetry) GetDisableEnterpriseAuthProxy() *plugin.TValue[int64] {
+	return plugin.GetOrCompute[int64](&c.DisableEnterpriseAuthProxy, func() (int64, error) {
+		return c.disableEnterpriseAuthProxy()
+	})
+}
+
+func (c *mqlWindowsTelemetry) GetDisableOneSettingsDownloads() *plugin.TValue[int64] {
+	return plugin.GetOrCompute[int64](&c.DisableOneSettingsDownloads, func() (int64, error) {
+		return c.disableOneSettingsDownloads()
+	})
+}
+
+func (c *mqlWindowsTelemetry) GetDoNotShowFeedbackNotifications() *plugin.TValue[int64] {
+	return plugin.GetOrCompute[int64](&c.DoNotShowFeedbackNotifications, func() (int64, error) {
+		return c.doNotShowFeedbackNotifications()
+	})
+}
+
+func (c *mqlWindowsTelemetry) GetEnableOneSettingsAuditing() *plugin.TValue[int64] {
+	return plugin.GetOrCompute[int64](&c.EnableOneSettingsAuditing, func() (int64, error) {
+		return c.enableOneSettingsAuditing()
+	})
+}
+
+func (c *mqlWindowsTelemetry) GetLimitDiagnosticLogCollection() *plugin.TValue[int64] {
+	return plugin.GetOrCompute[int64](&c.LimitDiagnosticLogCollection, func() (int64, error) {
+		return c.limitDiagnosticLogCollection()
+	})
+}
+
+func (c *mqlWindowsTelemetry) GetLimitDumpCollection() *plugin.TValue[int64] {
+	return plugin.GetOrCompute[int64](&c.LimitDumpCollection, func() (int64, error) {
+		return c.limitDumpCollection()
+	})
+}
+
+func (c *mqlWindowsTelemetry) GetDisableCloudOptimizedContent() *plugin.TValue[int64] {
+	return plugin.GetOrCompute[int64](&c.DisableCloudOptimizedContent, func() (int64, error) {
+		return c.disableCloudOptimizedContent()
+	})
+}
+
+func (c *mqlWindowsTelemetry) GetDisableConsumerAccountStateContent() *plugin.TValue[int64] {
+	return plugin.GetOrCompute[int64](&c.DisableConsumerAccountStateContent, func() (int64, error) {
+		return c.disableConsumerAccountStateContent()
+	})
+}
+
+func (c *mqlWindowsTelemetry) GetDisableWindowsConsumerFeatures() *plugin.TValue[int64] {
+	return plugin.GetOrCompute[int64](&c.DisableWindowsConsumerFeatures, func() (int64, error) {
+		return c.disableWindowsConsumerFeatures()
+	})
 }
 
 // mqlWindowsTpm for the windows.tpm resource
