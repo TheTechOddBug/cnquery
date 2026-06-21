@@ -860,6 +860,15 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	"k8s.pod.meetsPodSecurityRestricted": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlK8sPod).GetMeetsPodSecurityRestricted()).ToDataRes(types.Bool)
 	},
+	"k8s.pod.usesSecretsAsEnv": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlK8sPod).GetUsesSecretsAsEnv()).ToDataRes(types.Bool)
+	},
+	"k8s.pod.mountsSecretVolumes": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlK8sPod).GetMountsSecretVolumes()).ToDataRes(types.Bool)
+	},
+	"k8s.pod.consumedSecrets": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlK8sPod).GetConsumedSecrets()).ToDataRes(types.Array(types.String))
+	},
 	"k8s.pod.id": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlK8sPod).GetId()).ToDataRes(types.String)
 	},
@@ -1121,6 +1130,15 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	"k8s.deployment.meetsPodSecurityRestricted": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlK8sDeployment).GetMeetsPodSecurityRestricted()).ToDataRes(types.Bool)
 	},
+	"k8s.deployment.usesSecretsAsEnv": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlK8sDeployment).GetUsesSecretsAsEnv()).ToDataRes(types.Bool)
+	},
+	"k8s.deployment.mountsSecretVolumes": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlK8sDeployment).GetMountsSecretVolumes()).ToDataRes(types.Bool)
+	},
+	"k8s.deployment.consumedSecrets": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlK8sDeployment).GetConsumedSecrets()).ToDataRes(types.Array(types.String))
+	},
 	"k8s.deployment.id": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlK8sDeployment).GetId()).ToDataRes(types.String)
 	},
@@ -1280,6 +1298,15 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	"k8s.daemonset.meetsPodSecurityRestricted": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlK8sDaemonset).GetMeetsPodSecurityRestricted()).ToDataRes(types.Bool)
 	},
+	"k8s.daemonset.usesSecretsAsEnv": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlK8sDaemonset).GetUsesSecretsAsEnv()).ToDataRes(types.Bool)
+	},
+	"k8s.daemonset.mountsSecretVolumes": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlK8sDaemonset).GetMountsSecretVolumes()).ToDataRes(types.Bool)
+	},
+	"k8s.daemonset.consumedSecrets": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlK8sDaemonset).GetConsumedSecrets()).ToDataRes(types.Array(types.String))
+	},
 	"k8s.daemonset.id": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlK8sDaemonset).GetId()).ToDataRes(types.String)
 	},
@@ -1435,6 +1462,15 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	},
 	"k8s.statefulset.meetsPodSecurityRestricted": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlK8sStatefulset).GetMeetsPodSecurityRestricted()).ToDataRes(types.Bool)
+	},
+	"k8s.statefulset.usesSecretsAsEnv": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlK8sStatefulset).GetUsesSecretsAsEnv()).ToDataRes(types.Bool)
+	},
+	"k8s.statefulset.mountsSecretVolumes": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlK8sStatefulset).GetMountsSecretVolumes()).ToDataRes(types.Bool)
+	},
+	"k8s.statefulset.consumedSecrets": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlK8sStatefulset).GetConsumedSecrets()).ToDataRes(types.Array(types.String))
 	},
 	"k8s.statefulset.id": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlK8sStatefulset).GetId()).ToDataRes(types.String)
@@ -1607,6 +1643,15 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	"k8s.replicaset.meetsPodSecurityRestricted": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlK8sReplicaset).GetMeetsPodSecurityRestricted()).ToDataRes(types.Bool)
 	},
+	"k8s.replicaset.usesSecretsAsEnv": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlK8sReplicaset).GetUsesSecretsAsEnv()).ToDataRes(types.Bool)
+	},
+	"k8s.replicaset.mountsSecretVolumes": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlK8sReplicaset).GetMountsSecretVolumes()).ToDataRes(types.Bool)
+	},
+	"k8s.replicaset.consumedSecrets": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlK8sReplicaset).GetConsumedSecrets()).ToDataRes(types.Array(types.String))
+	},
 	"k8s.replicaset.id": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlK8sReplicaset).GetId()).ToDataRes(types.String)
 	},
@@ -1747,6 +1792,15 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	},
 	"k8s.job.meetsPodSecurityRestricted": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlK8sJob).GetMeetsPodSecurityRestricted()).ToDataRes(types.Bool)
+	},
+	"k8s.job.usesSecretsAsEnv": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlK8sJob).GetUsesSecretsAsEnv()).ToDataRes(types.Bool)
+	},
+	"k8s.job.mountsSecretVolumes": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlK8sJob).GetMountsSecretVolumes()).ToDataRes(types.Bool)
+	},
+	"k8s.job.consumedSecrets": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlK8sJob).GetConsumedSecrets()).ToDataRes(types.Array(types.String))
 	},
 	"k8s.job.id": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlK8sJob).GetId()).ToDataRes(types.String)
@@ -1924,6 +1978,15 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	},
 	"k8s.cronjob.meetsPodSecurityRestricted": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlK8sCronjob).GetMeetsPodSecurityRestricted()).ToDataRes(types.Bool)
+	},
+	"k8s.cronjob.usesSecretsAsEnv": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlK8sCronjob).GetUsesSecretsAsEnv()).ToDataRes(types.Bool)
+	},
+	"k8s.cronjob.mountsSecretVolumes": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlK8sCronjob).GetMountsSecretVolumes()).ToDataRes(types.Bool)
+	},
+	"k8s.cronjob.consumedSecrets": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlK8sCronjob).GetConsumedSecrets()).ToDataRes(types.Array(types.String))
 	},
 	"k8s.cronjob.id": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlK8sCronjob).GetId()).ToDataRes(types.String)
@@ -4959,6 +5022,18 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 		r.(*mqlK8sPod).MeetsPodSecurityRestricted, ok = plugin.RawToTValue[bool](v.Value, v.Error)
 		return
 	},
+	"k8s.pod.usesSecretsAsEnv": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlK8sPod).UsesSecretsAsEnv, ok = plugin.RawToTValue[bool](v.Value, v.Error)
+		return
+	},
+	"k8s.pod.mountsSecretVolumes": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlK8sPod).MountsSecretVolumes, ok = plugin.RawToTValue[bool](v.Value, v.Error)
+		return
+	},
+	"k8s.pod.consumedSecrets": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlK8sPod).ConsumedSecrets, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
 	"k8s.pod.id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlK8sPod).Id, ok = plugin.RawToTValue[string](v.Value, v.Error)
 		return
@@ -5311,6 +5386,18 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 		r.(*mqlK8sDeployment).MeetsPodSecurityRestricted, ok = plugin.RawToTValue[bool](v.Value, v.Error)
 		return
 	},
+	"k8s.deployment.usesSecretsAsEnv": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlK8sDeployment).UsesSecretsAsEnv, ok = plugin.RawToTValue[bool](v.Value, v.Error)
+		return
+	},
+	"k8s.deployment.mountsSecretVolumes": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlK8sDeployment).MountsSecretVolumes, ok = plugin.RawToTValue[bool](v.Value, v.Error)
+		return
+	},
+	"k8s.deployment.consumedSecrets": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlK8sDeployment).ConsumedSecrets, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
 	"k8s.deployment.id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlK8sDeployment).Id, ok = plugin.RawToTValue[string](v.Value, v.Error)
 		return
@@ -5527,6 +5614,18 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 		r.(*mqlK8sDaemonset).MeetsPodSecurityRestricted, ok = plugin.RawToTValue[bool](v.Value, v.Error)
 		return
 	},
+	"k8s.daemonset.usesSecretsAsEnv": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlK8sDaemonset).UsesSecretsAsEnv, ok = plugin.RawToTValue[bool](v.Value, v.Error)
+		return
+	},
+	"k8s.daemonset.mountsSecretVolumes": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlK8sDaemonset).MountsSecretVolumes, ok = plugin.RawToTValue[bool](v.Value, v.Error)
+		return
+	},
+	"k8s.daemonset.consumedSecrets": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlK8sDaemonset).ConsumedSecrets, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
 	"k8s.daemonset.id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlK8sDaemonset).Id, ok = plugin.RawToTValue[string](v.Value, v.Error)
 		return
@@ -5737,6 +5836,18 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 	},
 	"k8s.statefulset.meetsPodSecurityRestricted": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlK8sStatefulset).MeetsPodSecurityRestricted, ok = plugin.RawToTValue[bool](v.Value, v.Error)
+		return
+	},
+	"k8s.statefulset.usesSecretsAsEnv": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlK8sStatefulset).UsesSecretsAsEnv, ok = plugin.RawToTValue[bool](v.Value, v.Error)
+		return
+	},
+	"k8s.statefulset.mountsSecretVolumes": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlK8sStatefulset).MountsSecretVolumes, ok = plugin.RawToTValue[bool](v.Value, v.Error)
+		return
+	},
+	"k8s.statefulset.consumedSecrets": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlK8sStatefulset).ConsumedSecrets, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
 		return
 	},
 	"k8s.statefulset.id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
@@ -5971,6 +6082,18 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 		r.(*mqlK8sReplicaset).MeetsPodSecurityRestricted, ok = plugin.RawToTValue[bool](v.Value, v.Error)
 		return
 	},
+	"k8s.replicaset.usesSecretsAsEnv": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlK8sReplicaset).UsesSecretsAsEnv, ok = plugin.RawToTValue[bool](v.Value, v.Error)
+		return
+	},
+	"k8s.replicaset.mountsSecretVolumes": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlK8sReplicaset).MountsSecretVolumes, ok = plugin.RawToTValue[bool](v.Value, v.Error)
+		return
+	},
+	"k8s.replicaset.consumedSecrets": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlK8sReplicaset).ConsumedSecrets, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
 	"k8s.replicaset.id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlK8sReplicaset).Id, ok = plugin.RawToTValue[string](v.Value, v.Error)
 		return
@@ -6161,6 +6284,18 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 	},
 	"k8s.job.meetsPodSecurityRestricted": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlK8sJob).MeetsPodSecurityRestricted, ok = plugin.RawToTValue[bool](v.Value, v.Error)
+		return
+	},
+	"k8s.job.usesSecretsAsEnv": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlK8sJob).UsesSecretsAsEnv, ok = plugin.RawToTValue[bool](v.Value, v.Error)
+		return
+	},
+	"k8s.job.mountsSecretVolumes": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlK8sJob).MountsSecretVolumes, ok = plugin.RawToTValue[bool](v.Value, v.Error)
+		return
+	},
+	"k8s.job.consumedSecrets": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlK8sJob).ConsumedSecrets, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
 		return
 	},
 	"k8s.job.id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
@@ -6401,6 +6536,18 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 	},
 	"k8s.cronjob.meetsPodSecurityRestricted": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlK8sCronjob).MeetsPodSecurityRestricted, ok = plugin.RawToTValue[bool](v.Value, v.Error)
+		return
+	},
+	"k8s.cronjob.usesSecretsAsEnv": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlK8sCronjob).UsesSecretsAsEnv, ok = plugin.RawToTValue[bool](v.Value, v.Error)
+		return
+	},
+	"k8s.cronjob.mountsSecretVolumes": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlK8sCronjob).MountsSecretVolumes, ok = plugin.RawToTValue[bool](v.Value, v.Error)
+		return
+	},
+	"k8s.cronjob.consumedSecrets": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlK8sCronjob).ConsumedSecrets, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
 		return
 	},
 	"k8s.cronjob.id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
@@ -11709,6 +11856,9 @@ type mqlK8sPod struct {
 	PodSecurityStandard           plugin.TValue[string]
 	MeetsPodSecurityBaseline      plugin.TValue[bool]
 	MeetsPodSecurityRestricted    plugin.TValue[bool]
+	UsesSecretsAsEnv              plugin.TValue[bool]
+	MountsSecretVolumes           plugin.TValue[bool]
+	ConsumedSecrets               plugin.TValue[[]any]
 	Id                            plugin.TValue[string]
 	Uid                           plugin.TValue[string]
 	ResourceVersion               plugin.TValue[string]
@@ -11912,6 +12062,24 @@ func (c *mqlK8sPod) GetMeetsPodSecurityBaseline() *plugin.TValue[bool] {
 func (c *mqlK8sPod) GetMeetsPodSecurityRestricted() *plugin.TValue[bool] {
 	return plugin.GetOrCompute[bool](&c.MeetsPodSecurityRestricted, func() (bool, error) {
 		return c.meetsPodSecurityRestricted()
+	})
+}
+
+func (c *mqlK8sPod) GetUsesSecretsAsEnv() *plugin.TValue[bool] {
+	return plugin.GetOrCompute[bool](&c.UsesSecretsAsEnv, func() (bool, error) {
+		return c.usesSecretsAsEnv()
+	})
+}
+
+func (c *mqlK8sPod) GetMountsSecretVolumes() *plugin.TValue[bool] {
+	return plugin.GetOrCompute[bool](&c.MountsSecretVolumes, func() (bool, error) {
+		return c.mountsSecretVolumes()
+	})
+}
+
+func (c *mqlK8sPod) GetConsumedSecrets() *plugin.TValue[[]any] {
+	return plugin.GetOrCompute[[]any](&c.ConsumedSecrets, func() ([]any, error) {
+		return c.consumedSecrets()
 	})
 }
 
@@ -12456,6 +12624,9 @@ type mqlK8sDeployment struct {
 	PodSecurityStandard          plugin.TValue[string]
 	MeetsPodSecurityBaseline     plugin.TValue[bool]
 	MeetsPodSecurityRestricted   plugin.TValue[bool]
+	UsesSecretsAsEnv             plugin.TValue[bool]
+	MountsSecretVolumes          plugin.TValue[bool]
+	ConsumedSecrets              plugin.TValue[[]any]
 	Id                           plugin.TValue[string]
 	Uid                          plugin.TValue[string]
 	ResourceVersion              plugin.TValue[string]
@@ -12655,6 +12826,24 @@ func (c *mqlK8sDeployment) GetMeetsPodSecurityBaseline() *plugin.TValue[bool] {
 func (c *mqlK8sDeployment) GetMeetsPodSecurityRestricted() *plugin.TValue[bool] {
 	return plugin.GetOrCompute[bool](&c.MeetsPodSecurityRestricted, func() (bool, error) {
 		return c.meetsPodSecurityRestricted()
+	})
+}
+
+func (c *mqlK8sDeployment) GetUsesSecretsAsEnv() *plugin.TValue[bool] {
+	return plugin.GetOrCompute[bool](&c.UsesSecretsAsEnv, func() (bool, error) {
+		return c.usesSecretsAsEnv()
+	})
+}
+
+func (c *mqlK8sDeployment) GetMountsSecretVolumes() *plugin.TValue[bool] {
+	return plugin.GetOrCompute[bool](&c.MountsSecretVolumes, func() (bool, error) {
+		return c.mountsSecretVolumes()
+	})
+}
+
+func (c *mqlK8sDeployment) GetConsumedSecrets() *plugin.TValue[[]any] {
+	return plugin.GetOrCompute[[]any](&c.ConsumedSecrets, func() ([]any, error) {
+		return c.consumedSecrets()
 	})
 }
 
@@ -12907,6 +13096,9 @@ type mqlK8sDaemonset struct {
 	PodSecurityStandard          plugin.TValue[string]
 	MeetsPodSecurityBaseline     plugin.TValue[bool]
 	MeetsPodSecurityRestricted   plugin.TValue[bool]
+	UsesSecretsAsEnv             plugin.TValue[bool]
+	MountsSecretVolumes          plugin.TValue[bool]
+	ConsumedSecrets              plugin.TValue[[]any]
 	Id                           plugin.TValue[string]
 	Uid                          plugin.TValue[string]
 	ResourceVersion              plugin.TValue[string]
@@ -13105,6 +13297,24 @@ func (c *mqlK8sDaemonset) GetMeetsPodSecurityBaseline() *plugin.TValue[bool] {
 func (c *mqlK8sDaemonset) GetMeetsPodSecurityRestricted() *plugin.TValue[bool] {
 	return plugin.GetOrCompute[bool](&c.MeetsPodSecurityRestricted, func() (bool, error) {
 		return c.meetsPodSecurityRestricted()
+	})
+}
+
+func (c *mqlK8sDaemonset) GetUsesSecretsAsEnv() *plugin.TValue[bool] {
+	return plugin.GetOrCompute[bool](&c.UsesSecretsAsEnv, func() (bool, error) {
+		return c.usesSecretsAsEnv()
+	})
+}
+
+func (c *mqlK8sDaemonset) GetMountsSecretVolumes() *plugin.TValue[bool] {
+	return plugin.GetOrCompute[bool](&c.MountsSecretVolumes, func() (bool, error) {
+		return c.mountsSecretVolumes()
+	})
+}
+
+func (c *mqlK8sDaemonset) GetConsumedSecrets() *plugin.TValue[[]any] {
+	return plugin.GetOrCompute[[]any](&c.ConsumedSecrets, func() ([]any, error) {
+		return c.consumedSecrets()
 	})
 }
 
@@ -13351,6 +13561,9 @@ type mqlK8sStatefulset struct {
 	PodSecurityStandard                  plugin.TValue[string]
 	MeetsPodSecurityBaseline             plugin.TValue[bool]
 	MeetsPodSecurityRestricted           plugin.TValue[bool]
+	UsesSecretsAsEnv                     plugin.TValue[bool]
+	MountsSecretVolumes                  plugin.TValue[bool]
+	ConsumedSecrets                      plugin.TValue[[]any]
 	Id                                   plugin.TValue[string]
 	Uid                                  plugin.TValue[string]
 	ResourceVersion                      plugin.TValue[string]
@@ -13554,6 +13767,24 @@ func (c *mqlK8sStatefulset) GetMeetsPodSecurityBaseline() *plugin.TValue[bool] {
 func (c *mqlK8sStatefulset) GetMeetsPodSecurityRestricted() *plugin.TValue[bool] {
 	return plugin.GetOrCompute[bool](&c.MeetsPodSecurityRestricted, func() (bool, error) {
 		return c.meetsPodSecurityRestricted()
+	})
+}
+
+func (c *mqlK8sStatefulset) GetUsesSecretsAsEnv() *plugin.TValue[bool] {
+	return plugin.GetOrCompute[bool](&c.UsesSecretsAsEnv, func() (bool, error) {
+		return c.usesSecretsAsEnv()
+	})
+}
+
+func (c *mqlK8sStatefulset) GetMountsSecretVolumes() *plugin.TValue[bool] {
+	return plugin.GetOrCompute[bool](&c.MountsSecretVolumes, func() (bool, error) {
+		return c.mountsSecretVolumes()
+	})
+}
+
+func (c *mqlK8sStatefulset) GetConsumedSecrets() *plugin.TValue[[]any] {
+	return plugin.GetOrCompute[[]any](&c.ConsumedSecrets, func() ([]any, error) {
+		return c.consumedSecrets()
 	})
 }
 
@@ -13830,6 +14061,9 @@ type mqlK8sReplicaset struct {
 	PodSecurityStandard          plugin.TValue[string]
 	MeetsPodSecurityBaseline     plugin.TValue[bool]
 	MeetsPodSecurityRestricted   plugin.TValue[bool]
+	UsesSecretsAsEnv             plugin.TValue[bool]
+	MountsSecretVolumes          plugin.TValue[bool]
+	ConsumedSecrets              plugin.TValue[[]any]
 	Id                           plugin.TValue[string]
 	Uid                          plugin.TValue[string]
 	ResourceVersion              plugin.TValue[string]
@@ -14023,6 +14257,24 @@ func (c *mqlK8sReplicaset) GetMeetsPodSecurityBaseline() *plugin.TValue[bool] {
 func (c *mqlK8sReplicaset) GetMeetsPodSecurityRestricted() *plugin.TValue[bool] {
 	return plugin.GetOrCompute[bool](&c.MeetsPodSecurityRestricted, func() (bool, error) {
 		return c.meetsPodSecurityRestricted()
+	})
+}
+
+func (c *mqlK8sReplicaset) GetUsesSecretsAsEnv() *plugin.TValue[bool] {
+	return plugin.GetOrCompute[bool](&c.UsesSecretsAsEnv, func() (bool, error) {
+		return c.usesSecretsAsEnv()
+	})
+}
+
+func (c *mqlK8sReplicaset) GetMountsSecretVolumes() *plugin.TValue[bool] {
+	return plugin.GetOrCompute[bool](&c.MountsSecretVolumes, func() (bool, error) {
+		return c.mountsSecretVolumes()
+	})
+}
+
+func (c *mqlK8sReplicaset) GetConsumedSecrets() *plugin.TValue[[]any] {
+	return plugin.GetOrCompute[[]any](&c.ConsumedSecrets, func() ([]any, error) {
+		return c.consumedSecrets()
 	})
 }
 
@@ -14239,6 +14491,9 @@ type mqlK8sJob struct {
 	PodSecurityStandard          plugin.TValue[string]
 	MeetsPodSecurityBaseline     plugin.TValue[bool]
 	MeetsPodSecurityRestricted   plugin.TValue[bool]
+	UsesSecretsAsEnv             plugin.TValue[bool]
+	MountsSecretVolumes          plugin.TValue[bool]
+	ConsumedSecrets              plugin.TValue[[]any]
 	Id                           plugin.TValue[string]
 	Uid                          plugin.TValue[string]
 	ResourceVersion              plugin.TValue[string]
@@ -14444,6 +14699,24 @@ func (c *mqlK8sJob) GetMeetsPodSecurityBaseline() *plugin.TValue[bool] {
 func (c *mqlK8sJob) GetMeetsPodSecurityRestricted() *plugin.TValue[bool] {
 	return plugin.GetOrCompute[bool](&c.MeetsPodSecurityRestricted, func() (bool, error) {
 		return c.meetsPodSecurityRestricted()
+	})
+}
+
+func (c *mqlK8sJob) GetUsesSecretsAsEnv() *plugin.TValue[bool] {
+	return plugin.GetOrCompute[bool](&c.UsesSecretsAsEnv, func() (bool, error) {
+		return c.usesSecretsAsEnv()
+	})
+}
+
+func (c *mqlK8sJob) GetMountsSecretVolumes() *plugin.TValue[bool] {
+	return plugin.GetOrCompute[bool](&c.MountsSecretVolumes, func() (bool, error) {
+		return c.mountsSecretVolumes()
+	})
+}
+
+func (c *mqlK8sJob) GetConsumedSecrets() *plugin.TValue[[]any] {
+	return plugin.GetOrCompute[[]any](&c.ConsumedSecrets, func() ([]any, error) {
+		return c.consumedSecrets()
 	})
 }
 
@@ -14732,6 +15005,9 @@ type mqlK8sCronjob struct {
 	PodSecurityStandard          plugin.TValue[string]
 	MeetsPodSecurityBaseline     plugin.TValue[bool]
 	MeetsPodSecurityRestricted   plugin.TValue[bool]
+	UsesSecretsAsEnv             plugin.TValue[bool]
+	MountsSecretVolumes          plugin.TValue[bool]
+	ConsumedSecrets              plugin.TValue[[]any]
 	Id                           plugin.TValue[string]
 	Uid                          plugin.TValue[string]
 	ResourceVersion              plugin.TValue[string]
@@ -14927,6 +15203,24 @@ func (c *mqlK8sCronjob) GetMeetsPodSecurityBaseline() *plugin.TValue[bool] {
 func (c *mqlK8sCronjob) GetMeetsPodSecurityRestricted() *plugin.TValue[bool] {
 	return plugin.GetOrCompute[bool](&c.MeetsPodSecurityRestricted, func() (bool, error) {
 		return c.meetsPodSecurityRestricted()
+	})
+}
+
+func (c *mqlK8sCronjob) GetUsesSecretsAsEnv() *plugin.TValue[bool] {
+	return plugin.GetOrCompute[bool](&c.UsesSecretsAsEnv, func() (bool, error) {
+		return c.usesSecretsAsEnv()
+	})
+}
+
+func (c *mqlK8sCronjob) GetMountsSecretVolumes() *plugin.TValue[bool] {
+	return plugin.GetOrCompute[bool](&c.MountsSecretVolumes, func() (bool, error) {
+		return c.mountsSecretVolumes()
+	})
+}
+
+func (c *mqlK8sCronjob) GetConsumedSecrets() *plugin.TValue[[]any] {
+	return plugin.GetOrCompute[[]any](&c.ConsumedSecrets, func() ([]any, error) {
+		return c.consumedSecrets()
 	})
 }
 
