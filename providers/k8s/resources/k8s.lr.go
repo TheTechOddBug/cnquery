@@ -683,6 +683,9 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	"k8s.namespace.podSecurityWarnVersion": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlK8sNamespace).GetPodSecurityWarnVersion()).ToDataRes(types.String)
 	},
+	"k8s.namespace.enforcesPodSecurity": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlK8sNamespace).GetEnforcesPodSecurity()).ToDataRes(types.Bool)
+	},
 	"k8s.node.id": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlK8sNode).GetId()).ToDataRes(types.String)
 	},
@@ -3653,6 +3656,9 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	"k8s.admission.validatingwebhookconfiguration.webhooks": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlK8sAdmissionValidatingwebhookconfiguration).GetWebhooks()).ToDataRes(types.Array(types.Dict))
 	},
+	"k8s.admission.validatingwebhookconfiguration.failsOpen": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlK8sAdmissionValidatingwebhookconfiguration).GetFailsOpen()).ToDataRes(types.Bool)
+	},
 	"k8s.app.name": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlK8sApp).GetName()).ToDataRes(types.String)
 	},
@@ -3949,6 +3955,9 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	},
 	"k8s.admission.mutatingwebhookconfiguration.webhooks": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlK8sAdmissionMutatingwebhookconfiguration).GetWebhooks()).ToDataRes(types.Array(types.Dict))
+	},
+	"k8s.admission.mutatingwebhookconfiguration.failsOpen": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlK8sAdmissionMutatingwebhookconfiguration).GetFailsOpen()).ToDataRes(types.Bool)
 	},
 	"k8s.admission.validatingadmissionpolicy.id": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlK8sAdmissionValidatingadmissionpolicy).GetId()).ToDataRes(types.String)
@@ -4764,6 +4773,10 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 	},
 	"k8s.namespace.podSecurityWarnVersion": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlK8sNamespace).PodSecurityWarnVersion, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"k8s.namespace.enforcesPodSecurity": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlK8sNamespace).EnforcesPodSecurity, ok = plugin.RawToTValue[bool](v.Value, v.Error)
 		return
 	},
 	"k8s.node.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
@@ -8906,6 +8919,10 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 		r.(*mqlK8sAdmissionValidatingwebhookconfiguration).Webhooks, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
 		return
 	},
+	"k8s.admission.validatingwebhookconfiguration.failsOpen": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlK8sAdmissionValidatingwebhookconfiguration).FailsOpen, ok = plugin.RawToTValue[bool](v.Value, v.Error)
+		return
+	},
 	"k8s.app.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlK8sApp).__id, ok = v.Value.(string)
 		return
@@ -9328,6 +9345,10 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 	},
 	"k8s.admission.mutatingwebhookconfiguration.webhooks": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlK8sAdmissionMutatingwebhookconfiguration).Webhooks, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
+	"k8s.admission.mutatingwebhookconfiguration.failsOpen": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlK8sAdmissionMutatingwebhookconfiguration).FailsOpen, ok = plugin.RawToTValue[bool](v.Value, v.Error)
 		return
 	},
 	"k8s.admission.validatingadmissionpolicy.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
@@ -10886,6 +10907,7 @@ type mqlK8sNamespace struct {
 	PodSecurityAuditVersion   plugin.TValue[string]
 	PodSecurityWarn           plugin.TValue[string]
 	PodSecurityWarnVersion    plugin.TValue[string]
+	EnforcesPodSecurity       plugin.TValue[bool]
 }
 
 // createK8sNamespace creates a new instance of this resource
@@ -11364,6 +11386,12 @@ func (c *mqlK8sNamespace) GetPodSecurityWarn() *plugin.TValue[string] {
 func (c *mqlK8sNamespace) GetPodSecurityWarnVersion() *plugin.TValue[string] {
 	return plugin.GetOrCompute[string](&c.PodSecurityWarnVersion, func() (string, error) {
 		return c.podSecurityWarnVersion()
+	})
+}
+
+func (c *mqlK8sNamespace) GetEnforcesPodSecurity() *plugin.TValue[bool] {
+	return plugin.GetOrCompute[bool](&c.EnforcesPodSecurity, func() (bool, error) {
+		return c.enforcesPodSecurity()
 	})
 }
 
@@ -20602,6 +20630,7 @@ type mqlK8sAdmissionValidatingwebhookconfiguration struct {
 	Created         plugin.TValue[*time.Time]
 	Manifest        plugin.TValue[any]
 	Webhooks        plugin.TValue[[]any]
+	FailsOpen       plugin.TValue[bool]
 }
 
 // createK8sAdmissionValidatingwebhookconfiguration creates a new instance of this resource
@@ -20718,6 +20747,12 @@ func (c *mqlK8sAdmissionValidatingwebhookconfiguration) GetManifest() *plugin.TV
 func (c *mqlK8sAdmissionValidatingwebhookconfiguration) GetWebhooks() *plugin.TValue[[]any] {
 	return plugin.GetOrCompute[[]any](&c.Webhooks, func() ([]any, error) {
 		return c.webhooks()
+	})
+}
+
+func (c *mqlK8sAdmissionValidatingwebhookconfiguration) GetFailsOpen() *plugin.TValue[bool] {
+	return plugin.GetOrCompute[bool](&c.FailsOpen, func() (bool, error) {
+		return c.failsOpen()
 	})
 }
 
@@ -21594,6 +21629,7 @@ type mqlK8sAdmissionMutatingwebhookconfiguration struct {
 	Created         plugin.TValue[*time.Time]
 	Manifest        plugin.TValue[any]
 	Webhooks        plugin.TValue[[]any]
+	FailsOpen       plugin.TValue[bool]
 }
 
 // createK8sAdmissionMutatingwebhookconfiguration creates a new instance of this resource
@@ -21710,6 +21746,12 @@ func (c *mqlK8sAdmissionMutatingwebhookconfiguration) GetManifest() *plugin.TVal
 func (c *mqlK8sAdmissionMutatingwebhookconfiguration) GetWebhooks() *plugin.TValue[[]any] {
 	return plugin.GetOrCompute[[]any](&c.Webhooks, func() ([]any, error) {
 		return c.webhooks()
+	})
+}
+
+func (c *mqlK8sAdmissionMutatingwebhookconfiguration) GetFailsOpen() *plugin.TValue[bool] {
+	return plugin.GetOrCompute[bool](&c.FailsOpen, func() (bool, error) {
+		return c.failsOpen()
 	})
 }
 
