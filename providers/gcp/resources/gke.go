@@ -54,6 +54,9 @@ func (g *mqlGcpProject) gke() (*mqlGcpProjectGkeService, error) {
 
 	gkeService := res.(*mqlGcpProjectGkeService)
 	gkeService.serviceEnabled = serviceEnabled
+	if !serviceEnabled {
+		log.Debug().Str("service", service_gke).Msg("gcp service is not enabled, skipping")
+	}
 
 	return gkeService, nil
 }
@@ -298,7 +301,7 @@ func (g *mqlGcpProjectGkeService) clusters() ([]any, error) {
 
 	ctx := context.Background()
 
-	containerSvc, err := container.NewClusterManagerClient(ctx, option.WithCredentials(creds))
+	containerSvc, err := container.NewClusterManagerClient(ctx, option.WithCredentials(creds), connection.GRPCClientTraceOption())
 	if err != nil {
 		return nil, err
 	}
