@@ -1,7 +1,7 @@
 {
   "provider": "aws",
-  "version": "13.38.0",
-  "generated_at": "2026-06-23T15:34:34-06:00",
+  "version": "13.38.1",
+  "generated_at": "2026-06-25T17:02:25+03:00",
   "permissions": [
     "access-analyzer:ListAnalyzers",
     "access-analyzer:ListFindings",
@@ -194,6 +194,7 @@
     "config:DescribeComplianceByConfigRule",
     "config:DescribeConfigRules",
     "config:DescribeConfigurationAggregators",
+    "config:DescribeConfigurationRecorderStatus",
     "config:DescribeConfigurationRecorders",
     "config:DescribeConformancePackCompliance",
     "config:DescribeConformancePacks",
@@ -265,6 +266,7 @@
     "ec2:DescribeNetworkAcls",
     "ec2:DescribeNetworkInterfaces",
     "ec2:DescribePlacementGroups",
+    "ec2:DescribeRegions",
     "ec2:DescribeRouteTables",
     "ec2:DescribeSecurityGroups",
     "ec2:DescribeSnapshotAttribute",
@@ -439,6 +441,7 @@
     "guardduty:GetCoverageStatistics",
     "guardduty:GetDetector",
     "guardduty:GetFilter",
+    "guardduty:GetFindings",
     "guardduty:GetIPSet",
     "guardduty:GetThreatIntelSet",
     "guardduty:ListDetectors",
@@ -560,6 +563,7 @@
     "macie2:GetBucketStatistics",
     "macie2:GetClassificationExportConfiguration",
     "macie2:GetCustomDataIdentifier",
+    "macie2:GetFindings",
     "macie2:GetFindingsFilter",
     "macie2:GetMacieSession",
     "macie2:ListAllowLists",
@@ -655,6 +659,7 @@
     "route53:ListQueryLoggingConfigs",
     "route53:ListResourceRecordSets",
     "route53:ListTagsForResource",
+    "route53:ListTagsForResources",
     "route53:ListTrafficPolicies",
     "route53:ListTrafficPolicyInstances",
     "route53domains:GetDomainDetail",
@@ -831,6 +836,7 @@
     "sns:GetSubscriptionAttributes",
     "sns:GetTopicAttributes",
     "sns:ListSubscriptionsByTopic",
+    "sns:ListTagsForResource",
     "sns:ListTopics",
     "sqs:GetQueueAttributes",
     "sqs:ListQueueTags",
@@ -2071,6 +2077,12 @@
       "source_file": "aws_config.go"
     },
     {
+      "permission": "config:DescribeConfigurationRecorderStatus",
+      "service": "config",
+      "action": "DescribeConfigurationRecorderStatus",
+      "source_file": "aws_config.go"
+    },
+    {
       "permission": "config:DescribeConfigurationRecorders",
       "service": "config",
       "action": "DescribeConfigurationRecorders",
@@ -2521,6 +2533,12 @@
       "source_file": "aws_ec2_placement.go"
     },
     {
+      "permission": "ec2:DescribeRegions",
+      "service": "ec2",
+      "action": "DescribeRegions",
+      "source_file": "connection.go"
+    },
+    {
       "permission": "ec2:DescribeRouteTables",
       "service": "ec2",
       "action": "DescribeRouteTables",
@@ -2549,6 +2567,12 @@
       "service": "ec2",
       "action": "DescribeSnapshots",
       "source_file": "aws_ec2.go"
+    },
+    {
+      "permission": "ec2:DescribeSnapshots",
+      "service": "ec2",
+      "action": "DescribeSnapshots",
+      "source_file": "setup.go"
     },
     {
       "permission": "ec2:DescribeSubnets",
@@ -3280,6 +3304,12 @@
       "permission": "es:ListTags",
       "service": "es",
       "action": "ListTags",
+      "source_file": "aws_es.go"
+    },
+    {
+      "permission": "es:ListTags",
+      "service": "es",
+      "action": "ListTags",
       "source_file": "aws_opensearch.go"
     },
     {
@@ -3586,6 +3616,12 @@
       "permission": "guardduty:GetFilter",
       "service": "guardduty",
       "action": "GetFilter",
+      "source_file": "aws_guardduty.go"
+    },
+    {
+      "permission": "guardduty:GetFindings",
+      "service": "guardduty",
+      "action": "GetFindings",
       "source_file": "aws_guardduty.go"
     },
     {
@@ -4327,6 +4363,12 @@
       "source_file": "aws_macie.go"
     },
     {
+      "permission": "macie2:GetFindings",
+      "service": "macie2",
+      "action": "GetFindings",
+      "source_file": "aws_macie.go"
+    },
+    {
       "permission": "macie2:GetFindingsFilter",
       "service": "macie2",
       "action": "GetFindingsFilter",
@@ -4966,6 +5008,12 @@
       "permission": "route53:ListTagsForResource",
       "service": "route53",
       "action": "ListTagsForResource",
+      "source_file": "aws_route53.go"
+    },
+    {
+      "permission": "route53:ListTagsForResources",
+      "service": "route53",
+      "action": "ListTagsForResources",
       "source_file": "aws_route53.go"
     },
     {
@@ -6028,6 +6076,12 @@
       "permission": "sns:ListSubscriptionsByTopic",
       "service": "sns",
       "action": "ListSubscriptionsByTopic",
+      "source_file": "aws_sns.go"
+    },
+    {
+      "permission": "sns:ListTagsForResource",
+      "service": "sns",
+      "action": "ListTagsForResource",
       "source_file": "aws_sns.go"
     },
     {

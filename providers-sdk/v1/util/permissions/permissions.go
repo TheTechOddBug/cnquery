@@ -70,7 +70,7 @@ func main() {
 	var details []PermissionDetail
 	switch providerName {
 	case "aws":
-		details = extractAWSPermissions(resourcesDir)
+		details = extractAWSPermissions(providerPath)
 	case "gcp":
 		details = extractGCPPermissions(resourcesDir)
 	case "azure":
@@ -416,9 +416,9 @@ func awsApplyOverride(perm string) (string, bool) {
 	return perm, true
 }
 
-func extractAWSPermissions(resourcesDir string) []PermissionDetail {
+func extractAWSPermissions(root string) []PermissionDetail {
 	var details []PermissionDetail
-	files := listGoFiles(resourcesDir)
+	files := listGoFiles(root)
 
 	for _, filePath := range files {
 		fileName := filepath.Base(filePath)
@@ -444,8 +444,22 @@ func extractAWSPermissions(resourcesDir string) []PermissionDetail {
 				return true
 			}
 
-			// Build variable -> service map for this function
+			// Build variable -> service map for this function.
 			varServices := map[string]string{}
+
+			// Detect clients passe passed as function parameters.
+			if fn.Type != nil && fn.Type.Params != nil {
+				for _, param := range fn.Type.Params.List {
+					svcPkg, ok := awsClientParamService(param.Type, awsImports)
+					if !ok {
+						continue
+					}
+					for _, name := range param.Names {
+						varServices[name.Name] = svcPkg
+					}
+				}
+			}
+
 			ast.Inspect(fn.Body, func(n ast.Node) bool {
 				assignStmt, ok := n.(*ast.AssignStmt)
 				if !ok {
@@ -552,6 +566,30 @@ func extractAWSImports(f *ast.File) map[string]string {
 		result[alias] = pkgName
 	}
 	return result
+}
+
+// awsClientParamService reports the AWS SDK package name for a function
+// parameter typed *<alias>.Client (or the rare non-pointer <alias>.Client),
+// where <alias> is an AWS SDK import in this file — e.g. `svc *route53.Client`
+// returns "route53".
+func awsClientParamService(expr ast.Expr, awsImports map[string]string) (string, bool) {
+	// Unwrap a leading pointer: *route53.Client -> route53.Client.
+	if star, ok := expr.(*ast.StarExpr); ok {
+		expr = star.X
+	}
+	sel, ok := expr.(*ast.SelectorExpr)
+	if !ok || sel.Sel.Name != "Client" {
+		return "", false
+	}
+	ident, ok := sel.X.(*ast.Ident)
+	if !ok {
+		return "", false
+	}
+	pkg, ok := awsImports[ident.Name]
+	if !ok {
+		return "", false
+	}
+	return pkg, true
 }
 
 // awsConnectionMethodToService maps AwsConnection method names to service names.
