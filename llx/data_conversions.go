@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/rs/zerolog/log"
 	"go.mondoo.com/mql/v13/types"
 	"google.golang.org/protobuf/proto"
 )
@@ -765,9 +766,25 @@ func primitive2rawdataMapV2(m map[string]*Primitive) (map[string]any, error) {
 // RawData converts the primitive into the internal go-representation of the
 // data that can be used for computations
 func (p *Primitive) RawData() *RawData {
-	// FIXME: This is a stopgap. It points to an underlying problem that exists and needs fixing.
+	// A primitive with no type information is malformed: it is never produced
+	// deliberately (a genuine null is `NilPrimitive`, with Type == types.Nil).
+	// It only appears when an upstream layer — most often the compiler binding
+	// a predicate's value field to a resource that lacks it (see
+	// mqlc.addValueFieldChunks) — emits a broken primitive.
+	//
+	// Behavior here is loud-and-narrow:
+	//   - narrow: coerce just this field to null instead of returning an error.
+	//     An error would propagate through primitive2array / primitive2rawdataMapV2
+	//     and discard the entire surrounding collection (parray2raw rewrites the
+	//     dropped slice to an empty `[]`), so one broken leaf would empty a whole
+	//     failing-resource list and surface as an empty assessment.
+	//   - loud: log it. Silently coercing to a fake-valid null is what made the
+	//     original compiler bug nearly impossible to find; logging keeps the
+	//     underlying (usually compiler) defect visible even though we degrade
+	//     gracefully for the surrounding data.
 	if p.GetType() == "" {
-		return &RawData{Error: errors.New("cannot convert primitive with NO type information")}
+		log.Error().Msg("llx: encountered a primitive with no type information, coercing to null (this indicates an upstream/compiler bug producing a malformed primitive)")
+		return &RawData{Type: types.Nil}
 	}
 
 	typ := types.Type(p.Type)
