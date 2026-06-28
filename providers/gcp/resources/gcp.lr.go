@@ -2980,6 +2980,15 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	"gcp.folder.parentId": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlGcpFolder).GetParentId()).ToDataRes(types.String)
 	},
+	"gcp.folder.parentFolder": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlGcpFolder).GetParentFolder()).ToDataRes(types.Resource("gcp.folder"))
+	},
+	"gcp.folder.parentOrganization": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlGcpFolder).GetParentOrganization()).ToDataRes(types.Resource("gcp.organization"))
+	},
+	"gcp.folder.managementProject": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlGcpFolder).GetManagementProject()).ToDataRes(types.String)
+	},
 	"gcp.folder.state": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlGcpFolder).GetState()).ToDataRes(types.String)
 	},
@@ -3024,6 +3033,12 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	},
 	"gcp.project.parentId": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlGcpProject).GetParentId()).ToDataRes(types.String)
+	},
+	"gcp.project.parentFolder": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlGcpProject).GetParentFolder()).ToDataRes(types.Resource("gcp.folder"))
+	},
+	"gcp.project.parentOrganization": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlGcpProject).GetParentOrganization()).ToDataRes(types.Resource("gcp.organization"))
 	},
 	"gcp.project.state": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlGcpProject).GetState()).ToDataRes(types.String)
@@ -4285,6 +4300,9 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	"gcp.project.computeService.snapshot.sourceDisk": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlGcpProjectComputeServiceSnapshot).GetSourceDisk()).ToDataRes(types.String)
 	},
+	"gcp.project.computeService.snapshot.sourceDiskRef": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlGcpProjectComputeServiceSnapshot).GetSourceDiskRef()).ToDataRes(types.Resource("gcp.project.computeService.disk"))
+	},
 	"gcp.project.computeService.snapshot.sourceSnapshotSchedulePolicy": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlGcpProjectComputeServiceSnapshot).GetSourceSnapshotSchedulePolicy()).ToDataRes(types.String)
 	},
@@ -5104,6 +5122,9 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	"gcp.project.sqlService.instance.masterInstanceName": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlGcpProjectSqlServiceInstance).GetMasterInstanceName()).ToDataRes(types.String)
 	},
+	"gcp.project.sqlService.instance.master": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlGcpProjectSqlServiceInstance).GetMaster()).ToDataRes(types.Resource("gcp.project.sqlService.instance"))
+	},
 	"gcp.project.sqlService.instance.maxDiskSize": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlGcpProjectSqlServiceInstance).GetMaxDiskSize()).ToDataRes(types.Int)
 	},
@@ -5115,6 +5136,9 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	},
 	"gcp.project.sqlService.instance.replicaNames": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlGcpProjectSqlServiceInstance).GetReplicaNames()).ToDataRes(types.Array(types.String))
+	},
+	"gcp.project.sqlService.instance.replicas": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlGcpProjectSqlServiceInstance).GetReplicas()).ToDataRes(types.Array(types.Resource("gcp.project.sqlService.instance")))
 	},
 	"gcp.project.sqlService.instance.settings": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlGcpProjectSqlServiceInstance).GetSettings()).ToDataRes(types.Resource("gcp.project.sqlService.instance.settings"))
@@ -5766,6 +5790,15 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	},
 	"gcp.project.bigqueryService.table.snapshotTime": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlGcpProjectBigqueryServiceTable).GetSnapshotTime()).ToDataRes(types.Time)
+	},
+	"gcp.project.bigqueryService.table.snapshotBaseTable": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlGcpProjectBigqueryServiceTable).GetSnapshotBaseTable()).ToDataRes(types.Resource("gcp.project.bigqueryService.table"))
+	},
+	"gcp.project.bigqueryService.table.cloneBaseTable": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlGcpProjectBigqueryServiceTable).GetCloneBaseTable()).ToDataRes(types.Resource("gcp.project.bigqueryService.table"))
+	},
+	"gcp.project.bigqueryService.table.cloneTime": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlGcpProjectBigqueryServiceTable).GetCloneTime()).ToDataRes(types.Time)
 	},
 	"gcp.project.bigqueryService.table.viewQuery": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlGcpProjectBigqueryServiceTable).GetViewQuery()).ToDataRes(types.String)
@@ -7906,6 +7939,9 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	"gcp.project.cloudFunction.serviceAccount": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlGcpProjectCloudFunction).GetServiceAccount()).ToDataRes(types.Resource("gcp.project.iamService.serviceAccount"))
 	},
+	"gcp.project.cloudFunction.buildServiceAccount": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlGcpProjectCloudFunction).GetBuildServiceAccount()).ToDataRes(types.Resource("gcp.project.iamService.serviceAccount"))
+	},
 	"gcp.project.cloudFunction.updated": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlGcpProjectCloudFunction).GetUpdated()).ToDataRes(types.Time)
 	},
@@ -8049,6 +8085,15 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	},
 	"gcp.project.cloudFunctionV2.buildConfig.serviceAccountRef": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlGcpProjectCloudFunctionV2BuildConfig).GetServiceAccountRef()).ToDataRes(types.Resource("gcp.project.iamService.serviceAccount"))
+	},
+	"gcp.project.cloudFunctionV2.buildConfig.build": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlGcpProjectCloudFunctionV2BuildConfig).GetBuild()).ToDataRes(types.String)
+	},
+	"gcp.project.cloudFunctionV2.buildConfig.sourceProvenance": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlGcpProjectCloudFunctionV2BuildConfig).GetSourceProvenance()).ToDataRes(types.Dict)
+	},
+	"gcp.project.cloudFunctionV2.buildConfig.gitUri": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlGcpProjectCloudFunctionV2BuildConfig).GetGitUri()).ToDataRes(types.String)
 	},
 	"gcp.project.cloudFunctionV2.serviceConfig.id": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlGcpProjectCloudFunctionV2ServiceConfig).GetId()).ToDataRes(types.String)
@@ -8826,6 +8871,12 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	},
 	"gcp.project.cloudRunService.service.etag": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlGcpProjectCloudRunServiceService).GetEtag()).ToDataRes(types.String)
+	},
+	"gcp.project.cloudRunService.service.client": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlGcpProjectCloudRunServiceService).GetClient()).ToDataRes(types.String)
+	},
+	"gcp.project.cloudRunService.service.clientVersion": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlGcpProjectCloudRunServiceService).GetClientVersion()).ToDataRes(types.String)
 	},
 	"gcp.project.cloudRunService.service.iamPolicy": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlGcpProjectCloudRunServiceService).GetIamPolicy()).ToDataRes(types.Array(types.Resource("gcp.resourcemanager.binding")))
@@ -11263,6 +11314,9 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	"gcp.project.computeService.instanceGroupManager.instanceTemplateUrl": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlGcpProjectComputeServiceInstanceGroupManager).GetInstanceTemplateUrl()).ToDataRes(types.String)
 	},
+	"gcp.project.computeService.instanceGroupManager.instanceTemplate": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlGcpProjectComputeServiceInstanceGroupManager).GetInstanceTemplate()).ToDataRes(types.Resource("gcp.project.computeService.instanceTemplate"))
+	},
 	"gcp.project.computeService.instanceGroupManager.targetSize": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlGcpProjectComputeServiceInstanceGroupManager).GetTargetSize()).ToDataRes(types.Int)
 	},
@@ -12849,6 +12903,9 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	},
 	"gcp.project.computeService.instanceTemplate.sourceInstance": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlGcpProjectComputeServiceInstanceTemplate).GetSourceInstance()).ToDataRes(types.String)
+	},
+	"gcp.project.computeService.instanceTemplate.sourceInstanceRef": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlGcpProjectComputeServiceInstanceTemplate).GetSourceInstanceRef()).ToDataRes(types.Resource("gcp.project.computeService.instance"))
 	},
 	"gcp.project.computeService.instanceTemplate.properties": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlGcpProjectComputeServiceInstanceTemplate).GetProperties()).ToDataRes(types.Dict)
@@ -17869,6 +17926,18 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 		r.(*mqlGcpFolder).ParentId, ok = plugin.RawToTValue[string](v.Value, v.Error)
 		return
 	},
+	"gcp.folder.parentFolder": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlGcpFolder).ParentFolder, ok = plugin.RawToTValue[*mqlGcpFolder](v.Value, v.Error)
+		return
+	},
+	"gcp.folder.parentOrganization": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlGcpFolder).ParentOrganization, ok = plugin.RawToTValue[*mqlGcpOrganization](v.Value, v.Error)
+		return
+	},
+	"gcp.folder.managementProject": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlGcpFolder).ManagementProject, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
 	"gcp.folder.state": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlGcpFolder).State, ok = plugin.RawToTValue[string](v.Value, v.Error)
 		return
@@ -17935,6 +18004,14 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 	},
 	"gcp.project.parentId": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlGcpProject).ParentId, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"gcp.project.parentFolder": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlGcpProject).ParentFolder, ok = plugin.RawToTValue[*mqlGcpFolder](v.Value, v.Error)
+		return
+	},
+	"gcp.project.parentOrganization": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlGcpProject).ParentOrganization, ok = plugin.RawToTValue[*mqlGcpOrganization](v.Value, v.Error)
 		return
 	},
 	"gcp.project.state": func(r plugin.Resource, v *llx.RawData) (ok bool) {
@@ -19709,6 +19786,10 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 		r.(*mqlGcpProjectComputeServiceSnapshot).SourceDisk, ok = plugin.RawToTValue[string](v.Value, v.Error)
 		return
 	},
+	"gcp.project.computeService.snapshot.sourceDiskRef": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlGcpProjectComputeServiceSnapshot).SourceDiskRef, ok = plugin.RawToTValue[*mqlGcpProjectComputeServiceDisk](v.Value, v.Error)
+		return
+	},
 	"gcp.project.computeService.snapshot.sourceSnapshotSchedulePolicy": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlGcpProjectComputeServiceSnapshot).SourceSnapshotSchedulePolicy, ok = plugin.RawToTValue[string](v.Value, v.Error)
 		return
@@ -20865,6 +20946,10 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 		r.(*mqlGcpProjectSqlServiceInstance).MasterInstanceName, ok = plugin.RawToTValue[string](v.Value, v.Error)
 		return
 	},
+	"gcp.project.sqlService.instance.master": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlGcpProjectSqlServiceInstance).Master, ok = plugin.RawToTValue[*mqlGcpProjectSqlServiceInstance](v.Value, v.Error)
+		return
+	},
 	"gcp.project.sqlService.instance.maxDiskSize": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlGcpProjectSqlServiceInstance).MaxDiskSize, ok = plugin.RawToTValue[int64](v.Value, v.Error)
 		return
@@ -20879,6 +20964,10 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 	},
 	"gcp.project.sqlService.instance.replicaNames": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlGcpProjectSqlServiceInstance).ReplicaNames, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
+	"gcp.project.sqlService.instance.replicas": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlGcpProjectSqlServiceInstance).Replicas, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
 		return
 	},
 	"gcp.project.sqlService.instance.settings": func(r plugin.Resource, v *llx.RawData) (ok bool) {
@@ -21815,6 +21904,18 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 	},
 	"gcp.project.bigqueryService.table.snapshotTime": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlGcpProjectBigqueryServiceTable).SnapshotTime, ok = plugin.RawToTValue[*time.Time](v.Value, v.Error)
+		return
+	},
+	"gcp.project.bigqueryService.table.snapshotBaseTable": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlGcpProjectBigqueryServiceTable).SnapshotBaseTable, ok = plugin.RawToTValue[*mqlGcpProjectBigqueryServiceTable](v.Value, v.Error)
+		return
+	},
+	"gcp.project.bigqueryService.table.cloneBaseTable": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlGcpProjectBigqueryServiceTable).CloneBaseTable, ok = plugin.RawToTValue[*mqlGcpProjectBigqueryServiceTable](v.Value, v.Error)
+		return
+	},
+	"gcp.project.bigqueryService.table.cloneTime": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlGcpProjectBigqueryServiceTable).CloneTime, ok = plugin.RawToTValue[*time.Time](v.Value, v.Error)
 		return
 	},
 	"gcp.project.bigqueryService.table.viewQuery": func(r plugin.Resource, v *llx.RawData) (ok bool) {
@@ -24973,6 +25074,10 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 		r.(*mqlGcpProjectCloudFunction).ServiceAccount, ok = plugin.RawToTValue[*mqlGcpProjectIamServiceServiceAccount](v.Value, v.Error)
 		return
 	},
+	"gcp.project.cloudFunction.buildServiceAccount": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlGcpProjectCloudFunction).BuildServiceAccount, ok = plugin.RawToTValue[*mqlGcpProjectIamServiceServiceAccount](v.Value, v.Error)
+		return
+	},
 	"gcp.project.cloudFunction.updated": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlGcpProjectCloudFunction).Updated, ok = plugin.RawToTValue[*time.Time](v.Value, v.Error)
 		return
@@ -25171,6 +25276,18 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 	},
 	"gcp.project.cloudFunctionV2.buildConfig.serviceAccountRef": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlGcpProjectCloudFunctionV2BuildConfig).ServiceAccountRef, ok = plugin.RawToTValue[*mqlGcpProjectIamServiceServiceAccount](v.Value, v.Error)
+		return
+	},
+	"gcp.project.cloudFunctionV2.buildConfig.build": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlGcpProjectCloudFunctionV2BuildConfig).Build, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"gcp.project.cloudFunctionV2.buildConfig.sourceProvenance": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlGcpProjectCloudFunctionV2BuildConfig).SourceProvenance, ok = plugin.RawToTValue[any](v.Value, v.Error)
+		return
+	},
+	"gcp.project.cloudFunctionV2.buildConfig.gitUri": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlGcpProjectCloudFunctionV2BuildConfig).GitUri, ok = plugin.RawToTValue[string](v.Value, v.Error)
 		return
 	},
 	"gcp.project.cloudFunctionV2.serviceConfig.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
@@ -26307,6 +26424,14 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 	},
 	"gcp.project.cloudRunService.service.etag": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlGcpProjectCloudRunServiceService).Etag, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"gcp.project.cloudRunService.service.client": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlGcpProjectCloudRunServiceService).Client, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"gcp.project.cloudRunService.service.clientVersion": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlGcpProjectCloudRunServiceService).ClientVersion, ok = plugin.RawToTValue[string](v.Value, v.Error)
 		return
 	},
 	"gcp.project.cloudRunService.service.iamPolicy": func(r plugin.Resource, v *llx.RawData) (ok bool) {
@@ -29853,6 +29978,10 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 		r.(*mqlGcpProjectComputeServiceInstanceGroupManager).InstanceTemplateUrl, ok = plugin.RawToTValue[string](v.Value, v.Error)
 		return
 	},
+	"gcp.project.computeService.instanceGroupManager.instanceTemplate": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlGcpProjectComputeServiceInstanceGroupManager).InstanceTemplate, ok = plugin.RawToTValue[*mqlGcpProjectComputeServiceInstanceTemplate](v.Value, v.Error)
+		return
+	},
 	"gcp.project.computeService.instanceGroupManager.targetSize": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlGcpProjectComputeServiceInstanceGroupManager).TargetSize, ok = plugin.RawToTValue[int64](v.Value, v.Error)
 		return
@@ -32171,6 +32300,10 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 	},
 	"gcp.project.computeService.instanceTemplate.sourceInstance": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlGcpProjectComputeServiceInstanceTemplate).SourceInstance, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"gcp.project.computeService.instanceTemplate.sourceInstanceRef": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlGcpProjectComputeServiceInstanceTemplate).SourceInstanceRef, ok = plugin.RawToTValue[*mqlGcpProjectComputeServiceInstance](v.Value, v.Error)
 		return
 	},
 	"gcp.project.computeService.instanceTemplate.properties": func(r plugin.Resource, v *llx.RawData) (ok bool) {
@@ -40439,20 +40572,23 @@ type mqlGcpFolder struct {
 	MqlRuntime *plugin.Runtime
 	__id       string
 	mqlGcpFolderInternal
-	Id                plugin.TValue[string]
-	Name              plugin.TValue[string]
-	Created           plugin.TValue[*time.Time]
-	Updated           plugin.TValue[*time.Time]
-	ParentId          plugin.TValue[string]
-	State             plugin.TValue[string]
-	DeleteTime        plugin.TValue[*time.Time]
-	Folders           plugin.TValue[*mqlGcpFolders]
-	Projects          plugin.TValue[*mqlGcpProjects]
-	OrgPolicies       plugin.TValue[[]any]
-	IamPolicy         plugin.TValue[[]any]
-	AuditConfig       plugin.TValue[[]any]
-	Logging           plugin.TValue[*mqlGcpFolderLoggingService]
-	EssentialContacts plugin.TValue[[]any]
+	Id                 plugin.TValue[string]
+	Name               plugin.TValue[string]
+	Created            plugin.TValue[*time.Time]
+	Updated            plugin.TValue[*time.Time]
+	ParentId           plugin.TValue[string]
+	ParentFolder       plugin.TValue[*mqlGcpFolder]
+	ParentOrganization plugin.TValue[*mqlGcpOrganization]
+	ManagementProject  plugin.TValue[string]
+	State              plugin.TValue[string]
+	DeleteTime         plugin.TValue[*time.Time]
+	Folders            plugin.TValue[*mqlGcpFolders]
+	Projects           plugin.TValue[*mqlGcpProjects]
+	OrgPolicies        plugin.TValue[[]any]
+	IamPolicy          plugin.TValue[[]any]
+	AuditConfig        plugin.TValue[[]any]
+	Logging            plugin.TValue[*mqlGcpFolderLoggingService]
+	EssentialContacts  plugin.TValue[[]any]
 }
 
 // createGcpFolder creates a new instance of this resource
@@ -40510,6 +40646,42 @@ func (c *mqlGcpFolder) GetUpdated() *plugin.TValue[*time.Time] {
 
 func (c *mqlGcpFolder) GetParentId() *plugin.TValue[string] {
 	return &c.ParentId
+}
+
+func (c *mqlGcpFolder) GetParentFolder() *plugin.TValue[*mqlGcpFolder] {
+	return plugin.GetOrCompute[*mqlGcpFolder](&c.ParentFolder, func() (*mqlGcpFolder, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("gcp.folder", c.__id, "parentFolder")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.(*mqlGcpFolder), nil
+			}
+		}
+
+		return c.parentFolder()
+	})
+}
+
+func (c *mqlGcpFolder) GetParentOrganization() *plugin.TValue[*mqlGcpOrganization] {
+	return plugin.GetOrCompute[*mqlGcpOrganization](&c.ParentOrganization, func() (*mqlGcpOrganization, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("gcp.folder", c.__id, "parentOrganization")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.(*mqlGcpOrganization), nil
+			}
+		}
+
+		return c.parentOrganization()
+	})
+}
+
+func (c *mqlGcpFolder) GetManagementProject() *plugin.TValue[string] {
+	return &c.ManagementProject
 }
 
 func (c *mqlGcpFolder) GetState() *plugin.TValue[string] {
@@ -40723,6 +40895,8 @@ type mqlGcpProject struct {
 	Id                       plugin.TValue[string]
 	Name                     plugin.TValue[string]
 	ParentId                 plugin.TValue[string]
+	ParentFolder             plugin.TValue[*mqlGcpFolder]
+	ParentOrganization       plugin.TValue[*mqlGcpOrganization]
 	State                    plugin.TValue[string]
 	CreateTime               plugin.TValue[*time.Time]
 	Labels                   plugin.TValue[map[string]any]
@@ -40855,6 +41029,38 @@ func (c *mqlGcpProject) GetName() *plugin.TValue[string] {
 func (c *mqlGcpProject) GetParentId() *plugin.TValue[string] {
 	return plugin.GetOrCompute[string](&c.ParentId, func() (string, error) {
 		return c.parentId()
+	})
+}
+
+func (c *mqlGcpProject) GetParentFolder() *plugin.TValue[*mqlGcpFolder] {
+	return plugin.GetOrCompute[*mqlGcpFolder](&c.ParentFolder, func() (*mqlGcpFolder, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("gcp.project", c.__id, "parentFolder")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.(*mqlGcpFolder), nil
+			}
+		}
+
+		return c.parentFolder()
+	})
+}
+
+func (c *mqlGcpProject) GetParentOrganization() *plugin.TValue[*mqlGcpOrganization] {
+	return plugin.GetOrCompute[*mqlGcpOrganization](&c.ParentOrganization, func() (*mqlGcpOrganization, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("gcp.project", c.__id, "parentOrganization")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.(*mqlGcpOrganization), nil
+			}
+		}
+
+		return c.parentOrganization()
 	})
 }
 
@@ -45329,6 +45535,7 @@ type mqlGcpProjectComputeServiceSnapshot struct {
 	SatisfiesPzi                   plugin.TValue[bool]
 	SatisfiesPzs                   plugin.TValue[bool]
 	SourceDisk                     plugin.TValue[string]
+	SourceDiskRef                  plugin.TValue[*mqlGcpProjectComputeServiceDisk]
 	SourceSnapshotSchedulePolicy   plugin.TValue[string]
 	SourceSnapshotSchedulePolicyId plugin.TValue[string]
 	KmsKey                         plugin.TValue[*mqlGcpProjectKmsServiceKeyringCryptokey]
@@ -45460,6 +45667,22 @@ func (c *mqlGcpProjectComputeServiceSnapshot) GetSatisfiesPzs() *plugin.TValue[b
 
 func (c *mqlGcpProjectComputeServiceSnapshot) GetSourceDisk() *plugin.TValue[string] {
 	return &c.SourceDisk
+}
+
+func (c *mqlGcpProjectComputeServiceSnapshot) GetSourceDiskRef() *plugin.TValue[*mqlGcpProjectComputeServiceDisk] {
+	return plugin.GetOrCompute[*mqlGcpProjectComputeServiceDisk](&c.SourceDiskRef, func() (*mqlGcpProjectComputeServiceDisk, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("gcp.project.computeService.snapshot", c.__id, "sourceDiskRef")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.(*mqlGcpProjectComputeServiceDisk), nil
+			}
+		}
+
+		return c.sourceDiskRef()
+	})
 }
 
 func (c *mqlGcpProjectComputeServiceSnapshot) GetSourceSnapshotSchedulePolicy() *plugin.TValue[string] {
@@ -47685,10 +47908,12 @@ type mqlGcpProjectSqlServiceInstance struct {
 	IpAddresses                                plugin.TValue[[]any]
 	MaintenanceVersion                         plugin.TValue[string]
 	MasterInstanceName                         plugin.TValue[string]
+	Master                                     plugin.TValue[*mqlGcpProjectSqlServiceInstance]
 	MaxDiskSize                                plugin.TValue[int64]
 	Name                                       plugin.TValue[string]
 	Region                                     plugin.TValue[string]
 	ReplicaNames                               plugin.TValue[[]any]
+	Replicas                                   plugin.TValue[[]any]
 	Settings                                   plugin.TValue[*mqlGcpProjectSqlServiceInstanceSettings]
 	PublicIpEnabled                            plugin.TValue[bool]
 	InternetReachable                          plugin.TValue[bool]
@@ -47853,6 +48078,22 @@ func (c *mqlGcpProjectSqlServiceInstance) GetMasterInstanceName() *plugin.TValue
 	return &c.MasterInstanceName
 }
 
+func (c *mqlGcpProjectSqlServiceInstance) GetMaster() *plugin.TValue[*mqlGcpProjectSqlServiceInstance] {
+	return plugin.GetOrCompute[*mqlGcpProjectSqlServiceInstance](&c.Master, func() (*mqlGcpProjectSqlServiceInstance, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("gcp.project.sqlService.instance", c.__id, "master")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.(*mqlGcpProjectSqlServiceInstance), nil
+			}
+		}
+
+		return c.master()
+	})
+}
+
 func (c *mqlGcpProjectSqlServiceInstance) GetMaxDiskSize() *plugin.TValue[int64] {
 	return &c.MaxDiskSize
 }
@@ -47867,6 +48108,22 @@ func (c *mqlGcpProjectSqlServiceInstance) GetRegion() *plugin.TValue[string] {
 
 func (c *mqlGcpProjectSqlServiceInstance) GetReplicaNames() *plugin.TValue[[]any] {
 	return &c.ReplicaNames
+}
+
+func (c *mqlGcpProjectSqlServiceInstance) GetReplicas() *plugin.TValue[[]any] {
+	return plugin.GetOrCompute[[]any](&c.Replicas, func() ([]any, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("gcp.project.sqlService.instance", c.__id, "replicas")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.([]any), nil
+			}
+		}
+
+		return c.replicas()
+	})
 }
 
 func (c *mqlGcpProjectSqlServiceInstance) GetSettings() *plugin.TValue[*mqlGcpProjectSqlServiceInstanceSettings] {
@@ -49735,6 +49992,9 @@ type mqlGcpProjectBigqueryServiceTable struct {
 	KmsName                plugin.TValue[string]
 	KmsKey                 plugin.TValue[*mqlGcpProjectKmsServiceKeyringCryptokey]
 	SnapshotTime           plugin.TValue[*time.Time]
+	SnapshotBaseTable      plugin.TValue[*mqlGcpProjectBigqueryServiceTable]
+	CloneBaseTable         plugin.TValue[*mqlGcpProjectBigqueryServiceTable]
+	CloneTime              plugin.TValue[*time.Time]
 	ViewQuery              plugin.TValue[string]
 	ClusteringFields       plugin.TValue[any]
 	ExternalDataConfig     plugin.TValue[any]
@@ -49870,6 +50130,42 @@ func (c *mqlGcpProjectBigqueryServiceTable) GetKmsKey() *plugin.TValue[*mqlGcpPr
 
 func (c *mqlGcpProjectBigqueryServiceTable) GetSnapshotTime() *plugin.TValue[*time.Time] {
 	return &c.SnapshotTime
+}
+
+func (c *mqlGcpProjectBigqueryServiceTable) GetSnapshotBaseTable() *plugin.TValue[*mqlGcpProjectBigqueryServiceTable] {
+	return plugin.GetOrCompute[*mqlGcpProjectBigqueryServiceTable](&c.SnapshotBaseTable, func() (*mqlGcpProjectBigqueryServiceTable, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("gcp.project.bigqueryService.table", c.__id, "snapshotBaseTable")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.(*mqlGcpProjectBigqueryServiceTable), nil
+			}
+		}
+
+		return c.snapshotBaseTable()
+	})
+}
+
+func (c *mqlGcpProjectBigqueryServiceTable) GetCloneBaseTable() *plugin.TValue[*mqlGcpProjectBigqueryServiceTable] {
+	return plugin.GetOrCompute[*mqlGcpProjectBigqueryServiceTable](&c.CloneBaseTable, func() (*mqlGcpProjectBigqueryServiceTable, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("gcp.project.bigqueryService.table", c.__id, "cloneBaseTable")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.(*mqlGcpProjectBigqueryServiceTable), nil
+			}
+		}
+
+		return c.cloneBaseTable()
+	})
+}
+
+func (c *mqlGcpProjectBigqueryServiceTable) GetCloneTime() *plugin.TValue[*time.Time] {
+	return &c.CloneTime
 }
 
 func (c *mqlGcpProjectBigqueryServiceTable) GetViewQuery() *plugin.TValue[string] {
@@ -57368,6 +57664,7 @@ type mqlGcpProjectCloudFunction struct {
 	AvailableMemoryMb     plugin.TValue[int64]
 	ServiceAccountEmail   plugin.TValue[string]
 	ServiceAccount        plugin.TValue[*mqlGcpProjectIamServiceServiceAccount]
+	BuildServiceAccount   plugin.TValue[*mqlGcpProjectIamServiceServiceAccount]
 	Updated               plugin.TValue[*time.Time]
 	VersionId             plugin.TValue[int64]
 	Labels                plugin.TValue[map[string]any]
@@ -57503,6 +57800,22 @@ func (c *mqlGcpProjectCloudFunction) GetServiceAccount() *plugin.TValue[*mqlGcpP
 		}
 
 		return c.serviceAccount()
+	})
+}
+
+func (c *mqlGcpProjectCloudFunction) GetBuildServiceAccount() *plugin.TValue[*mqlGcpProjectIamServiceServiceAccount] {
+	return plugin.GetOrCompute[*mqlGcpProjectIamServiceServiceAccount](&c.BuildServiceAccount, func() (*mqlGcpProjectIamServiceServiceAccount, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("gcp.project.cloudFunction", c.__id, "buildServiceAccount")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.(*mqlGcpProjectIamServiceServiceAccount), nil
+			}
+		}
+
+		return c.buildServiceAccount()
 	})
 }
 
@@ -57800,6 +58113,9 @@ type mqlGcpProjectCloudFunctionV2BuildConfig struct {
 	DockerRepository     plugin.TValue[string]
 	ServiceAccount       plugin.TValue[string]
 	ServiceAccountRef    plugin.TValue[*mqlGcpProjectIamServiceServiceAccount]
+	Build                plugin.TValue[string]
+	SourceProvenance     plugin.TValue[any]
+	GitUri               plugin.TValue[string]
 }
 
 // createGcpProjectCloudFunctionV2BuildConfig creates a new instance of this resource
@@ -57885,6 +58201,18 @@ func (c *mqlGcpProjectCloudFunctionV2BuildConfig) GetServiceAccountRef() *plugin
 
 		return c.serviceAccountRef()
 	})
+}
+
+func (c *mqlGcpProjectCloudFunctionV2BuildConfig) GetBuild() *plugin.TValue[string] {
+	return &c.Build
+}
+
+func (c *mqlGcpProjectCloudFunctionV2BuildConfig) GetSourceProvenance() *plugin.TValue[any] {
+	return &c.SourceProvenance
+}
+
+func (c *mqlGcpProjectCloudFunctionV2BuildConfig) GetGitUri() *plugin.TValue[string] {
+	return &c.GitUri
 }
 
 // mqlGcpProjectCloudFunctionV2ServiceConfig for the gcp.project.cloudFunctionV2.serviceConfig resource
@@ -60331,6 +60659,8 @@ type mqlGcpProjectCloudRunServiceService struct {
 	BinaryAuthorizationBreakglassJustification plugin.TValue[string]
 	Uid                                        plugin.TValue[string]
 	Etag                                       plugin.TValue[string]
+	Client                                     plugin.TValue[string]
+	ClientVersion                              plugin.TValue[string]
 	IamPolicy                                  plugin.TValue[[]any]
 	PublicInvocable                            plugin.TValue[bool]
 }
@@ -60506,6 +60836,14 @@ func (c *mqlGcpProjectCloudRunServiceService) GetUid() *plugin.TValue[string] {
 
 func (c *mqlGcpProjectCloudRunServiceService) GetEtag() *plugin.TValue[string] {
 	return &c.Etag
+}
+
+func (c *mqlGcpProjectCloudRunServiceService) GetClient() *plugin.TValue[string] {
+	return &c.Client
+}
+
+func (c *mqlGcpProjectCloudRunServiceService) GetClientVersion() *plugin.TValue[string] {
+	return &c.ClientVersion
 }
 
 func (c *mqlGcpProjectCloudRunServiceService) GetIamPolicy() *plugin.TValue[[]any] {
@@ -68576,7 +68914,7 @@ func (c *mqlGcpProjectComputeServiceInstanceGroup) GetSelfLink() *plugin.TValue[
 type mqlGcpProjectComputeServiceInstanceGroupManager struct {
 	MqlRuntime *plugin.Runtime
 	__id       string
-	// optional: if you define mqlGcpProjectComputeServiceInstanceGroupManagerInternal it will be used here
+	mqlGcpProjectComputeServiceInstanceGroupManagerInternal
 	Id                  plugin.TValue[string]
 	ProjectId           plugin.TValue[string]
 	Name                plugin.TValue[string]
@@ -68586,6 +68924,7 @@ type mqlGcpProjectComputeServiceInstanceGroupManager struct {
 	RegionUrl           plugin.TValue[string]
 	Region              plugin.TValue[*mqlGcpProjectComputeServiceRegion]
 	InstanceTemplateUrl plugin.TValue[string]
+	InstanceTemplate    plugin.TValue[*mqlGcpProjectComputeServiceInstanceTemplate]
 	TargetSize          plugin.TValue[int64]
 	CurrentActions      plugin.TValue[any]
 	StatefulPolicy      plugin.TValue[any]
@@ -68692,6 +69031,22 @@ func (c *mqlGcpProjectComputeServiceInstanceGroupManager) GetRegion() *plugin.TV
 
 func (c *mqlGcpProjectComputeServiceInstanceGroupManager) GetInstanceTemplateUrl() *plugin.TValue[string] {
 	return &c.InstanceTemplateUrl
+}
+
+func (c *mqlGcpProjectComputeServiceInstanceGroupManager) GetInstanceTemplate() *plugin.TValue[*mqlGcpProjectComputeServiceInstanceTemplate] {
+	return plugin.GetOrCompute[*mqlGcpProjectComputeServiceInstanceTemplate](&c.InstanceTemplate, func() (*mqlGcpProjectComputeServiceInstanceTemplate, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("gcp.project.computeService.instanceGroupManager", c.__id, "instanceTemplate")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.(*mqlGcpProjectComputeServiceInstanceTemplate), nil
+			}
+		}
+
+		return c.instanceTemplate()
+	})
 }
 
 func (c *mqlGcpProjectComputeServiceInstanceGroupManager) GetTargetSize() *plugin.TValue[int64] {
@@ -74110,6 +74465,7 @@ type mqlGcpProjectComputeServiceInstanceTemplate struct {
 	Description       plugin.TValue[string]
 	SelfLink          plugin.TValue[string]
 	SourceInstance    plugin.TValue[string]
+	SourceInstanceRef plugin.TValue[*mqlGcpProjectComputeServiceInstance]
 	Properties        plugin.TValue[any]
 	CreationTimestamp plugin.TValue[*time.Time]
 }
@@ -74169,6 +74525,22 @@ func (c *mqlGcpProjectComputeServiceInstanceTemplate) GetSelfLink() *plugin.TVal
 
 func (c *mqlGcpProjectComputeServiceInstanceTemplate) GetSourceInstance() *plugin.TValue[string] {
 	return &c.SourceInstance
+}
+
+func (c *mqlGcpProjectComputeServiceInstanceTemplate) GetSourceInstanceRef() *plugin.TValue[*mqlGcpProjectComputeServiceInstance] {
+	return plugin.GetOrCompute[*mqlGcpProjectComputeServiceInstance](&c.SourceInstanceRef, func() (*mqlGcpProjectComputeServiceInstance, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("gcp.project.computeService.instanceTemplate", c.__id, "sourceInstanceRef")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.(*mqlGcpProjectComputeServiceInstance), nil
+			}
+		}
+
+		return c.sourceInstanceRef()
+	})
 }
 
 func (c *mqlGcpProjectComputeServiceInstanceTemplate) GetProperties() *plugin.TValue[any] {

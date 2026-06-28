@@ -199,13 +199,15 @@ func (g *mqlGcpProject) cloudFunctions() ([]any, error) {
 		}
 		mqlFunc := mqlCloudFuncs.(*mqlGcpProjectCloudFunction)
 		mqlFunc.cacheKmsKeyName = f.KmsKeyName
+		mqlFunc.cacheBuildServiceAccount = f.BuildServiceAccount
 		cloudFunctions = append(cloudFunctions, mqlCloudFuncs)
 	}
 	return cloudFunctions, nil
 }
 
 type mqlGcpProjectCloudFunctionInternal struct {
-	cacheKmsKeyName string
+	cacheKmsKeyName          string
+	cacheBuildServiceAccount string
 }
 
 func (g *mqlGcpProjectCloudFunction) kmsKey() (*mqlGcpProjectKmsServiceKeyringCryptokey, error) {
@@ -316,6 +318,21 @@ func (g *mqlGcpProjectCloudFunction) serviceAccount() (*mqlGcpProjectIamServiceS
 		return nil, err
 	}
 	return res.(*mqlGcpProjectIamServiceServiceAccount), nil
+}
+
+func (g *mqlGcpProjectCloudFunction) buildServiceAccount() (*mqlGcpProjectIamServiceServiceAccount, error) {
+	projectId := ""
+	if g.ProjectId.Error == nil {
+		projectId = g.ProjectId.Data
+	}
+	sa, err := resolveServiceAccountRef(g.MqlRuntime, g.cacheBuildServiceAccount, projectId)
+	if err != nil {
+		return nil, err
+	}
+	if sa == nil {
+		g.BuildServiceAccount.State = plugin.StateIsSet | plugin.StateIsNull
+	}
+	return sa, nil
 }
 
 func (g *mqlGcpProjectCloudFunction) networkRef() (*mqlGcpProjectComputeServiceNetwork, error) {

@@ -1442,7 +1442,9 @@ func (g *mqlGcpProjectComputeService) snapshots() ([]any, error) {
 				return err
 			}
 
-			mqlSnapshpt.(*mqlGcpProjectComputeServiceSnapshot).cacheKmsKeyName = snapshotKmsKeyName
+			mqlSnap := mqlSnapshpt.(*mqlGcpProjectComputeServiceSnapshot)
+			mqlSnap.cacheKmsKeyName = snapshotKmsKeyName
+			mqlSnap.cacheSourceDiskUrl = snapshot.SourceDisk
 			res = append(res, mqlSnapshpt)
 		}
 		return nil
@@ -1527,7 +1529,8 @@ func (g *mqlGcpProjectComputeServiceImage) kmsKey() (*mqlGcpProjectKmsServiceKey
 }
 
 type mqlGcpProjectComputeServiceSnapshotInternal struct {
-	cacheKmsKeyName string
+	cacheKmsKeyName    string
+	cacheSourceDiskUrl string
 }
 
 func (g *mqlGcpProjectComputeServiceSnapshot) kmsKey() (*mqlGcpProjectKmsServiceKeyringCryptokey, error) {
@@ -1541,6 +1544,14 @@ func (g *mqlGcpProjectComputeServiceSnapshot) kmsKey() (*mqlGcpProjectKmsService
 		return nil, err
 	}
 	return res.(*mqlGcpProjectKmsServiceKeyringCryptokey), nil
+}
+
+func (g *mqlGcpProjectComputeServiceSnapshot) sourceDiskRef() (*mqlGcpProjectComputeServiceDisk, error) {
+	if g.cacheSourceDiskUrl == "" {
+		g.SourceDiskRef.State = plugin.StateIsNull | plugin.StateIsSet
+		return nil, nil
+	}
+	return getDiskByUrl(g.cacheSourceDiskUrl, g.MqlRuntime)
 }
 
 func (g *mqlGcpProjectComputeServiceImage) sourceDisk() (*mqlGcpProjectComputeServiceDisk, error) {
