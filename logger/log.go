@@ -27,7 +27,7 @@ func SetWriter(w io.Writer) {
 
 // UseJSONLogging for global logger
 func UseJSONLogging(out io.Writer) {
-	log.Logger = zerolog.New(out).With().Timestamp().Logger()
+	log.Logger = zerolog.New(out).With().Caller().Timestamp().Logger()
 }
 
 // UseGCPJSONLogging for global logger. This is a JSON logger
@@ -37,7 +37,7 @@ func UseGCPJSONLogging(out io.Writer) {
 	zerolog.TimestampFieldName = "timestamp"
 	zerolog.TimeFieldFormat = time.RFC3339Nano
 
-	log.Logger = zerolog.New(out).With().Timestamp().Logger()
+	log.Logger = zerolog.New(out).With().Caller().Timestamp().Logger()
 }
 
 // CliLogger sets the global logger to the console logger with color
@@ -84,20 +84,22 @@ func InitTestEnv() {
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, NoColor: true})
 }
 
-// GetEnvLogLevel determines the loglevel from env vars DEBUG or TRACE are set
+// GetEnvLogLevel determines the loglevel from env vars. MONDOO_LOG_LEVEL takes
+// precedence and accepts any zerolog level (e.g. "info", "debug", "trace");
+// the legacy DEBUG=true and TRACE=true vars still work.
 func GetEnvLogLevel() (string, bool) {
-	level := ""
-	ok := false
-
-	if os.Getenv("DEBUG") == "true" || os.Getenv("DEBUG") == "1" {
-		level = "debug"
-		ok = true
+	// MONDOO_LOG_LEVEL takes precedence, so it is checked first.
+	if v := os.Getenv("MONDOO_LOG_LEVEL"); v != "" {
+		return v, true
 	}
 
-	if os.Getenv("TRACE") == "true" || os.Getenv("TRACE") == "1" {
-		level = "trace"
-		ok = true
+	if v := os.Getenv("TRACE"); v == "true" || v == "1" {
+		return "trace", true
 	}
 
-	return level, ok
+	if v := os.Getenv("DEBUG"); v == "true" || v == "1" {
+		return "debug", true
+	}
+
+	return "", false
 }
