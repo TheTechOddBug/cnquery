@@ -3517,6 +3517,12 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	"azure.subscription.batchService.account.identity": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAzureSubscriptionBatchServiceAccount).GetIdentity()).ToDataRes(types.Dict)
 	},
+	"azure.subscription.batchService.account.principalId": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAzureSubscriptionBatchServiceAccount).GetPrincipalId()).ToDataRes(types.String)
+	},
+	"azure.subscription.batchService.account.userAssignedIdentities": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAzureSubscriptionBatchServiceAccount).GetUserAssignedIdentities()).ToDataRes(types.Array(types.Resource("azure.subscription.managedIdentity")))
+	},
 	"azure.subscription.batchService.account.properties": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAzureSubscriptionBatchServiceAccount).GetProperties()).ToDataRes(types.Dict)
 	},
@@ -3564,6 +3570,15 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	},
 	"azure.subscription.batchService.account.keyVaultReference": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAzureSubscriptionBatchServiceAccount).GetKeyVaultReference()).ToDataRes(types.Dict)
+	},
+	"azure.subscription.batchService.account.autoStorageAccount": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAzureSubscriptionBatchServiceAccount).GetAutoStorageAccount()).ToDataRes(types.Resource("azure.subscription.storageService.account"))
+	},
+	"azure.subscription.batchService.account.keyVault": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAzureSubscriptionBatchServiceAccount).GetKeyVault()).ToDataRes(types.Resource("azure.subscription.keyVaultService.vault"))
+	},
+	"azure.subscription.batchService.account.encryptionKey": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAzureSubscriptionBatchServiceAccount).GetEncryptionKey()).ToDataRes(types.Resource("azure.subscription.keyVaultService.key"))
 	},
 	"azure.subscription.batchService.account.networkProfile": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAzureSubscriptionBatchServiceAccount).GetNetworkProfile()).ToDataRes(types.Dict)
@@ -10861,6 +10876,12 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	"azure.subscription.aksService.cluster.principalId": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAzureSubscriptionAksServiceCluster).GetPrincipalId()).ToDataRes(types.String)
 	},
+	"azure.subscription.aksService.cluster.userAssignedIdentities": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAzureSubscriptionAksServiceCluster).GetUserAssignedIdentities()).ToDataRes(types.Array(types.Resource("azure.subscription.managedIdentity")))
+	},
+	"azure.subscription.aksService.cluster.diskEncryptionSet": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAzureSubscriptionAksServiceCluster).GetDiskEncryptionSet()).ToDataRes(types.Resource("azure.subscription.computeService.diskEncryptionSet"))
+	},
 	"azure.subscription.aksService.cluster.kubeletIdentity": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAzureSubscriptionAksServiceCluster).GetKubeletIdentity()).ToDataRes(types.Resource("azure.subscription.managedIdentity"))
 	},
@@ -17896,6 +17917,14 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 		r.(*mqlAzureSubscriptionBatchServiceAccount).Identity, ok = plugin.RawToTValue[any](v.Value, v.Error)
 		return
 	},
+	"azure.subscription.batchService.account.principalId": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAzureSubscriptionBatchServiceAccount).PrincipalId, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"azure.subscription.batchService.account.userAssignedIdentities": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAzureSubscriptionBatchServiceAccount).UserAssignedIdentities, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
 	"azure.subscription.batchService.account.properties": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlAzureSubscriptionBatchServiceAccount).Properties, ok = plugin.RawToTValue[any](v.Value, v.Error)
 		return
@@ -17958,6 +17987,18 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 	},
 	"azure.subscription.batchService.account.keyVaultReference": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlAzureSubscriptionBatchServiceAccount).KeyVaultReference, ok = plugin.RawToTValue[any](v.Value, v.Error)
+		return
+	},
+	"azure.subscription.batchService.account.autoStorageAccount": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAzureSubscriptionBatchServiceAccount).AutoStorageAccount, ok = plugin.RawToTValue[*mqlAzureSubscriptionStorageServiceAccount](v.Value, v.Error)
+		return
+	},
+	"azure.subscription.batchService.account.keyVault": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAzureSubscriptionBatchServiceAccount).KeyVault, ok = plugin.RawToTValue[*mqlAzureSubscriptionKeyVaultServiceVault](v.Value, v.Error)
+		return
+	},
+	"azure.subscription.batchService.account.encryptionKey": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAzureSubscriptionBatchServiceAccount).EncryptionKey, ok = plugin.RawToTValue[*mqlAzureSubscriptionKeyVaultServiceKey](v.Value, v.Error)
 		return
 	},
 	"azure.subscription.batchService.account.networkProfile": func(r plugin.Resource, v *llx.RawData) (ok bool) {
@@ -28542,6 +28583,14 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 	},
 	"azure.subscription.aksService.cluster.principalId": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlAzureSubscriptionAksServiceCluster).PrincipalId, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"azure.subscription.aksService.cluster.userAssignedIdentities": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAzureSubscriptionAksServiceCluster).UserAssignedIdentities, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
+	"azure.subscription.aksService.cluster.diskEncryptionSet": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAzureSubscriptionAksServiceCluster).DiskEncryptionSet, ok = plugin.RawToTValue[*mqlAzureSubscriptionComputeServiceDiskEncryptionSet](v.Value, v.Error)
 		return
 	},
 	"azure.subscription.aksService.cluster.kubeletIdentity": func(r plugin.Resource, v *llx.RawData) (ok bool) {
@@ -40480,6 +40529,8 @@ type mqlAzureSubscriptionBatchServiceAccount struct {
 	Tags                                  plugin.TValue[map[string]any]
 	Type                                  plugin.TValue[string]
 	Identity                              plugin.TValue[any]
+	PrincipalId                           plugin.TValue[string]
+	UserAssignedIdentities                plugin.TValue[[]any]
 	Properties                            plugin.TValue[any]
 	AccountEndpoint                       plugin.TValue[string]
 	ProvisioningState                     plugin.TValue[string]
@@ -40496,6 +40547,9 @@ type mqlAzureSubscriptionBatchServiceAccount struct {
 	AutoStorage                           plugin.TValue[any]
 	Encryption                            plugin.TValue[any]
 	KeyVaultReference                     plugin.TValue[any]
+	AutoStorageAccount                    plugin.TValue[*mqlAzureSubscriptionStorageServiceAccount]
+	KeyVault                              plugin.TValue[*mqlAzureSubscriptionKeyVaultServiceVault]
+	EncryptionKey                         plugin.TValue[*mqlAzureSubscriptionKeyVaultServiceKey]
 	NetworkProfile                        plugin.TValue[any]
 	PrivateEndpointConnections            plugin.TValue[[]any]
 	Pools                                 plugin.TValue[[]any]
@@ -40564,6 +40618,26 @@ func (c *mqlAzureSubscriptionBatchServiceAccount) GetIdentity() *plugin.TValue[a
 	return &c.Identity
 }
 
+func (c *mqlAzureSubscriptionBatchServiceAccount) GetPrincipalId() *plugin.TValue[string] {
+	return &c.PrincipalId
+}
+
+func (c *mqlAzureSubscriptionBatchServiceAccount) GetUserAssignedIdentities() *plugin.TValue[[]any] {
+	return plugin.GetOrCompute[[]any](&c.UserAssignedIdentities, func() ([]any, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("azure.subscription.batchService.account", c.__id, "userAssignedIdentities")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.([]any), nil
+			}
+		}
+
+		return c.userAssignedIdentities()
+	})
+}
+
 func (c *mqlAzureSubscriptionBatchServiceAccount) GetProperties() *plugin.TValue[any] {
 	return &c.Properties
 }
@@ -40626,6 +40700,54 @@ func (c *mqlAzureSubscriptionBatchServiceAccount) GetEncryption() *plugin.TValue
 
 func (c *mqlAzureSubscriptionBatchServiceAccount) GetKeyVaultReference() *plugin.TValue[any] {
 	return &c.KeyVaultReference
+}
+
+func (c *mqlAzureSubscriptionBatchServiceAccount) GetAutoStorageAccount() *plugin.TValue[*mqlAzureSubscriptionStorageServiceAccount] {
+	return plugin.GetOrCompute[*mqlAzureSubscriptionStorageServiceAccount](&c.AutoStorageAccount, func() (*mqlAzureSubscriptionStorageServiceAccount, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("azure.subscription.batchService.account", c.__id, "autoStorageAccount")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.(*mqlAzureSubscriptionStorageServiceAccount), nil
+			}
+		}
+
+		return c.autoStorageAccount()
+	})
+}
+
+func (c *mqlAzureSubscriptionBatchServiceAccount) GetKeyVault() *plugin.TValue[*mqlAzureSubscriptionKeyVaultServiceVault] {
+	return plugin.GetOrCompute[*mqlAzureSubscriptionKeyVaultServiceVault](&c.KeyVault, func() (*mqlAzureSubscriptionKeyVaultServiceVault, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("azure.subscription.batchService.account", c.__id, "keyVault")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.(*mqlAzureSubscriptionKeyVaultServiceVault), nil
+			}
+		}
+
+		return c.keyVault()
+	})
+}
+
+func (c *mqlAzureSubscriptionBatchServiceAccount) GetEncryptionKey() *plugin.TValue[*mqlAzureSubscriptionKeyVaultServiceKey] {
+	return plugin.GetOrCompute[*mqlAzureSubscriptionKeyVaultServiceKey](&c.EncryptionKey, func() (*mqlAzureSubscriptionKeyVaultServiceKey, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("azure.subscription.batchService.account", c.__id, "encryptionKey")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.(*mqlAzureSubscriptionKeyVaultServiceKey), nil
+			}
+		}
+
+		return c.encryptionKey()
+	})
 }
 
 func (c *mqlAzureSubscriptionBatchServiceAccount) GetNetworkProfile() *plugin.TValue[any] {
@@ -65526,6 +65648,8 @@ type mqlAzureSubscriptionAksServiceCluster struct {
 	IdentityBindings                  plugin.TValue[[]any]
 	Identity                          plugin.TValue[any]
 	PrincipalId                       plugin.TValue[string]
+	UserAssignedIdentities            plugin.TValue[[]any]
+	DiskEncryptionSet                 plugin.TValue[*mqlAzureSubscriptionComputeServiceDiskEncryptionSet]
 	KubeletIdentity                   plugin.TValue[*mqlAzureSubscriptionManagedIdentity]
 	ServicePrincipalClientId          plugin.TValue[string]
 	SystemMetadata                    plugin.TValue[*mqlAzureSubscriptionSystemData]
@@ -65839,6 +65963,38 @@ func (c *mqlAzureSubscriptionAksServiceCluster) GetIdentity() *plugin.TValue[any
 
 func (c *mqlAzureSubscriptionAksServiceCluster) GetPrincipalId() *plugin.TValue[string] {
 	return &c.PrincipalId
+}
+
+func (c *mqlAzureSubscriptionAksServiceCluster) GetUserAssignedIdentities() *plugin.TValue[[]any] {
+	return plugin.GetOrCompute[[]any](&c.UserAssignedIdentities, func() ([]any, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("azure.subscription.aksService.cluster", c.__id, "userAssignedIdentities")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.([]any), nil
+			}
+		}
+
+		return c.userAssignedIdentities()
+	})
+}
+
+func (c *mqlAzureSubscriptionAksServiceCluster) GetDiskEncryptionSet() *plugin.TValue[*mqlAzureSubscriptionComputeServiceDiskEncryptionSet] {
+	return plugin.GetOrCompute[*mqlAzureSubscriptionComputeServiceDiskEncryptionSet](&c.DiskEncryptionSet, func() (*mqlAzureSubscriptionComputeServiceDiskEncryptionSet, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("azure.subscription.aksService.cluster", c.__id, "diskEncryptionSet")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.(*mqlAzureSubscriptionComputeServiceDiskEncryptionSet), nil
+			}
+		}
+
+		return c.diskEncryptionSet()
+	})
 }
 
 func (c *mqlAzureSubscriptionAksServiceCluster) GetKubeletIdentity() *plugin.TValue[*mqlAzureSubscriptionManagedIdentity] {
