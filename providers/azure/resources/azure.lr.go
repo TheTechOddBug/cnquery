@@ -11524,6 +11524,15 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	"azure.subscription.dataFactoryService.factory.cmkUserAssignedIdentity": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAzureSubscriptionDataFactoryServiceFactory).GetCmkUserAssignedIdentity()).ToDataRes(types.String)
 	},
+	"azure.subscription.dataFactoryService.factory.cmkKey": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAzureSubscriptionDataFactoryServiceFactory).GetCmkKey()).ToDataRes(types.Resource("azure.subscription.keyVaultService.key"))
+	},
+	"azure.subscription.dataFactoryService.factory.cmkIdentity": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAzureSubscriptionDataFactoryServiceFactory).GetCmkIdentity()).ToDataRes(types.Resource("azure.subscription.managedIdentity"))
+	},
+	"azure.subscription.dataFactoryService.factory.userAssignedIdentities": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAzureSubscriptionDataFactoryServiceFactory).GetUserAssignedIdentities()).ToDataRes(types.Array(types.Resource("azure.subscription.managedIdentity")))
+	},
 	"azure.subscription.dataFactoryService.factory.created": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAzureSubscriptionDataFactoryServiceFactory).GetCreated()).ToDataRes(types.Time)
 	},
@@ -11688,6 +11697,18 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	},
 	"azure.subscription.synapseService.workspace.azureADOnlyAuthentication": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAzureSubscriptionSynapseServiceWorkspace).GetAzureADOnlyAuthentication()).ToDataRes(types.Bool)
+	},
+	"azure.subscription.synapseService.workspace.defaultStorageFilesystem": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAzureSubscriptionSynapseServiceWorkspace).GetDefaultStorageFilesystem()).ToDataRes(types.String)
+	},
+	"azure.subscription.synapseService.workspace.defaultStorage": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAzureSubscriptionSynapseServiceWorkspace).GetDefaultStorage()).ToDataRes(types.Resource("azure.subscription.storageService.account"))
+	},
+	"azure.subscription.synapseService.workspace.cmkKey": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAzureSubscriptionSynapseServiceWorkspace).GetCmkKey()).ToDataRes(types.Resource("azure.subscription.keyVaultService.key"))
+	},
+	"azure.subscription.synapseService.workspace.userAssignedIdentities": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAzureSubscriptionSynapseServiceWorkspace).GetUserAssignedIdentities()).ToDataRes(types.Array(types.Resource("azure.subscription.managedIdentity")))
 	},
 	"azure.subscription.containerRegistryService.subscriptionId": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAzureSubscriptionContainerRegistryService).GetSubscriptionId()).ToDataRes(types.String)
@@ -12432,6 +12453,9 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	},
 	"azure.subscription.recoveryServicesService.vault.identity": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAzureSubscriptionRecoveryServicesServiceVault).GetIdentity()).ToDataRes(types.Dict)
+	},
+	"azure.subscription.recoveryServicesService.vault.userAssignedIdentities": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAzureSubscriptionRecoveryServicesServiceVault).GetUserAssignedIdentities()).ToDataRes(types.Array(types.Resource("azure.subscription.managedIdentity")))
 	},
 	"azure.subscription.recoveryServicesService.vault.skuName": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAzureSubscriptionRecoveryServicesServiceVault).GetSkuName()).ToDataRes(types.String)
@@ -29435,6 +29459,18 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 		r.(*mqlAzureSubscriptionDataFactoryServiceFactory).CmkUserAssignedIdentity, ok = plugin.RawToTValue[string](v.Value, v.Error)
 		return
 	},
+	"azure.subscription.dataFactoryService.factory.cmkKey": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAzureSubscriptionDataFactoryServiceFactory).CmkKey, ok = plugin.RawToTValue[*mqlAzureSubscriptionKeyVaultServiceKey](v.Value, v.Error)
+		return
+	},
+	"azure.subscription.dataFactoryService.factory.cmkIdentity": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAzureSubscriptionDataFactoryServiceFactory).CmkIdentity, ok = plugin.RawToTValue[*mqlAzureSubscriptionManagedIdentity](v.Value, v.Error)
+		return
+	},
+	"azure.subscription.dataFactoryService.factory.userAssignedIdentities": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAzureSubscriptionDataFactoryServiceFactory).UserAssignedIdentities, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
 	"azure.subscription.dataFactoryService.factory.created": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlAzureSubscriptionDataFactoryServiceFactory).Created, ok = plugin.RawToTValue[*time.Time](v.Value, v.Error)
 		return
@@ -29677,6 +29713,22 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 	},
 	"azure.subscription.synapseService.workspace.azureADOnlyAuthentication": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlAzureSubscriptionSynapseServiceWorkspace).AzureADOnlyAuthentication, ok = plugin.RawToTValue[bool](v.Value, v.Error)
+		return
+	},
+	"azure.subscription.synapseService.workspace.defaultStorageFilesystem": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAzureSubscriptionSynapseServiceWorkspace).DefaultStorageFilesystem, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"azure.subscription.synapseService.workspace.defaultStorage": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAzureSubscriptionSynapseServiceWorkspace).DefaultStorage, ok = plugin.RawToTValue[*mqlAzureSubscriptionStorageServiceAccount](v.Value, v.Error)
+		return
+	},
+	"azure.subscription.synapseService.workspace.cmkKey": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAzureSubscriptionSynapseServiceWorkspace).CmkKey, ok = plugin.RawToTValue[*mqlAzureSubscriptionKeyVaultServiceKey](v.Value, v.Error)
+		return
+	},
+	"azure.subscription.synapseService.workspace.userAssignedIdentities": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAzureSubscriptionSynapseServiceWorkspace).UserAssignedIdentities, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
 		return
 	},
 	"azure.subscription.containerRegistryService.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
@@ -30773,6 +30825,10 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 	},
 	"azure.subscription.recoveryServicesService.vault.identity": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlAzureSubscriptionRecoveryServicesServiceVault).Identity, ok = plugin.RawToTValue[any](v.Value, v.Error)
+		return
+	},
+	"azure.subscription.recoveryServicesService.vault.userAssignedIdentities": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAzureSubscriptionRecoveryServicesServiceVault).UserAssignedIdentities, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
 		return
 	},
 	"azure.subscription.recoveryServicesService.vault.skuName": func(r plugin.Resource, v *llx.RawData) (ok bool) {
@@ -67933,7 +67989,7 @@ func (c *mqlAzureSubscriptionDataFactoryService) GetFactories() *plugin.TValue[[
 type mqlAzureSubscriptionDataFactoryServiceFactory struct {
 	MqlRuntime *plugin.Runtime
 	__id       string
-	// optional: if you define mqlAzureSubscriptionDataFactoryServiceFactoryInternal it will be used here
+	mqlAzureSubscriptionDataFactoryServiceFactoryInternal
 	Id                      plugin.TValue[string]
 	Name                    plugin.TValue[string]
 	Location                plugin.TValue[string]
@@ -67950,6 +68006,9 @@ type mqlAzureSubscriptionDataFactoryServiceFactory struct {
 	CmkKeyVaultUri          plugin.TValue[string]
 	CmkKeyVersion           plugin.TValue[string]
 	CmkUserAssignedIdentity plugin.TValue[string]
+	CmkKey                  plugin.TValue[*mqlAzureSubscriptionKeyVaultServiceKey]
+	CmkIdentity             plugin.TValue[*mqlAzureSubscriptionManagedIdentity]
+	UserAssignedIdentities  plugin.TValue[[]any]
 	Created                 plugin.TValue[*time.Time]
 	LinkedServices          plugin.TValue[[]any]
 	IntegrationRuntimes     plugin.TValue[[]any]
@@ -68055,6 +68114,54 @@ func (c *mqlAzureSubscriptionDataFactoryServiceFactory) GetCmkKeyVersion() *plug
 
 func (c *mqlAzureSubscriptionDataFactoryServiceFactory) GetCmkUserAssignedIdentity() *plugin.TValue[string] {
 	return &c.CmkUserAssignedIdentity
+}
+
+func (c *mqlAzureSubscriptionDataFactoryServiceFactory) GetCmkKey() *plugin.TValue[*mqlAzureSubscriptionKeyVaultServiceKey] {
+	return plugin.GetOrCompute[*mqlAzureSubscriptionKeyVaultServiceKey](&c.CmkKey, func() (*mqlAzureSubscriptionKeyVaultServiceKey, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("azure.subscription.dataFactoryService.factory", c.__id, "cmkKey")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.(*mqlAzureSubscriptionKeyVaultServiceKey), nil
+			}
+		}
+
+		return c.cmkKey()
+	})
+}
+
+func (c *mqlAzureSubscriptionDataFactoryServiceFactory) GetCmkIdentity() *plugin.TValue[*mqlAzureSubscriptionManagedIdentity] {
+	return plugin.GetOrCompute[*mqlAzureSubscriptionManagedIdentity](&c.CmkIdentity, func() (*mqlAzureSubscriptionManagedIdentity, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("azure.subscription.dataFactoryService.factory", c.__id, "cmkIdentity")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.(*mqlAzureSubscriptionManagedIdentity), nil
+			}
+		}
+
+		return c.cmkIdentity()
+	})
+}
+
+func (c *mqlAzureSubscriptionDataFactoryServiceFactory) GetUserAssignedIdentities() *plugin.TValue[[]any] {
+	return plugin.GetOrCompute[[]any](&c.UserAssignedIdentities, func() ([]any, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("azure.subscription.dataFactoryService.factory", c.__id, "userAssignedIdentities")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.([]any), nil
+			}
+		}
+
+		return c.userAssignedIdentities()
+	})
 }
 
 func (c *mqlAzureSubscriptionDataFactoryServiceFactory) GetCreated() *plugin.TValue[*time.Time] {
@@ -68537,7 +68644,7 @@ func (c *mqlAzureSubscriptionSynapseService) GetWorkspaces() *plugin.TValue[[]an
 type mqlAzureSubscriptionSynapseServiceWorkspace struct {
 	MqlRuntime *plugin.Runtime
 	__id       string
-	// optional: if you define mqlAzureSubscriptionSynapseServiceWorkspaceInternal it will be used here
+	mqlAzureSubscriptionSynapseServiceWorkspaceInternal
 	Id                          plugin.TValue[string]
 	Name                        plugin.TValue[string]
 	Location                    plugin.TValue[string]
@@ -68553,6 +68660,10 @@ type mqlAzureSubscriptionSynapseServiceWorkspace struct {
 	ProvisioningState           plugin.TValue[string]
 	TrustedServiceBypassEnabled plugin.TValue[bool]
 	AzureADOnlyAuthentication   plugin.TValue[bool]
+	DefaultStorageFilesystem    plugin.TValue[string]
+	DefaultStorage              plugin.TValue[*mqlAzureSubscriptionStorageServiceAccount]
+	CmkKey                      plugin.TValue[*mqlAzureSubscriptionKeyVaultServiceKey]
+	UserAssignedIdentities      plugin.TValue[[]any]
 }
 
 // createAzureSubscriptionSynapseServiceWorkspace creates a new instance of this resource
@@ -68650,6 +68761,58 @@ func (c *mqlAzureSubscriptionSynapseServiceWorkspace) GetTrustedServiceBypassEna
 
 func (c *mqlAzureSubscriptionSynapseServiceWorkspace) GetAzureADOnlyAuthentication() *plugin.TValue[bool] {
 	return &c.AzureADOnlyAuthentication
+}
+
+func (c *mqlAzureSubscriptionSynapseServiceWorkspace) GetDefaultStorageFilesystem() *plugin.TValue[string] {
+	return &c.DefaultStorageFilesystem
+}
+
+func (c *mqlAzureSubscriptionSynapseServiceWorkspace) GetDefaultStorage() *plugin.TValue[*mqlAzureSubscriptionStorageServiceAccount] {
+	return plugin.GetOrCompute[*mqlAzureSubscriptionStorageServiceAccount](&c.DefaultStorage, func() (*mqlAzureSubscriptionStorageServiceAccount, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("azure.subscription.synapseService.workspace", c.__id, "defaultStorage")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.(*mqlAzureSubscriptionStorageServiceAccount), nil
+			}
+		}
+
+		return c.defaultStorage()
+	})
+}
+
+func (c *mqlAzureSubscriptionSynapseServiceWorkspace) GetCmkKey() *plugin.TValue[*mqlAzureSubscriptionKeyVaultServiceKey] {
+	return plugin.GetOrCompute[*mqlAzureSubscriptionKeyVaultServiceKey](&c.CmkKey, func() (*mqlAzureSubscriptionKeyVaultServiceKey, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("azure.subscription.synapseService.workspace", c.__id, "cmkKey")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.(*mqlAzureSubscriptionKeyVaultServiceKey), nil
+			}
+		}
+
+		return c.cmkKey()
+	})
+}
+
+func (c *mqlAzureSubscriptionSynapseServiceWorkspace) GetUserAssignedIdentities() *plugin.TValue[[]any] {
+	return plugin.GetOrCompute[[]any](&c.UserAssignedIdentities, func() ([]any, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("azure.subscription.synapseService.workspace", c.__id, "userAssignedIdentities")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.([]any), nil
+			}
+		}
+
+		return c.userAssignedIdentities()
+	})
 }
 
 // mqlAzureSubscriptionContainerRegistryService for the azure.subscription.containerRegistryService resource
@@ -71347,6 +71510,7 @@ type mqlAzureSubscriptionRecoveryServicesServiceVault struct {
 	Type                                plugin.TValue[string]
 	Tags                                plugin.TValue[map[string]any]
 	Identity                            plugin.TValue[any]
+	UserAssignedIdentities              plugin.TValue[[]any]
 	SkuName                             plugin.TValue[string]
 	ProvisioningState                   plugin.TValue[string]
 	PublicNetworkAccess                 plugin.TValue[string]
@@ -71424,6 +71588,22 @@ func (c *mqlAzureSubscriptionRecoveryServicesServiceVault) GetTags() *plugin.TVa
 
 func (c *mqlAzureSubscriptionRecoveryServicesServiceVault) GetIdentity() *plugin.TValue[any] {
 	return &c.Identity
+}
+
+func (c *mqlAzureSubscriptionRecoveryServicesServiceVault) GetUserAssignedIdentities() *plugin.TValue[[]any] {
+	return plugin.GetOrCompute[[]any](&c.UserAssignedIdentities, func() ([]any, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("azure.subscription.recoveryServicesService.vault", c.__id, "userAssignedIdentities")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.([]any), nil
+			}
+		}
+
+		return c.userAssignedIdentities()
+	})
 }
 
 func (c *mqlAzureSubscriptionRecoveryServicesServiceVault) GetSkuName() *plugin.TValue[string] {
