@@ -2941,7 +2941,14 @@ func (g *mqlGcpProjectComputeServiceAddress) network() (*mqlGcpProjectComputeSer
 		return nil, g.NetworkUrl.Error
 	}
 	networkUrl := g.NetworkUrl.Data
-	return getNetworkByUrl(networkUrl, g.MqlRuntime)
+	net, err := getNetworkByUrl(networkUrl, g.MqlRuntime)
+	if err != nil {
+		return nil, err
+	}
+	if net == nil {
+		g.Network.State = plugin.StateIsSet | plugin.StateIsNull
+	}
+	return net, nil
 }
 
 func (g *mqlGcpProjectComputeServiceAddress) subnetwork() (*mqlGcpProjectComputeServiceSubnetwork, error) {
@@ -2949,7 +2956,14 @@ func (g *mqlGcpProjectComputeServiceAddress) subnetwork() (*mqlGcpProjectCompute
 		return nil, g.SubnetworkUrl.Error
 	}
 	subnetUrl := g.SubnetworkUrl.Data
-	return getSubnetworkByUrl(subnetUrl, g.MqlRuntime)
+	subnet, err := getSubnetworkByUrl(subnetUrl, g.MqlRuntime)
+	if err != nil {
+		return nil, err
+	}
+	if subnet == nil {
+		g.Subnetwork.State = plugin.StateIsSet | plugin.StateIsNull
+	}
+	return subnet, nil
 }
 
 func (g *mqlGcpProjectComputeServiceAddress) id() (string, error) {
