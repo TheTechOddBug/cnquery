@@ -29,9 +29,28 @@ func shellSingleQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
-func BuildFilesFindCmd(from string, xdev bool, fileType string, regex string, permission int64, search string, depth *int64) string {
+func BuildFilesFindCmd(from string, xdev bool, fileType string, regex string, permission int64, search string, depth *int64, hasGNUFind bool) string {
 	var call strings.Builder
-	call.WriteString("find -L ")
+
+	isLinkSearch := false
+	if fileType != "" {
+		if t, ok := findTypes[fileType]; ok && t == "l" {
+			isLinkSearch = true
+		}
+	}
+
+	// GNU find: -L -xtype l follows all symlinks AND finds symlinks.
+	// BSD find: -xtype is absent; fall back to -H -type l which
+	// follows only the start path but still detects symlinks.
+	// hasGNUFind is approximated via platform family ("linux"). This
+	// misses FreeBSD with GNU findutils and BusyBox find on Linux,
+	// but both are rare in mql's target environments; the -H fallback
+	// still finds symlinks, just without following symlink-dirs.
+	if isLinkSearch && !hasGNUFind {
+		call.WriteString("find -H ")
+	} else {
+		call.WriteString("find -L ")
+	}
 	call.WriteString(strconv.Quote(from))
 
 	if !xdev {
@@ -41,12 +60,8 @@ func BuildFilesFindCmd(from string, xdev bool, fileType string, regex string, pe
 	if fileType != "" {
 		t, ok := findTypes[fileType]
 		if ok {
-			// We run `find -L`, which follows symlinks. Under -L, `-type l`
-			// only matches dangling links because valid links are resolved to
-			// their target's type. `-xtype l` matches the symlink itself
-			// regardless of where it points, so searching for links works.
-			if t == "l" {
-				call.WriteString(" -xtype l")
+			if t == "l" && hasGNUFind {
+				call.WriteString(" -xtype " + t)
 			} else {
 				call.WriteString(" -type " + t)
 			}
