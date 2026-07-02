@@ -210,6 +210,20 @@ func (a *mqlAwsVpcNatgatewayAddress) publicIp() (*mqlAwsEc2Eip, error) {
 	return nil, nil
 }
 
+func (a *mqlAwsVpcNatgatewayAddress) networkInterface() (*mqlAwsEc2Networkinterface, error) {
+	eniId := a.NetworkInterfaceId.Data
+	if eniId == "" {
+		a.NetworkInterface.State = plugin.StateIsNull | plugin.StateIsSet
+		return nil, nil
+	}
+	res, err := NewResource(a.MqlRuntime, ResourceAwsEc2Networkinterface,
+		map[string]*llx.RawData{"id": llx.StringData(eniId), "region": llx.StringData(a.region)})
+	if err != nil {
+		return nil, err
+	}
+	return res.(*mqlAwsEc2Networkinterface), nil
+}
+
 func (a *mqlAwsVpc) natGateways() ([]any, error) {
 	conn := a.MqlRuntime.Connection.(*connection.AwsConnection)
 	vpcId := a.Id.Data
@@ -788,8 +802,26 @@ type mqlAwsVpcRoutetableInternal struct {
 	cacheRoutes       []vpctypes.Route
 }
 
+type mqlAwsVpcRoutetableRouteInternal struct {
+	region string
+}
+
 func (a *mqlAwsVpcRoutetableRoute) id() (string, error) {
 	return a.Id.Data, nil
+}
+
+func (a *mqlAwsVpcRoutetableRoute) networkInterface() (*mqlAwsEc2Networkinterface, error) {
+	eniId := a.NetworkInterfaceId.Data
+	if eniId == "" {
+		a.NetworkInterface.State = plugin.StateIsNull | plugin.StateIsSet
+		return nil, nil
+	}
+	res, err := NewResource(a.MqlRuntime, ResourceAwsEc2Networkinterface,
+		map[string]*llx.RawData{"id": llx.StringData(eniId), "region": llx.StringData(a.region)})
+	if err != nil {
+		return nil, err
+	}
+	return res.(*mqlAwsEc2Networkinterface), nil
 }
 
 func (a *mqlAwsVpcRoutetable) routeEntries() ([]any, error) {
@@ -837,6 +869,7 @@ func (a *mqlAwsVpcRoutetable) routeEntries() ([]any, error) {
 		if err != nil {
 			return nil, err
 		}
+		mqlRoute.(*mqlAwsVpcRoutetableRoute).region = a.Region.Data
 		res = append(res, mqlRoute)
 	}
 	return res, nil
