@@ -3912,6 +3912,12 @@ func azureFirewallPolicyToMql(runtime *plugin.Runtime, fwp network.FirewallPolic
 	if err != nil {
 		return nil, err
 	}
+	// Properties can be nil on a minimal API response (e.g. a by-ID Get from
+	// the firewallPolicy init), so guard before dereferencing.
+	var provisioningState *string
+	if fwp.Properties != nil {
+		provisioningState = (*string)(fwp.Properties.ProvisioningState)
+	}
 	mqlFw, err := CreateResource(runtime, "azure.subscription.networkService.firewallPolicy",
 		map[string]*llx.RawData{
 			"id":                llx.StringDataPtr(fwp.ID),
@@ -3921,7 +3927,7 @@ func azureFirewallPolicyToMql(runtime *plugin.Runtime, fwp network.FirewallPolic
 			"tags":              llx.MapData(convert.PtrMapStrToInterface(fwp.Tags), types.String),
 			"etag":              llx.StringDataPtr(fwp.Etag),
 			"properties":        llx.DictData(props),
-			"provisioningState": llx.StringDataPtr((*string)(fwp.Properties.ProvisioningState)),
+			"provisioningState": llx.StringDataPtr(provisioningState),
 		})
 	if err != nil {
 		return nil, err
@@ -5229,13 +5235,33 @@ func (a *mqlAzureSubscriptionNetworkServiceFirewallPolicy) intrusionDetectionByp
 		if err != nil {
 			return nil, err
 		}
+		mqlBypassRule := mqlRule.(*mqlAzureSubscriptionNetworkServiceFirewallPolicyIdpsBypassRule)
+		mqlBypassRule.cacheSourceIpGroupIds = azureStrPtrsToStr(rule.SourceIPGroups)
+		mqlBypassRule.cacheDestinationIpGroupIds = azureStrPtrsToStr(rule.DestinationIPGroups)
 		res = append(res, mqlRule)
 	}
 	return res, nil
 }
 
+type mqlAzureSubscriptionNetworkServiceFirewallPolicyIdpsBypassRuleInternal struct {
+	cacheSourceIpGroupIds      []string
+	cacheDestinationIpGroupIds []string
+}
+
 func (a *mqlAzureSubscriptionNetworkServiceFirewallPolicyIdpsBypassRule) id() (string, error) {
 	return a.Id.Data, nil
+}
+
+// sourceIpGroupRefs resolves the bypass rule's source IP groups to their typed
+// resources from the cached ARM IDs.
+func (a *mqlAzureSubscriptionNetworkServiceFirewallPolicyIdpsBypassRule) sourceIpGroupRefs() ([]any, error) {
+	return azureResourceRefsByID(a.MqlRuntime, "azure.subscription.networkService.ipGroup", a.cacheSourceIpGroupIds)
+}
+
+// destinationIpGroupRefs resolves the bypass rule's destination IP groups to
+// their typed resources from the cached ARM IDs.
+func (a *mqlAzureSubscriptionNetworkServiceFirewallPolicyIdpsBypassRule) destinationIpGroupRefs() ([]any, error) {
+	return azureResourceRefsByID(a.MqlRuntime, "azure.subscription.networkService.ipGroup", a.cacheDestinationIpGroupIds)
 }
 
 // ruleCollectionGroups resolves the priority-ordered rule collection groups
