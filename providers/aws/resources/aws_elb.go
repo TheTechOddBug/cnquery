@@ -29,6 +29,68 @@ func (a *mqlAwsElb) id() (string, error) {
 	return ResourceAwsElb, nil
 }
 
+type mqlAwsElbInternal struct {
+	dnsIndexMu    sync.Mutex
+	dnsIndexBuilt bool
+	dnsIndex      map[string]*mqlAwsElbLoadbalancer
+}
+
+// loadBalancerByDNSName returns the load balancer whose DNS name matches the
+// given already-normalized DNS name, or nil when none matches. It builds a
+// normalized-DNS-name index across all load balancers on first call and reuses
+// it afterwards. The index lives on the aws.elb list resource, which the runtime
+// caches, so many callers (for example every Route 53 alias record resolving its
+// target) share one index instead of each rescanning every load balancer.
+func (a *mqlAwsElb) loadBalancerByDNSName(normalized string) (*mqlAwsElbLoadbalancer, error) {
+	a.dnsIndexMu.Lock()
+	defer a.dnsIndexMu.Unlock()
+
+	if !a.dnsIndexBuilt {
+		// Index both v2 (application/network/gateway) and classic load balancers:
+		// a Route 53 alias record can point at either, and each carries its own
+		// DNS name.
+		lbs := a.GetLoadBalancers()
+		if lbs.Error != nil {
+			return nil, lbs.Error
+		}
+		classic := a.GetClassicLoadBalancers()
+		if classic.Error != nil {
+			return nil, classic.Error
+		}
+		idx, err := buildLoadBalancerDNSIndex(lbs.Data, classic.Data)
+		if err != nil {
+			return nil, err
+		}
+		a.dnsIndex = idx
+		a.dnsIndexBuilt = true
+	}
+	return a.dnsIndex[normalized], nil
+}
+
+// buildLoadBalancerDNSIndex maps each load balancer's normalized DNS name to the
+// load balancer, across every provided list (v2 and classic). DNS names are
+// unique across load balancer types, so the lists share one index without
+// collision.
+func buildLoadBalancerDNSIndex(lbLists ...[]any) (map[string]*mqlAwsElbLoadbalancer, error) {
+	idx := map[string]*mqlAwsElbLoadbalancer{}
+	for _, lbs := range lbLists {
+		for _, l := range lbs {
+			lb, ok := l.(*mqlAwsElbLoadbalancer)
+			if !ok {
+				continue
+			}
+			dnsName := lb.GetDnsName()
+			if dnsName.Error != nil {
+				return nil, dnsName.Error
+			}
+			if dnsName.Data != "" {
+				idx[normalizeAliasDNSName(dnsName.Data)] = lb
+			}
+		}
+	}
+	return idx, nil
+}
+
 func (a *mqlAwsElb) classicLoadBalancers() ([]any, error) {
 	conn := a.MqlRuntime.Connection.(*connection.AwsConnection)
 
