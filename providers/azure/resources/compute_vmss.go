@@ -241,6 +241,16 @@ func (a *mqlAzureSubscriptionComputeServiceVmScaleSet) userAssignedIdentities() 
 	return resolveUserAssignedIdentities(a.MqlRuntime, a.cacheUserAssignedIdentityIds)
 }
 
+func (a *mqlAzureSubscriptionComputeServiceVmScaleSet) systemAssignedIdentity() (*mqlAzureSubscriptionManagedIdentity, error) {
+	tenantID := ""
+	if id, ok := a.Identity.Data.(map[string]any); ok {
+		if t, ok := id["tenantId"].(string); ok {
+			tenantID = t
+		}
+	}
+	return newSystemAssignedManagedIdentity(a.MqlRuntime, a.Id.Data, a.PrincipalId.Data, tenantID, &a.SystemAssignedIdentity)
+}
+
 func (a *mqlAzureSubscriptionComputeServiceVmScaleSet) instances() ([]any, error) {
 	conn := a.MqlRuntime.Connection.(*connection.AzureConnection)
 	ctx := context.Background()
