@@ -73,6 +73,18 @@ func derefBool(v *bool) bool {
 	return *v
 }
 
+// subResourceID returns extID when it is set, otherwise a stable
+// parent-qualified fallback of the form "<parentID>/<kind>/<index>". Child
+// records (disks, NICs, nodes, ...) whose ExtId/UUID the API omits would
+// otherwise all share an empty cache key and collapse onto the first sibling
+// built, so the index makes each one unique within its parent.
+func subResourceID(extID, parentID, kind string, index int) string {
+	if extID != "" {
+		return extID
+	}
+	return fmt.Sprintf("%s/%s/%d", parentID, kind, index)
+}
+
 // usecsToTime converts a microsecond Unix timestamp pointer to a *time.Time,
 // returning nil when the source is nil or zero.
 func usecsToTime(usecs *int64) *time.Time {
@@ -141,6 +153,9 @@ func (a *mqlNutanix) clusters() ([]any, error) {
 		if err != nil {
 			return nil, err
 		}
+		if mqlCluster == nil {
+			continue
+		}
 		res = append(res, mqlCluster)
 	}
 	return res, nil
@@ -168,6 +183,9 @@ func (a *mqlNutanix) hosts() ([]any, error) {
 		if err != nil {
 			return nil, err
 		}
+		if mqlHost == nil {
+			continue
+		}
 		res = append(res, mqlHost)
 	}
 	return res, nil
@@ -194,6 +212,9 @@ func (a *mqlNutanix) vms() ([]any, error) {
 		mqlVm, err := newMqlVm(a.MqlRuntime, &vm)
 		if err != nil {
 			return nil, err
+		}
+		if mqlVm == nil {
+			continue
 		}
 		res = append(res, mqlVm)
 	}
@@ -293,6 +314,9 @@ func listVms(conn *connection.NutanixConnection) ([]vmmconfig.Vm, error) {
 // ---------------------------------------------------------------------------
 
 func newMqlCluster(runtime *plugin.Runtime, c *clustermgmtconfig.Cluster) (*mqlNutanixCluster, error) {
+	if c.ExtId == nil {
+		return nil, nil
+	}
 	hypervisorTypes := []any{}
 	functions := []any{}
 	encryptionOptions := []any{}
@@ -601,7 +625,7 @@ func (a *mqlNutanixCluster) nodes() ([]any, error) {
 			nodeUuid = *n.NodeUuid
 		}
 		mqlNode, err := CreateResource(a.MqlRuntime, "nutanix.cluster.node", map[string]*llx.RawData{
-			"__id":           llx.StringData(nodeUuid),
+			"__id":           llx.StringData(subResourceID(nodeUuid, a.clusterId, "node", i)),
 			"id":             llx.StringData(nodeUuid),
 			"hostIp":         llx.StringData(clusterIPToString(n.HostIp)),
 			"controllerVmIp": llx.StringData(clusterIPToString(n.ControllerVmIp)),
@@ -652,6 +676,9 @@ func (a *mqlNutanixClusterNode) host() (*mqlNutanixHost, error) {
 }
 
 func newMqlHost(runtime *plugin.Runtime, h *clustermgmtconfig.Host) (*mqlNutanixHost, error) {
+	if h.ExtId == nil {
+		return nil, nil
+	}
 	hypervisorType := ""
 	hypervisorFullName := ""
 	hypervisorState := ""
@@ -812,7 +839,7 @@ func (a *mqlNutanixHost) disks() ([]any, error) {
 			storageTier = d.StorageTier.GetName()
 		}
 		mqlDisk, err := CreateResource(a.MqlRuntime, "nutanix.host.disk", map[string]*llx.RawData{
-			"__id":        llx.StringData(uuid),
+			"__id":        llx.StringData(subResourceID(uuid, a.hostId, "disk", i)),
 			"id":          llx.StringData(uuid),
 			"mountPath":   llx.StringDataPtr(d.MountPath),
 			"serialId":    llx.StringDataPtr(d.SerialId),
@@ -828,6 +855,9 @@ func (a *mqlNutanixHost) disks() ([]any, error) {
 }
 
 func newMqlVm(runtime *plugin.Runtime, vm *vmmconfig.Vm) (*mqlNutanixVm, error) {
+	if vm.ExtId == nil {
+		return nil, nil
+	}
 	powerState := ""
 	if vm.PowerState != nil {
 		powerState = vm.PowerState.GetName()
@@ -984,7 +1014,7 @@ func (a *mqlNutanixVm) disks() ([]any, error) {
 			}
 		}
 		mqlDisk, err := CreateResource(a.MqlRuntime, "nutanix.vm.disk", map[string]*llx.RawData{
-			"__id":                  llx.StringData(extId),
+			"__id":                  llx.StringData(subResourceID(extId, a.vmId, "disk", i)),
 			"id":                    llx.StringData(extId),
 			"tenantId":              llx.StringData(tenantId),
 			"busType":               llx.StringData(busType),
@@ -1108,7 +1138,7 @@ func (a *mqlNutanixVm) nics() ([]any, error) {
 			}
 		}
 		mqlNic, err := CreateResource(a.MqlRuntime, "nutanix.vm.nic", map[string]*llx.RawData{
-			"__id":               llx.StringData(extId),
+			"__id":               llx.StringData(subResourceID(extId, a.vmId, "nic", i)),
 			"id":                 llx.StringData(extId),
 			"macAddress":         llx.StringData(macAddress),
 			"model":              llx.StringData(model),
@@ -1163,7 +1193,7 @@ func (a *mqlNutanixVm) gpus() ([]any, error) {
 			vendor = g.Vendor.GetName()
 		}
 		mqlGpu, err := CreateResource(a.MqlRuntime, "nutanix.vm.gpu", map[string]*llx.RawData{
-			"__id":                   llx.StringData(extId),
+			"__id":                   llx.StringData(subResourceID(extId, a.vmId, "gpu", i)),
 			"id":                     llx.StringData(extId),
 			"name":                   llx.StringDataPtr(g.Name),
 			"mode":                   llx.StringData(mode),
@@ -1211,7 +1241,7 @@ func (a *mqlNutanixVm) cdRoms() ([]any, error) {
 			}
 		}
 		mqlCdRom, err := CreateResource(a.MqlRuntime, "nutanix.vm.cdrom", map[string]*llx.RawData{
-			"__id":      llx.StringData(extId),
+			"__id":      llx.StringData(subResourceID(extId, a.vmId, "cdrom", i)),
 			"id":        llx.StringData(extId),
 			"isoType":   llx.StringData(isoType),
 			"busType":   llx.StringData(busType),
