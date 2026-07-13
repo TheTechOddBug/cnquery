@@ -6,6 +6,7 @@ package resources
 import (
 	"context"
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/oracle/oci-go-sdk/v65/common"
@@ -349,13 +350,132 @@ func (o *mqlOciNetworkIpsecConnection) tunnels() ([]any, error) {
 		if err != nil {
 			return nil, err
 		}
-		res = append(res, mqlInstance)
+		tun := mqlInstance.(*mqlOciNetworkIpsecConnectionTunnel)
+		tun.cacheIpscId = o.Id.Data
+		tun.cacheRegion = region
+		res = append(res, tun)
 	}
 	return res, nil
 }
 
 func (o *mqlOciNetworkIpsecConnectionTunnel) id() (string, error) {
 	return "oci.network.ipsecConnectionTunnel/" + o.Id.Data, nil
+}
+
+type mqlOciNetworkIpsecConnectionTunnelInternal struct {
+	cacheIpscId string
+	cacheRegion string
+	lock        sync.Mutex
+	fetched     bool
+	phaseOne    *core.TunnelPhaseOneDetails
+	phaseTwo    *core.TunnelPhaseTwoDetails
+}
+
+// fetchDetails lazily loads the tunnel detail, which carries the negotiated
+// phase 1/2 crypto that the list call does not populate. The result is cached
+// so the phase accessors share a single API call. A transient failure is not
+// cached (fetched is set only on success), so a later access retries rather
+// than returning the stale error forever.
+func (o *mqlOciNetworkIpsecConnectionTunnel) fetchDetails() error {
+	o.lock.Lock()
+	defer o.lock.Unlock()
+	if o.fetched {
+		return nil
+	}
+	if o.cacheIpscId == "" {
+		o.fetched = true
+		return nil
+	}
+	conn := o.MqlRuntime.Connection.(*connection.OciConnection)
+	region := o.cacheRegion
+	if region == "" {
+		region = ociRegionFromOCID(o.Id.Data)
+	}
+	svc, err := conn.NetworkClient(region)
+	if err != nil {
+		return err
+	}
+	resp, err := svc.GetIPSecConnectionTunnel(context.Background(), core.GetIPSecConnectionTunnelRequest{
+		IpscId:   common.String(o.cacheIpscId),
+		TunnelId: common.String(o.Id.Data),
+	})
+	if err != nil {
+		return err
+	}
+	o.phaseOne = resp.PhaseOneDetails
+	o.phaseTwo = resp.PhaseTwoDetails
+	o.fetched = true
+	return nil
+}
+
+func (o *mqlOciNetworkIpsecConnectionTunnel) phase1EncryptionAlgorithm() (string, error) {
+	if err := o.fetchDetails(); err != nil {
+		return "", err
+	}
+	if o.phaseOne == nil {
+		return "", nil
+	}
+	return convert.ToValue(o.phaseOne.NegotiatedEncryptionAlgorithm), nil
+}
+
+func (o *mqlOciNetworkIpsecConnectionTunnel) phase1AuthenticationAlgorithm() (string, error) {
+	if err := o.fetchDetails(); err != nil {
+		return "", err
+	}
+	if o.phaseOne == nil {
+		return "", nil
+	}
+	return convert.ToValue(o.phaseOne.NegotiatedAuthenticationAlgorithm), nil
+}
+
+func (o *mqlOciNetworkIpsecConnectionTunnel) phase1DhGroup() (string, error) {
+	if err := o.fetchDetails(); err != nil {
+		return "", err
+	}
+	if o.phaseOne == nil {
+		return "", nil
+	}
+	return convert.ToValue(o.phaseOne.NegotiatedDhGroup), nil
+}
+
+func (o *mqlOciNetworkIpsecConnectionTunnel) phase2EncryptionAlgorithm() (string, error) {
+	if err := o.fetchDetails(); err != nil {
+		return "", err
+	}
+	if o.phaseTwo == nil {
+		return "", nil
+	}
+	return convert.ToValue(o.phaseTwo.NegotiatedEncryptionAlgorithm), nil
+}
+
+func (o *mqlOciNetworkIpsecConnectionTunnel) phase2AuthenticationAlgorithm() (string, error) {
+	if err := o.fetchDetails(); err != nil {
+		return "", err
+	}
+	if o.phaseTwo == nil {
+		return "", nil
+	}
+	return convert.ToValue(o.phaseTwo.NegotiatedAuthenticationAlgorithm), nil
+}
+
+func (o *mqlOciNetworkIpsecConnectionTunnel) phase2PfsEnabled() (bool, error) {
+	if err := o.fetchDetails(); err != nil {
+		return false, err
+	}
+	if o.phaseTwo == nil {
+		return false, nil
+	}
+	return convert.ToValue(o.phaseTwo.IsPfsEnabled), nil
+}
+
+func (o *mqlOciNetworkIpsecConnectionTunnel) phase2DhGroup() (string, error) {
+	if err := o.fetchDetails(); err != nil {
+		return "", err
+	}
+	if o.phaseTwo == nil {
+		return "", nil
+	}
+	return convert.ToValue(o.phaseTwo.NegotiatedDhGroup), nil
 }
 
 func (o *mqlOciNetworkIpsecConnectionTunnel) compartment() (*mqlOciCompartment, error) {
