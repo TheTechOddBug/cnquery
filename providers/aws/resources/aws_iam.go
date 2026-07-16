@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/url"
 	"strconv"
 	"strings"
@@ -1029,10 +1030,11 @@ func initAwsIamUser(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[
 	if len(args) > 2 {
 		return args, nil, nil
 	}
+	// The lookup is name-driven (GetUser); discovery sets the asset name to
+	// the IAM user name.
 	if len(args) == 0 {
-		if ids := getAssetIdentifier(runtime); ids != nil {
-			args["name"] = llx.StringData(ids.name)
-			args["arn"] = llx.StringData(ids.arn)
+		if name := getAssetName(runtime); name != "" {
+			args["name"] = llx.StringData(name)
 		}
 	}
 
@@ -1044,28 +1046,28 @@ func initAwsIamUser(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[
 	svc := conn.Iam("")
 	ctx := context.Background()
 
-	if args["name"] != nil {
-		if usr, ok := args["name"].Value.(string); ok {
-			username := usr
-			resp, err := svc.GetUser(ctx, &iam.GetUserInput{
-				UserName: &username,
-			})
-			if err != nil {
-				return nil, nil, err
-			}
-
-			usr := resp.User
-			args["arn"] = llx.StringDataPtr(usr.Arn)
-			args["id"] = llx.StringDataPtr(usr.UserId)
-			args["name"] = llx.StringDataPtr(usr.UserName)
-			args["createdAt"] = llx.TimeDataPtr(usr.CreateDate)
-			args["passwordLastUsed"] = llx.TimeDataPtr(usr.PasswordLastUsed)
-			args["tags"] = llx.MapData(iamTagsToMap(usr.Tags), types.String)
-			args["path"] = llx.StringDataPtr(usr.Path)
-
-			return args, nil, nil
-		}
+	usr, ok := args["name"].Value.(string)
+	if !ok {
+		return nil, nil, errors.New("invalid name argument for aws iam user")
 	}
+	resp, err := svc.GetUser(ctx, &iam.GetUserInput{
+		UserName: &usr,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	if resp.User == nil {
+		return nil, nil, fmt.Errorf("aws.iam.user %q not found", usr)
+	}
+
+	user := resp.User
+	args["arn"] = llx.StringDataPtr(user.Arn)
+	args["id"] = llx.StringDataPtr(user.UserId)
+	args["name"] = llx.StringDataPtr(user.UserName)
+	args["createdAt"] = llx.TimeDataPtr(user.CreateDate)
+	args["passwordLastUsed"] = llx.TimeDataPtr(user.PasswordLastUsed)
+	args["tags"] = llx.MapData(iamTagsToMap(user.Tags), types.String)
+	args["path"] = llx.StringDataPtr(user.Path)
 
 	return args, nil, nil
 }
@@ -1743,7 +1745,10 @@ func initAwsIamRole(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[
 		return args, nil, nil
 	}
 
-	return args, nil, nil
+	// Returning (args, nil, nil) here would let the runtime create a resource
+	// whose fields are all unset, which surfaces as malformed nil data when
+	// those fields are queried.
+	return nil, nil, errors.New("could not determine role name to fetch aws iam role")
 }
 
 func (a *mqlAwsIamRole) id() (string, error) {
@@ -1934,10 +1939,11 @@ func initAwsIamGroup(runtime *plugin.Runtime, args map[string]*llx.RawData) (map
 	if len(args) > 2 {
 		return args, nil, nil
 	}
+	// The lookup is name-driven (GetGroup); discovery sets the asset name to
+	// the IAM group name.
 	if len(args) == 0 {
-		if ids := getAssetIdentifier(runtime); ids != nil {
-			args["name"] = llx.StringData(ids.name)
-			args["arn"] = llx.StringData(ids.arn)
+		if name := getAssetName(runtime); name != "" {
+			args["name"] = llx.StringData(name)
 		}
 	}
 	if args["arn"] == nil && args["name"] == nil {
@@ -1966,6 +1972,9 @@ func initAwsIamGroup(runtime *plugin.Runtime, args map[string]*llx.RawData) (map
 				usernames = append(usernames, convert.ToValue(user.UserName))
 			}
 		}
+		if grp == nil {
+			return nil, nil, fmt.Errorf("aws.iam.group %q not found", groupname)
+		}
 
 		args["arn"] = llx.StringDataPtr(grp.Arn)
 		args["id"] = llx.StringDataPtr(grp.GroupId)
@@ -1985,7 +1994,10 @@ func initAwsIamGroup(runtime *plugin.Runtime, args map[string]*llx.RawData) (map
 		return args, g, nil
 	}
 
-	return args, nil, nil
+	// Returning (args, nil, nil) here would let the runtime create a resource
+	// whose fields are all unset, which surfaces as malformed nil data when
+	// those fields are queried.
+	return nil, nil, fmt.Errorf("aws.iam.group with arn %q not found", args["arn"].Value)
 }
 
 func (a *mqlAwsIamGroup) id() (string, error) {

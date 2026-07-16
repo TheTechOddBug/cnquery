@@ -276,18 +276,20 @@ const (
 	CertificateBlockType = "CERTIFICATE"
 )
 
-type assetIdentifier struct {
-	name string
-	arn  string
-}
-
-func getAssetIdentifier(runtime *plugin.Runtime) *assetIdentifier {
+// getAssetIdentifier returns the asset's validated resource ARN from its
+// platform IDs, or "" when the asset carries no parseable arn:aws: ID (e.g.
+// an account asset). Discovered resource assets always store their own ARN in
+// PlatformIds, so ARN matching is sufficient for init lookups; the asset name
+// is a display name (possibly a Name tag), never a resource key, and must not
+// be used for resolution. Callers must only inject a non-empty result into
+// init args — an empty args["arn"] defeats `args["arn"] == nil` guards.
+func getAssetIdentifier(runtime *plugin.Runtime) string {
 	var a *inventory.Asset
 	if conn, ok := runtime.Connection.(*connection.AwsConnection); ok {
 		a = conn.Asset()
 	}
 	if a == nil {
-		return nil
+		return ""
 	}
 
 	arnStr := ""
@@ -301,7 +303,23 @@ func getAssetIdentifier(runtime *plugin.Runtime) *assetIdentifier {
 		}
 	}
 
-	return &assetIdentifier{name: a.Name, arn: arnStr}
+	return arnStr
+}
+
+// getAssetName returns the discovered asset's name, or "" when the connection
+// has no asset. Use it only for resources whose lookup API is name-driven
+// (e.g. IAM GetUser/GetGroup) and whose discovery sets the asset name to the
+// resource's own name; for everything else resolve by ARN via
+// getAssetIdentifier — the asset name is a display name, not a resource key.
+func getAssetName(runtime *plugin.Runtime) string {
+	var a *inventory.Asset
+	if conn, ok := runtime.Connection.(*connection.AwsConnection); ok {
+		a = conn.Asset()
+	}
+	if a == nil {
+		return ""
+	}
+	return a.Name
 }
 
 func mapStringInterfaceToStringString(m map[string]any) map[string]string {
