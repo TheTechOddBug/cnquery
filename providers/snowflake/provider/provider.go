@@ -47,6 +47,32 @@ func (s *Service) ParseCLI(req *plugin.ParseCLIReq) (*plugin.ParseCLIRes, error)
 		user = string(x.Value)
 	}
 
+	flagSet := func(name string) bool {
+		x, ok := flags[name]
+		return ok && len(x.Value) != 0
+	}
+	askPass := false
+	if x, ok := flags["ask-pass"]; ok {
+		if b, ok := x.RawData().Value.(bool); ok {
+			askPass = b
+		}
+	}
+
+	// A programmatic access token is a complete authentication method on its own;
+	// combining it with a password is ambiguous, so reject that up front.
+	if flagSet("token") && (flagSet("password") || askPass) {
+		return nil, errors.New("cannot combine --token with --password or --ask-pass; choose one authentication method")
+	}
+
+	if x, ok := flags["token"]; ok && len(x.Value) != 0 {
+		// A programmatic access token (PAT) authenticates as a bearer token.
+		conf.Credentials = append(conf.Credentials, &vault.Credential{
+			Type:   vault.CredentialType_bearer,
+			User:   user,
+			Secret: x.Value,
+		})
+	}
+
 	if x, ok := flags["password"]; ok && len(x.Value) != 0 {
 		conf.Credentials = append(conf.Credentials, vault.NewPasswordCredential(user, string(x.Value)))
 	}
