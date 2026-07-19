@@ -411,6 +411,7 @@ shared/generate:
 	go generate ./providers-sdk/v1/upstream/mvd/cvss
 	go generate ./providers-sdk/v1/upstream/mvd
 	go generate ./providers-sdk/v1/upstream/etl
+	go generate ./providers-sdk/v1/upstream/sbomscan
 
 #   ⛹🏽‍ Testing   #
 
