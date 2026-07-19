@@ -727,6 +727,97 @@ func (r *mqlAlicloudRamRole) id() (string, error) {
 	return r.RoleName.Data, nil
 }
 
+// resolveRamRole returns the typed RAM role for a role name, or (nil, nil) when
+// roleName is empty (the caller sets StateIsNull). RAM is a global service, so
+// the role is keyed by name alone. It backs typed ramRole() cross-references
+// such as an ACK node pool's node role.
+func resolveRamRole(runtime *plugin.Runtime, roleName string) (*mqlAlicloudRamRole, error) {
+	if roleName == "" {
+		return nil, nil
+	}
+	res, err := NewResource(runtime, "alicloud.ram.role", map[string]*llx.RawData{
+		"roleName": llx.StringData(roleName),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return res.(*mqlAlicloudRamRole), nil
+}
+
+// ramRoleTags fetches the tags attached to a RAM role via ListTagResources,
+// which is required because GetRole (unlike ListRoles) does not return them.
+// Returns an empty map on any error so a resolved role is never a husk.
+func ramRoleTags(client *ramclient.Client, roleName string) map[string]any {
+	tags := map[string]any{}
+	resourceType := "role"
+	name := roleName
+	resp, err := client.ListTagResources(&ramclient.ListTagResourcesRequest{
+		ResourceType:  &resourceType,
+		ResourceNames: []*string{&name},
+	})
+	if err != nil || resp == nil || resp.Body == nil {
+		return tags
+	}
+	for _, t := range resp.Body.TagResources {
+		if t == nil || t.TagKey == nil {
+			continue
+		}
+		tags[ramStrVal(t.TagKey)] = ramStrVal(t.TagValue)
+	}
+	return tags
+}
+
+// initAlicloudRamRole resolves a RAM role by name, reusing an already-listed
+// role from the resource cache and otherwise fetching it via GetRole. The
+// assume-role policy document is loaded lazily by its own accessor, so the init
+// only needs the role summary.
+func initAlicloudRamRole(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error) {
+	if len(args) > 1 {
+		return args, nil, nil
+	}
+
+	roleName, err := requiredStringArg(args, "roleName", "alicloud.ram.role")
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if x, ok := runtime.Resources.Get("alicloud.ram.role\x00" + roleName); ok {
+		return nil, x, nil
+	}
+
+	conn := runtime.Connection.(*connection.AlicloudConnection)
+	client, err := conn.RamClient()
+	if err != nil {
+		return nil, nil, err
+	}
+	resp, err := client.GetRole(&ramclient.GetRoleRequest{RoleName: &roleName})
+	if err != nil {
+		return nil, nil, err
+	}
+	if resp == nil || resp.Body == nil || resp.Body.Role == nil {
+		return nil, nil, fmt.Errorf("alicloud.ram.role %q not found", roleName)
+	}
+	role := resp.Body.Role
+	res, err := CreateResource(runtime, "alicloud.ram.role", map[string]*llx.RawData{
+		"__id":               llx.StringDataPtr(role.RoleName),
+		"roleId":             llx.StringDataPtr(role.RoleId),
+		"roleName":           llx.StringDataPtr(role.RoleName),
+		"arn":                llx.StringDataPtr(role.Arn),
+		"description":        llx.StringDataPtr(role.Description),
+		"createDate":         llx.TimeDataPtr(ramParseTime(role.CreateDate)),
+		"updateDate":         llx.TimeDataPtr(ramParseTime(role.UpdateDate)),
+		"maxSessionDuration": llx.IntDataPtr(role.MaxSessionDuration),
+		// GetRole does not return tags (unlike ListRoles), so fetch them
+		// separately to keep a ref-resolved role's tags consistent with a listed
+		// one.
+		"tags": llx.MapData(ramRoleTags(client, roleName), types.String),
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	return nil, res, nil
+}
+
 func (r *mqlAlicloudRamRole) assumeRolePolicyDocument() (string, error) {
 	conn := r.MqlRuntime.Connection.(*connection.AlicloudConnection)
 	client, err := conn.RamClient()
