@@ -67,7 +67,7 @@ func init() {
 			Create: createSnowflakeUser,
 		},
 		"snowflake.role": {
-			// to override args, implement: initSnowflakeRole(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error)
+			Init:   initSnowflakeRole,
 			Create: createSnowflakeRole,
 		},
 		"snowflake.securityIntegration": {
@@ -411,6 +411,24 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	},
 	"snowflake.user.extAuthnUid": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlSnowflakeUser).GetExtAuthnUid()).ToDataRes(types.String)
+	},
+	"snowflake.user.type": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlSnowflakeUser).GetType()).ToDataRes(types.String)
+	},
+	"snowflake.user.hasMfa": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlSnowflakeUser).GetHasMfa()).ToDataRes(types.Bool)
+	},
+	"snowflake.user.snowflakeLock": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlSnowflakeUser).GetSnowflakeLock()).ToDataRes(types.Bool)
+	},
+	"snowflake.user.defaultSecondaryRoles": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlSnowflakeUser).GetDefaultSecondaryRoles()).ToDataRes(types.Array(types.String))
+	},
+	"snowflake.user.minsToBypassMfa": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlSnowflakeUser).GetMinsToBypassMfa()).ToDataRes(types.String)
+	},
+	"snowflake.user.owner": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlSnowflakeUser).GetOwner()).ToDataRes(types.Resource("snowflake.role"))
 	},
 	"snowflake.user.parameters": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlSnowflakeUser).GetParameters()).ToDataRes(types.Array(types.Resource("snowflake.parameter")))
@@ -1792,6 +1810,30 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 	},
 	"snowflake.user.extAuthnUid": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlSnowflakeUser).ExtAuthnUid, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"snowflake.user.type": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlSnowflakeUser).Type, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"snowflake.user.hasMfa": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlSnowflakeUser).HasMfa, ok = plugin.RawToTValue[bool](v.Value, v.Error)
+		return
+	},
+	"snowflake.user.snowflakeLock": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlSnowflakeUser).SnowflakeLock, ok = plugin.RawToTValue[bool](v.Value, v.Error)
+		return
+	},
+	"snowflake.user.defaultSecondaryRoles": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlSnowflakeUser).DefaultSecondaryRoles, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
+	"snowflake.user.minsToBypassMfa": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlSnowflakeUser).MinsToBypassMfa, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"snowflake.user.owner": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlSnowflakeUser).Owner, ok = plugin.RawToTValue[*mqlSnowflakeRole](v.Value, v.Error)
 		return
 	},
 	"snowflake.user.parameters": func(r plugin.Resource, v *llx.RawData) (ok bool) {
@@ -4065,30 +4107,36 @@ func (c *mqlSnowflakeAccount) GetConnections() *plugin.TValue[[]any] {
 type mqlSnowflakeUser struct {
 	MqlRuntime *plugin.Runtime
 	__id       string
-	// optional: if you define mqlSnowflakeUserInternal it will be used here
-	Name               plugin.TValue[string]
-	Login              plugin.TValue[string]
-	DisplayName        plugin.TValue[string]
-	FirstName          plugin.TValue[string]
-	LastName           plugin.TValue[string]
-	Email              plugin.TValue[string]
-	Comment            plugin.TValue[string]
-	DefaultWarehouse   plugin.TValue[string]
-	DefaultNamespace   plugin.TValue[string]
-	DefaultRole        plugin.TValue[string]
-	Disabled           plugin.TValue[bool]
-	HasPassword        plugin.TValue[bool]
-	HasRsaPublicKey    plugin.TValue[bool]
-	MustChangePassword plugin.TValue[bool]
-	LastSuccessLogin   plugin.TValue[*time.Time]
-	LockedUntil        plugin.TValue[*time.Time]
-	CreatedAt          plugin.TValue[*time.Time]
-	ExpiresAt          plugin.TValue[*time.Time]
-	ExtAuthnDuo        plugin.TValue[bool]
-	ExtAuthnUid        plugin.TValue[string]
-	Parameters         plugin.TValue[[]any]
-	DaysSinceLastLogin plugin.TValue[int64]
-	Grants             plugin.TValue[[]any]
+	mqlSnowflakeUserInternal
+	Name                  plugin.TValue[string]
+	Login                 plugin.TValue[string]
+	DisplayName           plugin.TValue[string]
+	FirstName             plugin.TValue[string]
+	LastName              plugin.TValue[string]
+	Email                 plugin.TValue[string]
+	Comment               plugin.TValue[string]
+	DefaultWarehouse      plugin.TValue[string]
+	DefaultNamespace      plugin.TValue[string]
+	DefaultRole           plugin.TValue[string]
+	Disabled              plugin.TValue[bool]
+	HasPassword           plugin.TValue[bool]
+	HasRsaPublicKey       plugin.TValue[bool]
+	MustChangePassword    plugin.TValue[bool]
+	LastSuccessLogin      plugin.TValue[*time.Time]
+	LockedUntil           plugin.TValue[*time.Time]
+	CreatedAt             plugin.TValue[*time.Time]
+	ExpiresAt             plugin.TValue[*time.Time]
+	ExtAuthnDuo           plugin.TValue[bool]
+	ExtAuthnUid           plugin.TValue[string]
+	Type                  plugin.TValue[string]
+	HasMfa                plugin.TValue[bool]
+	SnowflakeLock         plugin.TValue[bool]
+	DefaultSecondaryRoles plugin.TValue[[]any]
+	MinsToBypassMfa       plugin.TValue[string]
+	Owner                 plugin.TValue[*mqlSnowflakeRole]
+	Parameters            plugin.TValue[[]any]
+	DaysSinceLastLogin    plugin.TValue[int64]
+	Grants                plugin.TValue[[]any]
 }
 
 // createSnowflakeUser creates a new instance of this resource
@@ -4201,6 +4249,42 @@ func (c *mqlSnowflakeUser) GetExtAuthnDuo() *plugin.TValue[bool] {
 
 func (c *mqlSnowflakeUser) GetExtAuthnUid() *plugin.TValue[string] {
 	return &c.ExtAuthnUid
+}
+
+func (c *mqlSnowflakeUser) GetType() *plugin.TValue[string] {
+	return &c.Type
+}
+
+func (c *mqlSnowflakeUser) GetHasMfa() *plugin.TValue[bool] {
+	return &c.HasMfa
+}
+
+func (c *mqlSnowflakeUser) GetSnowflakeLock() *plugin.TValue[bool] {
+	return &c.SnowflakeLock
+}
+
+func (c *mqlSnowflakeUser) GetDefaultSecondaryRoles() *plugin.TValue[[]any] {
+	return &c.DefaultSecondaryRoles
+}
+
+func (c *mqlSnowflakeUser) GetMinsToBypassMfa() *plugin.TValue[string] {
+	return &c.MinsToBypassMfa
+}
+
+func (c *mqlSnowflakeUser) GetOwner() *plugin.TValue[*mqlSnowflakeRole] {
+	return plugin.GetOrCompute[*mqlSnowflakeRole](&c.Owner, func() (*mqlSnowflakeRole, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("snowflake.user", c.__id, "owner")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.(*mqlSnowflakeRole), nil
+			}
+		}
+
+		return c.owner()
+	})
 }
 
 func (c *mqlSnowflakeUser) GetParameters() *plugin.TValue[[]any] {
