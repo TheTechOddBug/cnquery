@@ -5,17 +5,18 @@ package resources
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/Snowflake-Labs/terraform-provider-snowflake/pkg/sdk"
 	"go.mondoo.com/mql/v13/llx"
 	"go.mondoo.com/mql/v13/providers-sdk/v1/plugin"
 	"go.mondoo.com/mql/v13/providers/snowflake/connection"
-	"go.mondoo.com/mql/v13/types"
 )
 
 type mqlSnowflakeTaskInternal struct {
-	cacheOwner     string
-	cacheWarehouse string
+	cacheOwner        string
+	cacheWarehouse    string
+	cachePredecessors []string
 }
 
 func (r *mqlSnowflakeAccount) tasks() ([]any, error) {
@@ -40,7 +41,7 @@ func (r *mqlSnowflakeAccount) tasks() ([]any, error) {
 }
 
 func newMqlSnowflakeTask(runtime *plugin.Runtime, task sdk.Task) (*mqlSnowflakeTask, error) {
-	predecessors := []any{}
+	predecessors := make([]string, 0, len(task.Predecessors))
 	for _, p := range task.Predecessors {
 		predecessors = append(predecessors, p.FullyQualifiedName())
 	}
@@ -60,7 +61,6 @@ func newMqlSnowflakeTask(runtime *plugin.Runtime, task sdk.Task) (*mqlSnowflakeT
 		"definition":                llx.StringData(task.Definition),
 		"condition":                 llx.StringData(task.Condition),
 		"allowOverlappingExecution": llx.BoolData(task.AllowOverlappingExecution),
-		"predecessors":              llx.ArrayData(predecessors, types.String),
 		"comment":                   llx.StringData(task.Comment),
 	})
 	if err != nil {
@@ -69,6 +69,7 @@ func newMqlSnowflakeTask(runtime *plugin.Runtime, task sdk.Task) (*mqlSnowflakeT
 	mqlTask := r.(*mqlSnowflakeTask)
 	mqlTask.cacheOwner = task.Owner
 	mqlTask.cacheWarehouse = warehouse
+	mqlTask.cachePredecessors = predecessors
 	return mqlTask, nil
 }
 
@@ -92,4 +93,81 @@ func (r *mqlSnowflakeTask) warehouse() (*mqlSnowflakeWarehouse, error) {
 		return nil, err
 	}
 	return wh.(*mqlSnowflakeWarehouse), nil
+}
+
+// initSnowflakeTask resolves a task by its database, schema, and name so typed
+// references (such as snowflake.task.predecessors) can hydrate a full task
+// from a fully qualified name.
+func initSnowflakeTask(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error) {
+	if len(args) > 3 {
+		return args, nil, nil
+	}
+	dbRaw, ok1 := args["databaseName"]
+	schemaRaw, ok2 := args["schemaName"]
+	nameRaw, ok3 := args["name"]
+	if !ok1 || !ok2 || !ok3 {
+		return args, nil, nil
+	}
+	databaseName, _ := dbRaw.Value.(string)
+	schemaName, _ := schemaRaw.Value.(string)
+	name, _ := nameRaw.Value.(string)
+	if databaseName == "" || schemaName == "" || name == "" {
+		return nil, nil, fmt.Errorf("snowflake.task requires a non-empty databaseName, schemaName, and name")
+	}
+
+	conn := runtime.Connection.(*connection.SnowflakeConnection)
+	client := conn.Client()
+	ctx := context.Background()
+
+	tasks, err := client.Tasks.Show(ctx, sdk.NewShowTaskRequest().
+		WithLike(sdk.Like{Pattern: sdk.String(name)}).
+		WithIn(sdk.ExtendedIn{In: sdk.In{Schema: sdk.NewDatabaseObjectIdentifier(databaseName, schemaName)}}))
+	if err != nil {
+		return nil, nil, err
+	}
+	for i := range tasks {
+		if tasks[i].Name == name && tasks[i].DatabaseName == databaseName && tasks[i].SchemaName == schemaName {
+			res, err := newMqlSnowflakeTask(runtime, tasks[i])
+			if err != nil {
+				return nil, nil, err
+			}
+			return nil, res, nil
+		}
+	}
+	return nil, nil, fmt.Errorf("snowflake.task %q not found in %q.%q", name, databaseName, schemaName)
+}
+
+// snowflakeTaskByFQN resolves a fully qualified task name (database.schema.name)
+// to a typed snowflake.task.
+func snowflakeTaskByFQN(runtime *plugin.Runtime, fqn string) (*mqlSnowflakeTask, error) {
+	id, err := sdk.ParseSchemaObjectIdentifier(fqn)
+	if err != nil {
+		return nil, err
+	}
+	res, err := NewResource(runtime, "snowflake.task", map[string]*llx.RawData{
+		"databaseName": llx.StringData(id.DatabaseName()),
+		"schemaName":   llx.StringData(id.SchemaName()),
+		"name":         llx.StringData(id.Name()),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return res.(*mqlSnowflakeTask), nil
+}
+
+// predecessors resolves the task's predecessor tasks from their fully qualified
+// names, forming the task graph.
+func (r *mqlSnowflakeTask) predecessors() ([]any, error) {
+	out := []any{}
+	for _, fqn := range r.cachePredecessors {
+		if fqn == "" {
+			continue
+		}
+		task, err := snowflakeTaskByFQN(r.MqlRuntime, fqn)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, task)
+	}
+	return out, nil
 }
