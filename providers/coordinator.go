@@ -324,6 +324,11 @@ func (c *coordinator) unsafeStartProvider(id string, update UpdateProvidersConfi
 	// restarts triggered by RestartableProvider.Reconnect().
 	crashLog := newCrashLogBuffer(logger.LogOutputWriter, defaultCrashLogLines)
 
+	// procTracker follows the current plugin subprocess (across restarts) so
+	// crash diagnostics can report how it died: exit code vs. signal
+	// (SIGKILL with empty stderr ≈ OOM killer) and peak RSS.
+	procTracker := &processTracker{}
+
 	connectFunc := func() (pp.ProviderPlugin, *plugin.Client, error) {
 		pluginCmd := exec.Command(provider.binPath(), []string{"run_as_plugin", "--log-level", zerolog.GlobalLevel().String()}...)
 
@@ -357,6 +362,12 @@ func (c *coordinator) unsafeStartProvider(id string, update UpdateProvidersConfi
 			return nil, nil, errors.Wrap(err, "failed to call "+pluginName+" plugin")
 		}
 
+		// Track only after the handshake succeeds: a failed reconnect
+		// attempt must not re-point the tracker away from the previous
+		// (crashed) subprocess, whose exit disposition is what crash
+		// diagnostics still need to report.
+		procTracker.track(client, pluginCmd)
+
 		return raw.(pp.ProviderPlugin), client, nil
 	}
 
@@ -373,6 +384,7 @@ func (c *coordinator) unsafeStartProvider(id string, update UpdateProvidersConfi
 	}
 	res.Version = provider.Version
 	res.crashLog = crashLog
+	res.proc = procTracker
 	c.runningByID[res.ID] = res
 
 	return res, nil
