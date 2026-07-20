@@ -286,6 +286,10 @@ func Discover(runtime *plugin.Runtime, rootConf *inventory.Config) (*inventory.I
 	}
 	assets = append(assets, genericAssets...)
 
+	if conn.Filters.PropagateSubscriptionTags {
+		applySubscriptionTags(conn.Filters.SubscriptionTags, subsWithConfigs, assets)
+	}
+
 	log.Debug().Int("assets", len(assets)).Msg("azure.discovery> discovery complete")
 	return &inventory.Inventory{
 		Spec: &inventory.InventorySpec{
@@ -636,6 +640,64 @@ func subToAsset(subWithConfig subWithConfig) *inventory.Asset {
 		Name:        fmt.Sprintf("Azure subscription %s", *sub.DisplayName),
 		Connections: []*inventory.Config{copyConf},
 		PlatformIds: []string{platformId},
+		Labels:      map[string]string{SubscriptionLabel: *sub.SubscriptionID},
+	}
+}
+
+// propagateSubscriptionTagsToAssets merges subscriptionTags into every asset in
+// the slice. An asset's own labels take precedence, so subscription tags only
+// fill in keys the asset doesn't already define. Mirrors GCP's
+// propagateProjectLabelsToAssets.
+func propagateSubscriptionTagsToAssets(assets []*inventory.Asset, subscriptionTags map[string]string) {
+	if len(subscriptionTags) == 0 {
+		return
+	}
+	for _, a := range assets {
+		if a == nil {
+			continue
+		}
+		if a.Labels == nil {
+			a.Labels = map[string]string{}
+		}
+		for k, v := range subscriptionTags {
+			if _, exists := a.Labels[k]; !exists {
+				a.Labels[k] = v
+			}
+		}
+	}
+}
+
+// assetsForSubscription returns the assets whose SubscriptionLabel matches subID.
+func assetsForSubscription(assets []*inventory.Asset, subID string) []*inventory.Asset {
+	res := []*inventory.Asset{}
+	for _, a := range assets {
+		if a != nil && a.Labels[SubscriptionLabel] == subID {
+			res = append(res, a)
+		}
+	}
+	return res
+}
+
+// applySubscriptionTags merges each subscription's tags into the assets
+// discovered within it. Tags come from the injected override when provided,
+// otherwise from the subscription record returned by the list pager — which
+// already includes the tags, so no per-subscription API call is needed.
+func applySubscriptionTags(override map[string]string, subs []subWithConfig, assets []*inventory.Asset) {
+	for _, s := range subs {
+		if s.sub.SubscriptionID == nil {
+			continue
+		}
+		subID := *s.sub.SubscriptionID
+
+		tags := override
+		if len(tags) == 0 {
+			tags = convert.PtrMapStrToStr(s.sub.Tags)
+		}
+		if len(tags) == 0 {
+			continue
+		}
+
+		propagateSubscriptionTagsToAssets(assetsForSubscription(assets, subID), tags)
 	}
 }
 
