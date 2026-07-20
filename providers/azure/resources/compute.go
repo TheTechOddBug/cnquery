@@ -1510,6 +1510,28 @@ func snapshotToMql(runtime *plugin.Runtime, snap compute.Snapshot) (*mqlAzureSub
 			cacheSourceDiskId = props.CreationData.SourceResourceID
 			args["instantAccessDurationMinutes"] = llx.IntDataPtr(props.CreationData.InstantAccessDurationMinutes)
 		}
+
+		// Always set the immutability policy fields so they resolve to null
+		// (not their Go zero value) when no policy is applied. Leaving them
+		// absent from args would make immutabilityPolicyExpired default to
+		// false, wrongly passing audits like `!immutabilityPolicyExpired`
+		// for snapshots that have no immutability protection at all.
+		var ipType *compute.ImmutabilityPolicyType
+		var ipDurationDays *int32
+		var ipExpired *bool
+		var ipStartTime, ipExpirationTime *time.Time
+		if ip := props.ImmutabilityPolicy; ip != nil {
+			ipType = ip.Type
+			ipDurationDays = ip.ImmutabilityDurationDays
+			ipExpired = ip.IsPolicyExpired
+			ipStartTime = ip.PolicyStartTime
+			ipExpirationTime = ip.PolicyExpirationTime
+		}
+		args["immutabilityPolicyType"] = llx.StringDataPtr(stringEnumPtr(ipType))
+		args["immutabilityPolicyDurationDays"] = llx.IntDataPtr(ipDurationDays)
+		args["immutabilityPolicyExpired"] = llx.BoolDataPtr(ipExpired)
+		args["immutabilityPolicyStartTime"] = llx.TimeDataPtr(ipStartTime)
+		args["immutabilityPolicyExpirationTime"] = llx.TimeDataPtr(ipExpirationTime)
 	}
 
 	res, err := CreateResource(runtime, "azure.subscription.computeService.snapshot", args)
