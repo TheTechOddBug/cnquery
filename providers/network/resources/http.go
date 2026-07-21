@@ -6,6 +6,7 @@ package resources
 import (
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/textproto"
 	"strconv"
@@ -118,8 +119,40 @@ func (x *mqlHttpGet) do() error {
 	return nil
 }
 
+// httpNotReachable reports whether err means the target did not speak HTTP on
+// this endpoint — nothing was listening, the connection was refused/reset, the
+// dial timed out, or the name did not resolve — as opposed to an unexpected
+// internal error. In that case the http.get fields (header, statusCode, version,
+// body) all resolve to null (like the tls resource's params when TLS is not
+// enabled), so policies can gate on `http.get.header != empty` and skip instead
+// of erroring on non-HTTP hosts (mail/DNS/infra servers commonly surfaced by
+// attack-surface enumeration).
+func httpNotReachable(err error) bool {
+	if err == nil {
+		return false
+	}
+	var dnsErr *net.DNSError
+	if errors.As(err, &dnsErr) {
+		return true
+	}
+	var opErr *net.OpError
+	if errors.As(err, &opErr) {
+		// dial/read/write at the socket level: connection refused, reset, no route
+		return true
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return true
+	}
+	return false
+}
+
 func (x *mqlHttpGet) header() (*mqlHttpHeader, error) {
 	if err := x.do(); err != nil {
+		if httpNotReachable(err) {
+			x.Header.State = plugin.StateIsSet | plugin.StateIsNull
+			return nil, nil
+		}
 		return nil, err
 	}
 
@@ -158,15 +191,35 @@ func normalizeHeaderKey(key string) string {
 }
 
 func (x *mqlHttpGet) statusCode() (int64, error) {
-	return 0, x.do()
+	if err := x.do(); err != nil {
+		if httpNotReachable(err) {
+			x.StatusCode.State = plugin.StateIsSet | plugin.StateIsNull
+			return 0, nil
+		}
+		return 0, err
+	}
+	// do() sets StatusCode on success.
+	return 0, nil
 }
 
 func (x *mqlHttpGet) version() (string, error) {
-	return "", x.do()
+	if err := x.do(); err != nil {
+		if httpNotReachable(err) {
+			x.Version.State = plugin.StateIsSet | plugin.StateIsNull
+			return "", nil
+		}
+		return "", err
+	}
+	// do() sets Version on success.
+	return "", nil
 }
 
 func (x *mqlHttpGet) body() (string, error) {
 	if err := x.do(); err != nil {
+		if httpNotReachable(err) {
+			x.Body.State = plugin.StateIsSet | plugin.StateIsNull
+			return "", nil
+		}
 		return "", err
 	}
 	raw, err := io.ReadAll(x.resp.Data.Body)
