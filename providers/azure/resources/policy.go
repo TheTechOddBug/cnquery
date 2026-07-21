@@ -476,6 +476,157 @@ func (a *mqlAzureSubscriptionPolicyComplianceSummary) id() (string, error) {
 	return "azure.subscription.policy.complianceSummary/" + a.SubscriptionId.Data, nil
 }
 
+func (a *mqlAzureSubscriptionPolicy) states() ([]any, error) {
+	conn := a.MqlRuntime.Connection.(*connection.AzureConnection)
+	ctx := context.Background()
+	client, err := armpolicyinsights.NewPolicyStatesClient(conn.Token(), &arm.ClientOptions{
+		ClientOptions: conn.ClientOptions(),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	pager := client.NewListQueryResultsForSubscriptionPager(armpolicyinsights.PolicyStatesResourceLatest, a.SubscriptionId.Data, nil)
+	res := []any{}
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, ps := range page.Value {
+			if ps == nil {
+				continue
+			}
+			resourceId := convert.ToValue(ps.ResourceID)
+			policyAssignmentId := convert.ToValue(ps.PolicyAssignmentID)
+			policyDefinitionId := convert.ToValue(ps.PolicyDefinitionID)
+			policySetDefinitionId := convert.ToValue(ps.PolicySetDefinitionID)
+			policyDefinitionReferenceId := convert.ToValue(ps.PolicyDefinitionReferenceID)
+			// A compliance state is unique per (resource, assignment, definition
+			// reference); there is no single stable ID the API returns, so key on
+			// the composite.
+			stateId := resourceId + "/" + policyAssignmentId + "/" + policyDefinitionReferenceId
+			mqlState, err := CreateResource(a.MqlRuntime, "azure.subscription.policy.state", map[string]*llx.RawData{
+				"__id":                        llx.StringData(stateId),
+				"complianceState":             llx.StringData(convert.ToValue(ps.ComplianceState)),
+				"resourceId":                  llx.StringData(resourceId),
+				"resourceType":                llx.StringData(convert.ToValue(ps.ResourceType)),
+				"resourceGroup":               llx.StringData(convert.ToValue(ps.ResourceGroup)),
+				"resourceLocation":            llx.StringData(convert.ToValue(ps.ResourceLocation)),
+				"policyAssignmentName":        llx.StringData(convert.ToValue(ps.PolicyAssignmentName)),
+				"policyAssignmentScope":       llx.StringData(convert.ToValue(ps.PolicyAssignmentScope)),
+				"policyDefinitionName":        llx.StringData(convert.ToValue(ps.PolicyDefinitionName)),
+				"policyDefinitionReferenceId": llx.StringData(policyDefinitionReferenceId),
+				"policyDefinitionAction":      llx.StringData(convert.ToValue(ps.PolicyDefinitionAction)),
+				"policyDefinitionCategory":    llx.StringData(convert.ToValue(ps.PolicyDefinitionCategory)),
+				"policySetDefinitionName":     llx.StringData(convert.ToValue(ps.PolicySetDefinitionName)),
+				"timestamp":                   llx.TimeDataPtr(ps.Timestamp),
+			})
+			if err != nil {
+				return nil, err
+			}
+			st := mqlState.(*mqlAzureSubscriptionPolicyState)
+			st.subscriptionId = a.SubscriptionId.Data
+			st.policyAssignmentId = policyAssignmentId
+			st.policyDefinitionId = policyDefinitionId
+			st.policySetDefinitionId = policySetDefinitionId
+			res = append(res, mqlState)
+		}
+	}
+	return res, nil
+}
+
+// mqlAzureSubscriptionPolicyStateInternal caches the raw assignment, definition,
+// and set-definition IDs so the typed references can resolve them lazily against
+// the subscription's policy collections.
+type mqlAzureSubscriptionPolicyStateInternal struct {
+	subscriptionId        string
+	policyAssignmentId    string
+	policyDefinitionId    string
+	policySetDefinitionId string
+}
+
+// policyForState returns the subscription's policy resource, whose assignment,
+// definition, and set-definition lists are cached and shared across all states.
+func (a *mqlAzureSubscriptionPolicyState) policyForState() (*mqlAzureSubscriptionPolicy, error) {
+	res, err := CreateResource(a.MqlRuntime, "azure.subscription.policy", map[string]*llx.RawData{
+		"subscriptionId": llx.StringData(a.subscriptionId),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return res.(*mqlAzureSubscriptionPolicy), nil
+}
+
+func (a *mqlAzureSubscriptionPolicyState) policyAssignment() (*mqlAzureSubscriptionPolicyAssignment, error) {
+	if a.policyAssignmentId == "" {
+		a.PolicyAssignment.State = plugin.StateIsSet | plugin.StateIsNull
+		return nil, nil
+	}
+	pol, err := a.policyForState()
+	if err != nil {
+		return nil, err
+	}
+	list := pol.GetAssignments()
+	if list.Error != nil {
+		return nil, list.Error
+	}
+	for _, x := range list.Data {
+		asg, ok := x.(*mqlAzureSubscriptionPolicyAssignment)
+		if ok && strings.EqualFold(asg.AssignmentId.Data, a.policyAssignmentId) {
+			return asg, nil
+		}
+	}
+	a.PolicyAssignment.State = plugin.StateIsSet | plugin.StateIsNull
+	return nil, nil
+}
+
+func (a *mqlAzureSubscriptionPolicyState) policyDefinition() (*mqlAzureSubscriptionPolicyDefinition, error) {
+	if a.policyDefinitionId == "" {
+		a.PolicyDefinition.State = plugin.StateIsSet | plugin.StateIsNull
+		return nil, nil
+	}
+	pol, err := a.policyForState()
+	if err != nil {
+		return nil, err
+	}
+	list := pol.GetDefinitions()
+	if list.Error != nil {
+		return nil, list.Error
+	}
+	for _, x := range list.Data {
+		def, ok := x.(*mqlAzureSubscriptionPolicyDefinition)
+		if ok && strings.EqualFold(def.Id.Data, a.policyDefinitionId) {
+			return def, nil
+		}
+	}
+	a.PolicyDefinition.State = plugin.StateIsSet | plugin.StateIsNull
+	return nil, nil
+}
+
+func (a *mqlAzureSubscriptionPolicyState) policySetDefinition() (*mqlAzureSubscriptionPolicySetDefinition, error) {
+	if a.policySetDefinitionId == "" {
+		a.PolicySetDefinition.State = plugin.StateIsSet | plugin.StateIsNull
+		return nil, nil
+	}
+	pol, err := a.policyForState()
+	if err != nil {
+		return nil, err
+	}
+	list := pol.GetSetDefinitions()
+	if list.Error != nil {
+		return nil, list.Error
+	}
+	for _, x := range list.Data {
+		setDef, ok := x.(*mqlAzureSubscriptionPolicySetDefinition)
+		if ok && strings.EqualFold(setDef.Id.Data, a.policySetDefinitionId) {
+			return setDef, nil
+		}
+	}
+	a.PolicySetDefinition.State = plugin.StateIsSet | plugin.StateIsNull
+	return nil, nil
+}
+
 func (a *mqlAzureSubscriptionPolicy) complianceSummary() (*mqlAzureSubscriptionPolicyComplianceSummary, error) {
 	res, err := NewResource(a.MqlRuntime, "azure.subscription.policy.complianceSummary", map[string]*llx.RawData{
 		"subscriptionId": llx.StringData(a.SubscriptionId.Data),
