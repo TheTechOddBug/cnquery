@@ -9,8 +9,10 @@ import (
 	"fmt"
 	"strings"
 
+	iampb "cloud.google.com/go/iam/apiv1/iampb"
 	privateca "cloud.google.com/go/security/privateca/apiv1"
 	"cloud.google.com/go/security/privateca/apiv1/privatecapb"
+	"github.com/rs/zerolog/log"
 	"go.mondoo.com/mql/v13/llx"
 	"go.mondoo.com/mql/v13/providers-sdk/v1/plugin"
 	"go.mondoo.com/mql/v13/providers-sdk/v1/util/convert"
@@ -18,6 +20,8 @@ import (
 	"go.mondoo.com/mql/v13/types"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // extractCaPoolName extracts the CA pool name from a GCP Certificate Authority Service resource path.
@@ -146,6 +150,41 @@ func (g *mqlGcpProjectCertificateAuthorityServiceCaPool) id() (string, error) {
 		return "", g.ResourcePath.Error
 	}
 	return g.ResourcePath.Data, nil
+}
+
+func (g *mqlGcpProjectCertificateAuthorityServiceCaPool) iamPolicy() ([]any, error) {
+	if g.ResourcePath.Error != nil {
+		return nil, g.ResourcePath.Error
+	}
+	poolPath := g.ResourcePath.Data
+
+	conn := g.MqlRuntime.Connection.(*connection.GcpConnection)
+	creds, err := conn.Credentials(privateca.DefaultAuthScopes()...)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx := context.Background()
+	client, err := privateca.NewCertificateAuthorityClient(ctx, option.WithCredentials(creds), connection.GRPCClientTraceOption())
+	if err != nil {
+		return nil, err
+	}
+	defer client.Close()
+
+	// Request policy schema version 3 so conditional bindings aren't silently
+	// stripped from the result.
+	policy, err := client.GetIamPolicy(ctx, &iampb.GetIamPolicyRequest{
+		Resource: poolPath,
+		Options:  &iampb.GetPolicyOptions{RequestedPolicyVersion: 3},
+	})
+	if err != nil {
+		if s, ok := status.FromError(err); ok && s.Code() == codes.PermissionDenied {
+			log.Warn().Str("caPool", poolPath).Err(err).Msg("could not retrieve CA pool IAM policy")
+			return nil, nil
+		}
+		return nil, err
+	}
+	return iampbBindingsToMql(g.MqlRuntime, poolPath, policy.Bindings)
 }
 
 func (g *mqlGcpProjectCertificateAuthorityServiceCaPool) kmsKey() (*mqlGcpProjectKmsServiceKeyringCryptokey, error) {
