@@ -58,6 +58,14 @@ func (t *mqlTerraformPlan) resourceChanges() ([]any, error) {
 		return nil, err
 	}
 
+	// conn.Plan() returns nil for non-plan assets (HCL/state). The terraform.plan
+	// init pre-fills resourceChanges on those assets so this accessor is not
+	// normally reached, but guard here to stay panic-safe if that changes. Return
+	// the same zero-value as the empty-ResourceChanges path below for consistency.
+	if plan == nil {
+		return nil, nil
+	}
+
 	if plan.ResourceChanges == nil {
 		return nil, nil
 	}
