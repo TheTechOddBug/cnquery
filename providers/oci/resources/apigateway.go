@@ -39,16 +39,7 @@ func (o *mqlOciApigateway) gateways() ([]any, error) {
 		return nil, list.Error
 	}
 
-	res := []any{}
-	poolOfJobs := jobpool.CreatePool(o.getGateways(conn, list.Data), 5)
-	poolOfJobs.Run()
-	if poolOfJobs.HasErrors() {
-		return nil, poolOfJobs.GetErrors()
-	}
-	for i := range poolOfJobs.Jobs {
-		res = append(res, poolOfJobs.Jobs[i].Result.([]any)...)
-	}
-	return res, nil
+	return ociRunRegionPool(o.getGateways(conn, list.Data))
 }
 
 func (o *mqlOciApigateway) getGateways(conn *connection.OciConnection, regions []any) []*jobpool.Job {
@@ -292,16 +283,7 @@ func (o *mqlOciApigateway) deployments() ([]any, error) {
 		return nil, list.Error
 	}
 
-	res := []any{}
-	poolOfJobs := jobpool.CreatePool(o.getDeployments(conn, list.Data), 5)
-	poolOfJobs.Run()
-	if poolOfJobs.HasErrors() {
-		return nil, poolOfJobs.GetErrors()
-	}
-	for i := range poolOfJobs.Jobs {
-		res = append(res, poolOfJobs.Jobs[i].Result.([]any)...)
-	}
-	return res, nil
+	return ociRunRegionPool(o.getDeployments(conn, list.Data))
 }
 
 func (o *mqlOciApigateway) getDeployments(conn *connection.OciConnection, regions []any) []*jobpool.Job {
@@ -515,11 +497,13 @@ func flattenAuthenticationType(rp *apigateway.ApiSpecificationRequestPolicies) s
 	return "UNKNOWN"
 }
 
-// flattenIsAnonymousAccessAllowed returns the authentication policy's
-// anonymous-access flag, defaulting to false when absent.
+// flattenIsAnonymousAccessAllowed reports whether unauthenticated requests
+// reach the backend. A deployment with no authentication policy at all
+// enforces nothing, so every request is anonymous - reporting false there
+// would clear the most exposed deployment in the tenancy.
 func flattenIsAnonymousAccessAllowed(rp *apigateway.ApiSpecificationRequestPolicies) bool {
 	if rp == nil || rp.Authentication == nil {
-		return false
+		return true
 	}
 	if v := rp.Authentication.GetIsAnonymousAccessAllowed(); v != nil {
 		return *v
@@ -710,16 +694,7 @@ func (o *mqlOciApigateway) certificates() ([]any, error) {
 		return nil, list.Error
 	}
 
-	res := []any{}
-	poolOfJobs := jobpool.CreatePool(o.getCertificates(conn, list.Data), 5)
-	poolOfJobs.Run()
-	if poolOfJobs.HasErrors() {
-		return nil, poolOfJobs.GetErrors()
-	}
-	for i := range poolOfJobs.Jobs {
-		res = append(res, poolOfJobs.Jobs[i].Result.([]any)...)
-	}
-	return res, nil
+	return ociRunRegionPool(o.getCertificates(conn, list.Data))
 }
 
 func (o *mqlOciApigateway) getCertificates(conn *connection.OciConnection, regions []any) []*jobpool.Job {
@@ -810,10 +785,10 @@ func initOciApigatewayCertificate(runtime *plugin.Runtime, args map[string]*llx.
 	if len(args) > 2 {
 		return args, nil, nil
 	}
-	if args["id"] == nil {
+	idVal := ociArgString(args, "id")
+	if idVal == "" {
 		return nil, nil, errors.New("id required to fetch oci.apigateway.certificate")
 	}
-	idVal := args["id"].Value.(string)
 
 	obj, err := CreateResource(runtime, "oci.apigateway", nil)
 	if err != nil {

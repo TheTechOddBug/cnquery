@@ -35,18 +35,7 @@ func (o *mqlOciWaf) firewalls() ([]any, error) {
 		return nil, list.Error
 	}
 
-	res := []any{}
-	poolOfJobs := jobpool.CreatePool(o.getFirewalls(conn, list.Data), 5)
-	poolOfJobs.Run()
-
-	if poolOfJobs.HasErrors() {
-		return nil, poolOfJobs.GetErrors()
-	}
-	for i := range poolOfJobs.Jobs {
-		res = append(res, poolOfJobs.Jobs[i].Result.([]any)...)
-	}
-
-	return res, nil
+	return ociRunRegionPool(o.getFirewalls(conn, list.Data))
 }
 
 func (o *mqlOciWaf) getFirewalls(conn *connection.OciConnection, regions []any) []*jobpool.Job {
@@ -187,18 +176,7 @@ func (o *mqlOciWaf) policies() ([]any, error) {
 		return nil, list.Error
 	}
 
-	res := []any{}
-	poolOfJobs := jobpool.CreatePool(o.getPolicies(conn, list.Data), 5)
-	poolOfJobs.Run()
-
-	if poolOfJobs.HasErrors() {
-		return nil, poolOfJobs.GetErrors()
-	}
-	for i := range poolOfJobs.Jobs {
-		res = append(res, poolOfJobs.Jobs[i].Result.([]any)...)
-	}
-
-	return res, nil
+	return ociRunRegionPool(o.getPolicies(conn, list.Data))
 }
 
 func (o *mqlOciWaf) getPolicies(conn *connection.OciConnection, regions []any) []*jobpool.Job {
@@ -287,10 +265,10 @@ func initOciWafPolicy(runtime *plugin.Runtime, args map[string]*llx.RawData) (ma
 		return args, nil, nil
 	}
 
-	if args["id"] == nil {
+	idVal := ociArgString(args, "id")
+	if idVal == "" {
 		return nil, nil, errors.New("id required to fetch oci.waf.policy")
 	}
-	idVal := args["id"].Value.(string)
 
 	obj, err := CreateResource(runtime, "oci.waf", nil)
 	if err != nil {

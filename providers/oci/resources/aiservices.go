@@ -46,16 +46,7 @@ func ociListRegionalAI(runtime *plugin.Runtime, fetch func(region string) ([]any
 			return jobpool.JobResult(items), nil
 		}))
 	}
-	poolOfJobs := jobpool.CreatePool(tasks, 5)
-	poolOfJobs.Run()
-	if poolOfJobs.HasErrors() {
-		return nil, poolOfJobs.GetErrors()
-	}
-	res := []any{}
-	for i := range poolOfJobs.Jobs {
-		res = append(res, poolOfJobs.Jobs[i].Result.([]any)...)
-	}
-	return res, nil
+	return ociRunRegionPool(tasks)
 }
 
 // ociListRegionalAIClient adds typed per-region client creation to
@@ -74,7 +65,7 @@ func ociListRegionalAIClient[C any](runtime *plugin.Runtime, factory func(region
 // findOciAIResourceByID powers the init functions for the single-purpose AI
 // resources: it lists the requested collection and returns the entry whose id
 // matches the "id" argument, so a resource can be selected directly by OCID.
-func findOciAIResourceByID(runtime *plugin.Runtime, args map[string]*llx.RawData, serviceName string, list func(plugin.Resource) *plugin.TValue[[]any]) (map[string]*llx.RawData, plugin.Resource, error) {
+func findOciAIResourceByID(runtime *plugin.Runtime, args map[string]*llx.RawData, serviceName, resourceName string, list func(plugin.Resource) *plugin.TValue[[]any]) (map[string]*llx.RawData, plugin.Resource, error) {
 	if len(args) > 2 {
 		return args, nil, nil
 	}
@@ -96,7 +87,7 @@ func findOciAIResourceByID(runtime *plugin.Runtime, args map[string]*llx.RawData
 			return args, res, nil
 		}
 	}
-	return args, nil, nil
+	return nil, nil, errors.New(resourceName + " not found: " + idVal)
 }
 
 // =====================================================================
@@ -252,15 +243,15 @@ type mqlOciAiLanguageEndpointInternal struct {
 }
 
 func initOciAiLanguageProject(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error) {
-	return findOciAIResourceByID(runtime, args, "oci.ai.language", func(o plugin.Resource) *plugin.TValue[[]any] { return o.(*mqlOciAiLanguage).GetProjects() })
+	return findOciAIResourceByID(runtime, args, "oci.ai.language", "oci.ai.language.project", func(o plugin.Resource) *plugin.TValue[[]any] { return o.(*mqlOciAiLanguage).GetProjects() })
 }
 
 func initOciAiLanguageModel(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error) {
-	return findOciAIResourceByID(runtime, args, "oci.ai.language", func(o plugin.Resource) *plugin.TValue[[]any] { return o.(*mqlOciAiLanguage).GetModels() })
+	return findOciAIResourceByID(runtime, args, "oci.ai.language", "oci.ai.language.model", func(o plugin.Resource) *plugin.TValue[[]any] { return o.(*mqlOciAiLanguage).GetModels() })
 }
 
 func initOciAiLanguageEndpoint(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error) {
-	return findOciAIResourceByID(runtime, args, "oci.ai.language", func(o plugin.Resource) *plugin.TValue[[]any] { return o.(*mqlOciAiLanguage).GetEndpoints() })
+	return findOciAIResourceByID(runtime, args, "oci.ai.language", "oci.ai.language.endpoint", func(o plugin.Resource) *plugin.TValue[[]any] { return o.(*mqlOciAiLanguage).GetEndpoints() })
 }
 
 func (o *mqlOciAiLanguageProject) id() (string, error) {
@@ -418,11 +409,11 @@ type mqlOciAiVisionModelInternal struct {
 }
 
 func initOciAiVisionProject(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error) {
-	return findOciAIResourceByID(runtime, args, "oci.ai.vision", func(o plugin.Resource) *plugin.TValue[[]any] { return o.(*mqlOciAiVision).GetProjects() })
+	return findOciAIResourceByID(runtime, args, "oci.ai.vision", "oci.ai.vision.project", func(o plugin.Resource) *plugin.TValue[[]any] { return o.(*mqlOciAiVision).GetProjects() })
 }
 
 func initOciAiVisionModel(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error) {
-	return findOciAIResourceByID(runtime, args, "oci.ai.vision", func(o plugin.Resource) *plugin.TValue[[]any] { return o.(*mqlOciAiVision).GetModels() })
+	return findOciAIResourceByID(runtime, args, "oci.ai.vision", "oci.ai.vision.model", func(o plugin.Resource) *plugin.TValue[[]any] { return o.(*mqlOciAiVision).GetModels() })
 }
 
 func (o *mqlOciAiVisionProject) id() (string, error) {
@@ -497,7 +488,7 @@ func (o *mqlOciAiSpeech) customizations() ([]any, error) {
 }
 
 func initOciAiSpeechCustomization(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error) {
-	return findOciAIResourceByID(runtime, args, "oci.ai.speech", func(o plugin.Resource) *plugin.TValue[[]any] { return o.(*mqlOciAiSpeech).GetCustomizations() })
+	return findOciAIResourceByID(runtime, args, "oci.ai.speech", "oci.ai.speech.customization", func(o plugin.Resource) *plugin.TValue[[]any] { return o.(*mqlOciAiSpeech).GetCustomizations() })
 }
 
 func (o *mqlOciAiSpeechCustomization) id() (string, error) {
@@ -611,11 +602,11 @@ type mqlOciAiDocumentModelInternal struct {
 }
 
 func initOciAiDocumentProject(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error) {
-	return findOciAIResourceByID(runtime, args, "oci.ai.document", func(o plugin.Resource) *plugin.TValue[[]any] { return o.(*mqlOciAiDocument).GetProjects() })
+	return findOciAIResourceByID(runtime, args, "oci.ai.document", "oci.ai.document.project", func(o plugin.Resource) *plugin.TValue[[]any] { return o.(*mqlOciAiDocument).GetProjects() })
 }
 
 func initOciAiDocumentModel(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error) {
-	return findOciAIResourceByID(runtime, args, "oci.ai.document", func(o plugin.Resource) *plugin.TValue[[]any] { return o.(*mqlOciAiDocument).GetModels() })
+	return findOciAIResourceByID(runtime, args, "oci.ai.document", "oci.ai.document.model", func(o plugin.Resource) *plugin.TValue[[]any] { return o.(*mqlOciAiDocument).GetModels() })
 }
 
 func (o *mqlOciAiDocumentProject) id() (string, error) {

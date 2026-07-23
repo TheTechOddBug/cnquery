@@ -58,16 +58,7 @@ func (o *mqlOciAiGenerativeAi) listRegional(fetch func(svc *generativeai.Generat
 		}))
 	}
 
-	poolOfJobs := jobpool.CreatePool(tasks, 5)
-	poolOfJobs.Run()
-	if poolOfJobs.HasErrors() {
-		return nil, poolOfJobs.GetErrors()
-	}
-	res := []any{}
-	for i := range poolOfJobs.Jobs {
-		res = append(res, poolOfJobs.Jobs[i].Result.([]any)...)
-	}
-	return res, nil
+	return ociRunRegionPool(tasks)
 }
 
 // ----- dedicated AI clusters -----
@@ -127,7 +118,7 @@ func (o *mqlOciAiGenerativeAi) fetchDedicatedAiClusters(svc *generativeai.Genera
 }
 
 func initOciAiGenerativeAiDedicatedAiCluster(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error) {
-	return findOciGenerativeAiByID(runtime, args, (*mqlOciAiGenerativeAi).GetDedicatedAiClusters)
+	return findOciGenerativeAiByID(runtime, args, "oci.ai.generativeAi.dedicatedAiCluster", (*mqlOciAiGenerativeAi).GetDedicatedAiClusters)
 }
 
 func (o *mqlOciAiGenerativeAiDedicatedAiCluster) id() (string, error) {
@@ -209,7 +200,7 @@ type mqlOciAiGenerativeAiModelInternal struct {
 }
 
 func initOciAiGenerativeAiModel(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error) {
-	return findOciGenerativeAiByID(runtime, args, (*mqlOciAiGenerativeAi).GetModels)
+	return findOciGenerativeAiByID(runtime, args, "oci.ai.generativeAi.model", (*mqlOciAiGenerativeAi).GetModels)
 }
 
 func (o *mqlOciAiGenerativeAiModel) id() (string, error) {
@@ -325,7 +316,7 @@ func initOciAiGenerativeAiEndpoint(runtime *plugin.Runtime, args map[string]*llx
 		}
 		args["id"] = llx.StringData(parsed.id)
 	}
-	return findOciGenerativeAiByID(runtime, args, (*mqlOciAiGenerativeAi).GetEndpoints)
+	return findOciGenerativeAiByID(runtime, args, "oci.ai.generativeAi.endpoint", (*mqlOciAiGenerativeAi).GetEndpoints)
 }
 
 func (o *mqlOciAiGenerativeAiEndpoint) id() (string, error) {
@@ -359,7 +350,7 @@ func (o *mqlOciAiGenerativeAiEndpoint) dedicatedAiCluster() (*mqlOciAiGenerative
 // findOciGenerativeAiByID powers the init functions for Generative AI
 // resources: it lists the requested collection and returns the entry whose id
 // matches the "id" argument, so a resource can be selected directly by OCID.
-func findOciGenerativeAiByID(runtime *plugin.Runtime, args map[string]*llx.RawData, list func(svc *mqlOciAiGenerativeAi) *plugin.TValue[[]any]) (map[string]*llx.RawData, plugin.Resource, error) {
+func findOciGenerativeAiByID(runtime *plugin.Runtime, args map[string]*llx.RawData, resourceName string, list func(svc *mqlOciAiGenerativeAi) *plugin.TValue[[]any]) (map[string]*llx.RawData, plugin.Resource, error) {
 	if len(args) > 2 {
 		return args, nil, nil
 	}
@@ -382,7 +373,7 @@ func findOciGenerativeAiByID(runtime *plugin.Runtime, args map[string]*llx.RawDa
 			return args, res, nil
 		}
 	}
-	return args, nil, nil
+	return nil, nil, errors.New(resourceName + " not found: " + idVal)
 }
 
 // resolveOciGenerativeAiModel resolves a typed model resource from a model

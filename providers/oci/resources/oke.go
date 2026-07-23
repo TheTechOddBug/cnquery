@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/oracle/oci-go-sdk/v65/common"
@@ -37,18 +38,7 @@ func (o *mqlOciOke) clusters() ([]any, error) {
 		return nil, list.Error
 	}
 
-	res := []any{}
-	poolOfJobs := jobpool.CreatePool(o.getClusters(conn, list.Data), 5)
-	poolOfJobs.Run()
-
-	if poolOfJobs.HasErrors() {
-		return nil, poolOfJobs.GetErrors()
-	}
-	for i := range poolOfJobs.Jobs {
-		res = append(res, poolOfJobs.Jobs[i].Result.([]any)...)
-	}
-
-	return res, nil
+	return ociRunRegionPool(o.getClusters(conn, list.Data))
 }
 
 func (o *mqlOciOke) getClusters(conn *connection.OciConnection, regions []any) []*jobpool.Job {
@@ -108,6 +98,15 @@ func (o *mqlOciOke) getClusters(conn *connection.OciConnection, regions []any) [
 				if cluster.Endpoints != nil {
 					publicEndpoint = stringValue(cluster.Endpoints.PublicEndpoint)
 					privateEndpoint = stringValue(cluster.Endpoints.PrivateEndpoint)
+				}
+
+				// endpointConfig.isPublicIpEnabled only exists for clusters using
+				// native VCN networking; it is absent for older clusters that
+				// still serve a reachable public API endpoint. Trust an actual
+				// published public endpoint over the missing flag, otherwise a
+				// publicly reachable control plane reports as private.
+				if publicEndpoint != "" {
+					isPublicEndpointEnabled = true
 				}
 
 				// Extract image policy
@@ -174,7 +173,7 @@ func (o *mqlOciOke) getClusters(conn *connection.OciConnection, regions []any) [
 
 type mqlOciOkeClusterInternal struct {
 	lock       sync.Mutex
-	fetched    bool
+	fetched    atomic.Bool
 	cluster    *containerengine.Cluster
 	cacheVcnId string
 	region     string
@@ -227,7 +226,7 @@ func initOciOkeCluster(runtime *plugin.Runtime, args map[string]*llx.RawData) (m
 }
 
 func (o *mqlOciOkeCluster) vcn() (*mqlOciNetworkVcn, error) {
-	if o.cacheVcnId == "" {
+	if o.cacheVcnId == "" || !isOcid(o.cacheVcnId) {
 		o.Vcn.State = plugin.StateIsSet | plugin.StateIsNull
 		return nil, nil
 	}
@@ -241,12 +240,12 @@ func (o *mqlOciOkeCluster) vcn() (*mqlOciNetworkVcn, error) {
 }
 
 func (o *mqlOciOkeCluster) fetchCluster() (*containerengine.Cluster, error) {
-	if o.fetched {
+	if o.fetched.Load() {
 		return o.cluster, nil
 	}
 	o.lock.Lock()
 	defer o.lock.Unlock()
-	if o.fetched {
+	if o.fetched.Load() {
 		return o.cluster, nil
 	}
 
@@ -265,7 +264,7 @@ func (o *mqlOciOkeCluster) fetchCluster() (*containerengine.Cluster, error) {
 	}
 
 	o.cluster = &resp.Cluster
-	o.fetched = true
+	o.fetched.Store(true)
 	return o.cluster, nil
 }
 

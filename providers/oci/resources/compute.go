@@ -38,20 +38,7 @@ func (o *mqlOciCompute) instances() ([]any, error) {
 	}
 
 	// fetch instances
-	res := []any{}
-	poolOfJobs := jobpool.CreatePool(o.getComputeInstances(conn, list.Data), 5)
-	poolOfJobs.Run()
-
-	// check for errors
-	if poolOfJobs.HasErrors() {
-		return nil, poolOfJobs.GetErrors()
-	}
-	// get all the results
-	for i := range poolOfJobs.Jobs {
-		res = append(res, poolOfJobs.Jobs[i].Result.([]any)...)
-	}
-
-	return res, nil
+	return ociRunRegionPool(o.getComputeInstances(conn, list.Data))
 }
 
 func (o *mqlOciCompute) getComputeInstancesForRegion(ctx context.Context, computeClient *core.ComputeClient, compartmentID string) ([]core.Instance, error) {
@@ -156,25 +143,37 @@ func (o *mqlOciCompute) getComputeInstances(conn *connection.OciConnection, regi
 					timeMaintenanceRebootDue = &instance.TimeMaintenanceRebootDue.Time
 				}
 
-				var legacyImdsDisabled *bool
-				if instance.InstanceOptions != nil {
-					legacyImdsDisabled = instance.InstanceOptions.AreLegacyImdsEndpointsDisabled
+				// OCI omits instanceOptions entirely on instances launched
+				// before IMDSv2 existed - exactly the instances where the
+				// legacy /v1 endpoints ARE reachable. Leaving this null would
+				// let `all(legacyImdsEndpointsDisabled && ...)` pass on them,
+				// because MQL evaluates `null && null` as true. Default to the
+				// documented false so a miss fails.
+				legacyImdsDisabled := false
+				if instance.InstanceOptions != nil && instance.InstanceOptions.AreLegacyImdsEndpointsDisabled != nil {
+					legacyImdsDisabled = *instance.InstanceOptions.AreLegacyImdsEndpointsDisabled
 				}
 
-				var monitoringDisabled, managementDisabled, allPluginsDisabled *bool
-				var agentPlugins map[string]any
+				// Same reasoning: an absent agentConfig means the agent
+				// controls are not disabled, which is false, not unknown.
+				monitoringDisabled, managementDisabled, allPluginsDisabled := false, false, false
+				agentPlugins := map[string]any{}
 				if instance.AgentConfig != nil {
-					monitoringDisabled = instance.AgentConfig.IsMonitoringDisabled
-					managementDisabled = instance.AgentConfig.IsManagementDisabled
-					allPluginsDisabled = instance.AgentConfig.AreAllPluginsDisabled
+					monitoringDisabled = boolValue(instance.AgentConfig.IsMonitoringDisabled)
+					managementDisabled = boolValue(instance.AgentConfig.IsManagementDisabled)
+					allPluginsDisabled = boolValue(instance.AgentConfig.AreAllPluginsDisabled)
 					agentPlugins = make(map[string]any, len(instance.AgentConfig.PluginsConfig))
 					for _, p := range instance.AgentConfig.PluginsConfig {
 						agentPlugins[stringValue(p.Name)] = string(p.DesiredState)
 					}
 				}
 
-				// Create compartment resource reference
-				compartment, err := CreateResource(o.MqlRuntime, "oci.compartment", map[string]*llx.RawData{
+				// NewResource, not CreateResource: oci.compartment has an
+				// Init that fills name/description/created/state. Skipping it
+				// caches an id-only husk under the compartment's real OCID,
+				// which a later oci.compartments query then receives instead of
+				// the populated resource.
+				compartment, err := NewResource(o.MqlRuntime, "oci.compartment", map[string]*llx.RawData{
 					"id": llx.StringDataPtr(instance.CompartmentId),
 				})
 				if err != nil {
@@ -196,10 +195,10 @@ func (o *mqlOciCompute) getComputeInstances(conn *connection.OciConnection, regi
 					"platformConfig":              llx.DictData(platformConfig),
 					"launchOptions":               llx.DictData(launchOptions),
 					"instanceOptions":             llx.DictData(instanceOptions),
-					"legacyImdsEndpointsDisabled": llx.BoolDataPtr(legacyImdsDisabled),
-					"monitoringDisabled":          llx.BoolDataPtr(monitoringDisabled),
-					"managementDisabled":          llx.BoolDataPtr(managementDisabled),
-					"allPluginsDisabled":          llx.BoolDataPtr(allPluginsDisabled),
+					"legacyImdsEndpointsDisabled": llx.BoolData(legacyImdsDisabled),
+					"monitoringDisabled":          llx.BoolData(monitoringDisabled),
+					"managementDisabled":          llx.BoolData(managementDisabled),
+					"allPluginsDisabled":          llx.BoolData(allPluginsDisabled),
 					"agentPlugins":                llx.MapData(agentPlugins, types.String),
 					"shapeConfig":                 llx.DictData(shapeConfig),
 					"sourceDetails":               llx.DictData(sourceDetails),
@@ -374,20 +373,7 @@ func (o *mqlOciCompute) images() ([]any, error) {
 	}
 
 	// fetch images
-	res := []any{}
-	poolOfJobs := jobpool.CreatePool(o.getComputeImage(conn, list.Data), 5)
-	poolOfJobs.Run()
-
-	// check for errors
-	if poolOfJobs.HasErrors() {
-		return nil, poolOfJobs.GetErrors()
-	}
-	// get all the results
-	for i := range poolOfJobs.Jobs {
-		res = append(res, poolOfJobs.Jobs[i].Result.([]any)...)
-	}
-
-	return res, nil
+	return ociRunRegionPool(o.getComputeImage(conn, list.Data))
 }
 
 func (o *mqlOciCompute) getComputeImagesForRegion(ctx context.Context, computeClient *core.ComputeClient, compartmentID string) ([]core.Image, error) {
@@ -457,7 +443,7 @@ func (o *mqlOciCompute) getComputeImage(conn *connection.OciConnection, regions 
 				}
 
 				// Create compartment resource reference
-				compartment, err := CreateResource(o.MqlRuntime, "oci.compartment", map[string]*llx.RawData{
+				compartment, err := NewResource(o.MqlRuntime, "oci.compartment", map[string]*llx.RawData{
 					"id": llx.StringDataPtr(image.CompartmentId),
 				})
 				if err != nil {
@@ -512,18 +498,7 @@ func (o *mqlOciCompute) blockVolumes() ([]any, error) {
 		return nil, list.Error
 	}
 
-	res := []any{}
-	poolOfJobs := jobpool.CreatePool(o.getBlockVolumes(conn, list.Data), 5)
-	poolOfJobs.Run()
-
-	if poolOfJobs.HasErrors() {
-		return nil, poolOfJobs.GetErrors()
-	}
-	for i := range poolOfJobs.Jobs {
-		res = append(res, poolOfJobs.Jobs[i].Result.([]any)...)
-	}
-
-	return res, nil
+	return ociRunRegionPool(o.getBlockVolumes(conn, list.Data))
 }
 
 func (o *mqlOciCompute) getBlockVolumesForRegion(ctx context.Context, client *core.BlockstorageClient, compartmentID string) ([]core.Volume, error) {
@@ -656,18 +631,7 @@ func (o *mqlOciCompute) bootVolumes() ([]any, error) {
 		return nil, list.Error
 	}
 
-	res := []any{}
-	poolOfJobs := jobpool.CreatePool(o.getBootVolumes(conn, list.Data), 5)
-	poolOfJobs.Run()
-
-	if poolOfJobs.HasErrors() {
-		return nil, poolOfJobs.GetErrors()
-	}
-	for i := range poolOfJobs.Jobs {
-		res = append(res, poolOfJobs.Jobs[i].Result.([]any)...)
-	}
-
-	return res, nil
+	return ociRunRegionPool(o.getBootVolumes(conn, list.Data))
 }
 
 func (o *mqlOciCompute) getBootVolumesForRegion(ctx context.Context, client *core.BlockstorageClient, compartmentID string) ([]core.BootVolume, error) {

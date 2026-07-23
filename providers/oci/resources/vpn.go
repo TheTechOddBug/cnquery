@@ -28,7 +28,7 @@ func (o *mqlOciNetwork) cpes() ([]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return runNetworkPool(o.getCpes(conn, regions))
+	return ociRunRegionPool(o.getCpes(conn, regions))
 }
 
 func (o *mqlOciNetwork) getCpes(conn *connection.OciConnection, regions []any) []*jobpool.Job {
@@ -102,10 +102,10 @@ func initOciNetworkCpe(runtime *plugin.Runtime, args map[string]*llx.RawData) (m
 	if len(args) > 2 {
 		return args, nil, nil
 	}
-	if args["id"] == nil {
+	idVal := ociArgString(args, "id")
+	if idVal == "" {
 		return nil, nil, errors.New("id required to fetch oci.network.cpe")
 	}
-	idVal := args["id"].Value.(string)
 
 	obj, err := CreateResource(runtime, "oci.network", nil)
 	if err != nil {
@@ -148,7 +148,7 @@ func (o *mqlOciNetwork) ipsecConnections() ([]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return runNetworkPool(o.getIpsecConnections(conn, regions))
+	return ociRunRegionPool(o.getIpsecConnections(conn, regions))
 }
 
 func (o *mqlOciNetwork) getIpsecConnections(conn *connection.OciConnection, regions []any) []*jobpool.Job {
@@ -228,10 +228,10 @@ func initOciNetworkIpsecConnection(runtime *plugin.Runtime, args map[string]*llx
 	if len(args) > 2 {
 		return args, nil, nil
 	}
-	if args["id"] == nil {
+	idVal := ociArgString(args, "id")
+	if idVal == "" {
 		return nil, nil, errors.New("id required to fetch oci.network.ipsecConnection")
 	}
-	idVal := args["id"].Value.(string)
 
 	obj, err := CreateResource(runtime, "oci.network", nil)
 	if err != nil {
@@ -505,7 +505,7 @@ func (o *mqlOciNetwork) virtualCircuits() ([]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return runNetworkPool(o.getVirtualCircuits(conn, regions))
+	return ociRunRegionPool(o.getVirtualCircuits(conn, regions))
 }
 
 func (o *mqlOciNetwork) getVirtualCircuits(conn *connection.OciConnection, regions []any) []*jobpool.Job {
@@ -608,10 +608,10 @@ func initOciNetworkVirtualCircuit(runtime *plugin.Runtime, args map[string]*llx.
 	if len(args) > 2 {
 		return args, nil, nil
 	}
-	if args["id"] == nil {
+	idVal := ociArgString(args, "id")
+	if idVal == "" {
 		return nil, nil, errors.New("id required to fetch oci.network.virtualCircuit")
 	}
-	idVal := args["id"].Value.(string)
 
 	obj, err := CreateResource(runtime, "oci.network", nil)
 	if err != nil {
@@ -662,7 +662,7 @@ func (o *mqlOciNetwork) crossConnects() ([]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return runNetworkPool(o.getCrossConnects(conn, regions))
+	return ociRunRegionPool(o.getCrossConnects(conn, regions))
 }
 
 func (o *mqlOciNetwork) getCrossConnects(conn *connection.OciConnection, regions []any) []*jobpool.Job {

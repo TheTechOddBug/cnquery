@@ -37,16 +37,7 @@ func (o *mqlOciCertificates) certificates() ([]any, error) {
 		return nil, list.Error
 	}
 
-	res := []any{}
-	poolOfJobs := jobpool.CreatePool(o.getCertificates(conn, list.Data), 5)
-	poolOfJobs.Run()
-	if poolOfJobs.HasErrors() {
-		return nil, poolOfJobs.GetErrors()
-	}
-	for i := range poolOfJobs.Jobs {
-		res = append(res, poolOfJobs.Jobs[i].Result.([]any)...)
-	}
-	return res, nil
+	return ociRunRegionPool(o.getCertificates(conn, list.Data))
 }
 
 func (o *mqlOciCertificates) getCertificates(conn *connection.OciConnection, regions []any) []*jobpool.Job {
@@ -218,10 +209,10 @@ func initOciCertificatesCertificateAuthority(runtime *plugin.Runtime, args map[s
 	if len(args) > 2 {
 		return args, nil, nil
 	}
-	if args["id"] == nil {
+	idVal := ociArgString(args, "id")
+	if idVal == "" {
 		return nil, nil, errors.New("id required to fetch oci.certificates.certificateAuthority")
 	}
-	idVal := args["id"].Value.(string)
 
 	obj, err := CreateResource(runtime, "oci.certificates", nil)
 	if err != nil {
@@ -256,16 +247,7 @@ func (o *mqlOciCertificates) certificateAuthorities() ([]any, error) {
 		return nil, list.Error
 	}
 
-	res := []any{}
-	poolOfJobs := jobpool.CreatePool(o.getCertificateAuthorities(conn, list.Data), 5)
-	poolOfJobs.Run()
-	if poolOfJobs.HasErrors() {
-		return nil, poolOfJobs.GetErrors()
-	}
-	for i := range poolOfJobs.Jobs {
-		res = append(res, poolOfJobs.Jobs[i].Result.([]any)...)
-	}
-	return res, nil
+	return ociRunRegionPool(o.getCertificateAuthorities(conn, list.Data))
 }
 
 func (o *mqlOciCertificates) getCertificateAuthorities(conn *connection.OciConnection, regions []any) []*jobpool.Job {
@@ -453,16 +435,7 @@ func (o *mqlOciCertificates) caBundles() ([]any, error) {
 		return nil, list.Error
 	}
 
-	res := []any{}
-	poolOfJobs := jobpool.CreatePool(o.getCaBundles(conn, list.Data), 5)
-	poolOfJobs.Run()
-	if poolOfJobs.HasErrors() {
-		return nil, poolOfJobs.GetErrors()
-	}
-	for i := range poolOfJobs.Jobs {
-		res = append(res, poolOfJobs.Jobs[i].Result.([]any)...)
-	}
-	return res, nil
+	return ociRunRegionPool(o.getCaBundles(conn, list.Data))
 }
 
 func (o *mqlOciCertificates) getCaBundles(conn *connection.OciConnection, regions []any) []*jobpool.Job {

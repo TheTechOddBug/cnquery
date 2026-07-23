@@ -6,8 +6,6 @@ package resources
 import (
 	"context"
 	"errors"
-	"net"
-	"strings"
 
 	"github.com/oracle/oci-go-sdk/v65/common"
 	"github.com/oracle/oci-go-sdk/v65/generativeaiagent"
@@ -26,51 +24,6 @@ func (o *mqlOciAi) id() (string, error) {
 
 func (o *mqlOciAiAgents) id() (string, error) {
 	return "oci.ai.agents", nil
-}
-
-// ociRegionServiceUnavailable reports whether the error indicates that an AI
-// service is not reachable in a given region — because the service is not
-// deployed there or the tenancy is not entitled to it. Such regions are skipped
-// so a tenancy-wide query still returns the resources that do exist instead of
-// failing outright. Shared by the Generative AI Agents, Data Science, and
-// Generative AI resources.
-func ociRegionServiceUnavailable(err error) bool {
-	if svcErr, ok := common.IsServiceError(err); ok {
-		switch svcErr.GetHTTPStatusCode() {
-		case 401, 403, 404:
-			return true
-		}
-	}
-	// Regions where the service is not deployed have no regional endpoint, so
-	// the DNS lookup for the host fails with "no such host".
-	var dnsErr *net.DNSError
-	if errors.As(err, &dnsErr) {
-		return true
-	}
-	// Some regions publish a wildcard DNS record for a service that is not
-	// actually deployed there, so the host resolves but the TCP connection
-	// times out. Treat connection timeouts (and the deadline they surface as)
-	// the same as an absent endpoint.
-	if errors.Is(err, context.DeadlineExceeded) {
-		return true
-	}
-	var netErr net.Error
-	if errors.As(err, &netErr) && netErr.Timeout() {
-		return true
-	}
-	// The OCI SDK wraps transport errors in a type that does not implement
-	// Unwrap, so errors.As/Is above can miss a timeout. Fall back to matching
-	// the message for the unreachable-endpoint signatures.
-	msg := strings.ToLower(err.Error())
-	for _, s := range []string{
-		"timeout", "timed out", "deadline exceeded",
-		"no such host", "connection refused", "no route to host",
-	} {
-		if strings.Contains(msg, s) {
-			return true
-		}
-	}
-	return false
 }
 
 func ociAgentRegions(runtime *plugin.Runtime) ([]any, error) {
@@ -94,16 +47,7 @@ func (o *mqlOciAiAgents) agents() ([]any, error) {
 		return nil, err
 	}
 
-	res := []any{}
-	poolOfJobs := jobpool.CreatePool(o.getAgents(conn, regions), 5)
-	poolOfJobs.Run()
-	if poolOfJobs.HasErrors() {
-		return nil, poolOfJobs.GetErrors()
-	}
-	for i := range poolOfJobs.Jobs {
-		res = append(res, poolOfJobs.Jobs[i].Result.([]any)...)
-	}
-	return res, nil
+	return ociRunRegionPool(o.getAgents(conn, regions))
 }
 
 func (o *mqlOciAiAgents) getAgents(conn *connection.OciConnection, regions []any) []*jobpool.Job {
@@ -200,7 +144,7 @@ func initOciAiAgentsAgent(runtime *plugin.Runtime, args map[string]*llx.RawData)
 			return args, a, nil
 		}
 	}
-	return args, nil, nil
+	return nil, nil, errors.New("oci.ai.agents.agent not found: " + idVal)
 }
 
 func (o *mqlOciAiAgentsAgent) id() (string, error) {
@@ -220,16 +164,7 @@ func (o *mqlOciAiAgents) agentEndpoints() ([]any, error) {
 		return nil, err
 	}
 
-	res := []any{}
-	poolOfJobs := jobpool.CreatePool(o.getAgentEndpoints(conn, regions), 5)
-	poolOfJobs.Run()
-	if poolOfJobs.HasErrors() {
-		return nil, poolOfJobs.GetErrors()
-	}
-	for i := range poolOfJobs.Jobs {
-		res = append(res, poolOfJobs.Jobs[i].Result.([]any)...)
-	}
-	return res, nil
+	return ociRunRegionPool(o.getAgentEndpoints(conn, regions))
 }
 
 func (o *mqlOciAiAgents) getAgentEndpoints(conn *connection.OciConnection, regions []any) []*jobpool.Job {
@@ -346,7 +281,7 @@ func initOciAiAgentsEndpoint(runtime *plugin.Runtime, args map[string]*llx.RawDa
 			return args, e, nil
 		}
 	}
-	return args, nil, nil
+	return nil, nil, errors.New("oci.ai.agents.endpoint not found: " + idVal)
 }
 
 func (o *mqlOciAiAgentsEndpoint) id() (string, error) {
@@ -370,16 +305,7 @@ func (o *mqlOciAiAgents) knowledgeBases() ([]any, error) {
 		return nil, err
 	}
 
-	res := []any{}
-	poolOfJobs := jobpool.CreatePool(o.getKnowledgeBases(conn, regions), 5)
-	poolOfJobs.Run()
-	if poolOfJobs.HasErrors() {
-		return nil, poolOfJobs.GetErrors()
-	}
-	for i := range poolOfJobs.Jobs {
-		res = append(res, poolOfJobs.Jobs[i].Result.([]any)...)
-	}
-	return res, nil
+	return ociRunRegionPool(o.getKnowledgeBases(conn, regions))
 }
 
 func (o *mqlOciAiAgents) getKnowledgeBases(conn *connection.OciConnection, regions []any) []*jobpool.Job {
@@ -466,7 +392,7 @@ func initOciAiAgentsKnowledgeBase(runtime *plugin.Runtime, args map[string]*llx.
 			return args, kb, nil
 		}
 	}
-	return args, nil, nil
+	return nil, nil, errors.New("oci.ai.agents.knowledgeBase not found: " + idVal)
 }
 
 func (o *mqlOciAiAgentsKnowledgeBase) id() (string, error) {
@@ -486,16 +412,7 @@ func (o *mqlOciAiAgents) dataSources() ([]any, error) {
 		return nil, err
 	}
 
-	res := []any{}
-	poolOfJobs := jobpool.CreatePool(o.getDataSources(conn, regions), 5)
-	poolOfJobs.Run()
-	if poolOfJobs.HasErrors() {
-		return nil, poolOfJobs.GetErrors()
-	}
-	for i := range poolOfJobs.Jobs {
-		res = append(res, poolOfJobs.Jobs[i].Result.([]any)...)
-	}
-	return res, nil
+	return ociRunRegionPool(o.getDataSources(conn, regions))
 }
 
 func (o *mqlOciAiAgents) getDataSources(conn *connection.OciConnection, regions []any) []*jobpool.Job {
@@ -589,7 +506,7 @@ func initOciAiAgentsDataSource(runtime *plugin.Runtime, args map[string]*llx.Raw
 			return args, ds, nil
 		}
 	}
-	return args, nil, nil
+	return nil, nil, errors.New("oci.ai.agents.dataSource not found: " + idVal)
 }
 
 func (o *mqlOciAiAgentsDataSource) id() (string, error) {
@@ -623,16 +540,7 @@ func (o *mqlOciAiAgents) tools() ([]any, error) {
 		return nil, err
 	}
 
-	res := []any{}
-	poolOfJobs := jobpool.CreatePool(o.getTools(conn, regions), 5)
-	poolOfJobs.Run()
-	if poolOfJobs.HasErrors() {
-		return nil, poolOfJobs.GetErrors()
-	}
-	for i := range poolOfJobs.Jobs {
-		res = append(res, poolOfJobs.Jobs[i].Result.([]any)...)
-	}
-	return res, nil
+	return ociRunRegionPool(o.getTools(conn, regions))
 }
 
 func (o *mqlOciAiAgents) getTools(conn *connection.OciConnection, regions []any) []*jobpool.Job {
@@ -733,7 +641,7 @@ func initOciAiAgentsTool(runtime *plugin.Runtime, args map[string]*llx.RawData) 
 			return args, t, nil
 		}
 	}
-	return args, nil, nil
+	return nil, nil, errors.New("oci.ai.agents.tool not found: " + idVal)
 }
 
 func (o *mqlOciAiAgentsTool) id() (string, error) {

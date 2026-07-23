@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/oracle/oci-go-sdk/v65/common"
@@ -36,18 +37,7 @@ func (o *mqlOciNetworkFirewall) firewalls() ([]any, error) {
 		return nil, list.Error
 	}
 
-	res := []any{}
-	poolOfJobs := jobpool.CreatePool(o.getFirewalls(conn, list.Data), 5)
-	poolOfJobs.Run()
-
-	if poolOfJobs.HasErrors() {
-		return nil, poolOfJobs.GetErrors()
-	}
-	for i := range poolOfJobs.Jobs {
-		res = append(res, poolOfJobs.Jobs[i].Result.([]any)...)
-	}
-
-	return res, nil
+	return ociRunRegionPool(o.getFirewalls(conn, list.Data))
 }
 
 func (o *mqlOciNetworkFirewall) getFirewalls(conn *connection.OciConnection, regions []any) []*jobpool.Job {
@@ -194,18 +184,7 @@ func (o *mqlOciNetworkFirewall) policies() ([]any, error) {
 		return nil, list.Error
 	}
 
-	res := []any{}
-	poolOfJobs := jobpool.CreatePool(o.getPolicies(conn, list.Data), 5)
-	poolOfJobs.Run()
-
-	if poolOfJobs.HasErrors() {
-		return nil, poolOfJobs.GetErrors()
-	}
-	for i := range poolOfJobs.Jobs {
-		res = append(res, poolOfJobs.Jobs[i].Result.([]any)...)
-	}
-
-	return res, nil
+	return ociRunRegionPool(o.getPolicies(conn, list.Data))
 }
 
 func (o *mqlOciNetworkFirewall) getPolicies(conn *connection.OciConnection, regions []any) []*jobpool.Job {
@@ -276,18 +255,18 @@ func (o *mqlOciNetworkFirewall) getPolicies(conn *connection.OciConnection, regi
 
 type mqlOciNetworkFirewallPolicyInternal struct {
 	region    string
-	fetched   bool
+	fetched   atomic.Bool
 	detail    *networkfirewall.NetworkFirewallPolicy
 	fetchLock sync.Mutex
 }
 
 func (o *mqlOciNetworkFirewallPolicy) fetchDetail() (*networkfirewall.NetworkFirewallPolicy, error) {
-	if o.fetched {
+	if o.fetched.Load() {
 		return o.detail, nil
 	}
 	o.fetchLock.Lock()
 	defer o.fetchLock.Unlock()
-	if o.fetched {
+	if o.fetched.Load() {
 		return o.detail, nil
 	}
 	conn := o.MqlRuntime.Connection.(*connection.OciConnection)
@@ -302,7 +281,7 @@ func (o *mqlOciNetworkFirewallPolicy) fetchDetail() (*networkfirewall.NetworkFir
 		return nil, err
 	}
 	o.detail = &resp.NetworkFirewallPolicy
-	o.fetched = true
+	o.fetched.Store(true)
 	return o.detail, nil
 }
 
@@ -330,10 +309,10 @@ func initOciNetworkFirewallPolicy(runtime *plugin.Runtime, args map[string]*llx.
 		return args, nil, nil
 	}
 
-	if args["id"] == nil {
+	idVal := ociArgString(args, "id")
+	if idVal == "" {
 		return nil, nil, errors.New("id required to fetch oci.networkFirewall.policy")
 	}
-	idVal := args["id"].Value.(string)
 
 	obj, err := CreateResource(runtime, "oci.networkFirewall", nil)
 	if err != nil {
@@ -449,12 +428,16 @@ func decryptionProfileFields(dp networkfirewall.DecryptionProfile, summary netwo
 		fields["isUnsupportedCipherBlocked"] = llx.BoolDataPtr(p.IsUnsupportedCipherBlocked)
 		fields["isOutOfCapacityBlocked"] = llx.BoolDataPtr(p.IsOutOfCapacityBlocked)
 	default:
-		// Unknown profile type: surface the summary type, leave booleans null.
+		// Unknown profile type (an inspection type newer than the pinned SDK):
+		// surface the summary type and report the controls as not blocking.
+		// Null would make `isUnsupportedVersionBlocked &&
+		// isUnsupportedCipherBlocked` evaluate to true, so a profile we could
+		// not decode would pass a TLS-hygiene check it was never measured for.
 		fields["type"] = llx.StringData(string(summary.Type))
 		fields["description"] = llx.StringDataPtr(summary.Description)
-		fields["isUnsupportedVersionBlocked"] = llx.BoolDataPtr(nil)
-		fields["isUnsupportedCipherBlocked"] = llx.BoolDataPtr(nil)
-		fields["isOutOfCapacityBlocked"] = llx.BoolDataPtr(nil)
+		fields["isUnsupportedVersionBlocked"] = llx.BoolData(false)
+		fields["isUnsupportedCipherBlocked"] = llx.BoolData(false)
+		fields["isOutOfCapacityBlocked"] = llx.BoolData(false)
 	}
 	return fields
 }
