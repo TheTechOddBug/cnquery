@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 
+	"golang.org/x/sync/singleflight"
+
 	"go.mondoo.com/mql/v13/providers-sdk/v1/inventory"
 	"go.mondoo.com/mql/v13/providers-sdk/v1/plugin"
 	"go.mondoo.com/mql/v13/providers-sdk/v1/vault"
@@ -54,25 +56,19 @@ type IruConnection struct {
 	asset  *inventory.Asset
 	Client *client.Client
 
-	// deviceDetails caches the rich GET /devices/{id}/details payload
-	// keyed by device ID. It backs most of the iru.device computed
-	// methods (filevault, hardware, volumes, …) so iterating
-	// `iru.devices { … detail fields … }` only triggers one detail
-	// fetch per device rather than one per field.
-	detailsMu sync.Mutex
-	details   map[string]*client.DeviceDetails
-
-	// deviceApps caches the per-device installed-app listing. The apps
-	// endpoint is its own call, independent of the details payload.
-	// (The profiles list is read straight off DeviceDetails.InstalledProfiles,
-	// so it does not need a second cache layer.)
-	appsMu     sync.Mutex
-	deviceApps map[string][]client.App
-
-	// deviceParams caches the per-device compliance parameters listing
-	// (GET /devices/{id}/parameters), its own call independent of details.
-	paramsMu     sync.Mutex
-	deviceParams map[string][]client.Parameter
+	// Per-device caches. Each memoizes one fetch per device ID and lets
+	// fetches for different devices run concurrently, so iterating
+	// `iru.devices { … detail fields … }` across a fleet parallelizes the
+	// detail/app/parameter calls instead of serializing every device behind a
+	// single mutex held across the network round trip.
+	//
+	//   details backs most of the iru.device computed methods (filevault,
+	//   hardware, volumes, …); deviceApps backs the installed-app listing; and
+	//   deviceParams backs the compliance parameters. The profiles list is read
+	//   straight off DeviceDetails.InstalledProfiles, so it needs no cache.
+	details      keyedMemo[*client.DeviceDetails]
+	deviceApps   keyedMemo[[]client.App]
+	deviceParams keyedMemo[[]client.Parameter]
 
 	// blueprintsMu / usersMu / libraryItemsMu memoize the tenant-wide listings
 	// so the init functions for typed cross-references (device.blueprint,
@@ -99,12 +95,9 @@ type IruConnection struct {
 // API; the first request is issued lazily by resource accessors.
 func NewIruConnection(id uint32, asset *inventory.Asset, conf *inventory.Config) (*IruConnection, error) {
 	conn := &IruConnection{
-		Connection:   plugin.NewConnection(id, asset),
-		Conf:         conf,
-		asset:        asset,
-		details:      make(map[string]*client.DeviceDetails),
-		deviceApps:   make(map[string][]client.App),
-		deviceParams: make(map[string][]client.Parameter),
+		Connection: plugin.NewConnection(id, asset),
+		Conf:       conf,
+		asset:      asset,
 	}
 
 	subdomain := normalizeSubdomain(conf.Options[OptionSubdomain])
@@ -155,49 +148,74 @@ func (c *IruConnection) Identifier() string {
 // GetDeviceDetails returns the cached detail payload for a device,
 // fetching it on first request. Safe for concurrent use.
 func (c *IruConnection) GetDeviceDetails(id string) (*client.DeviceDetails, error) {
-	c.detailsMu.Lock()
-	defer c.detailsMu.Unlock()
-	if d, ok := c.details[id]; ok {
-		return d, nil
-	}
-	d, err := c.Client.GetDeviceDetails(id)
-	if err != nil {
-		return nil, err
-	}
-	c.details[id] = d
-	return d, nil
+	return c.details.get(id, func() (*client.DeviceDetails, error) {
+		return c.Client.GetDeviceDetails(id)
+	})
 }
 
 // GetDeviceApps returns the cached installed-app list for a device,
 // fetching it on first request. Safe for concurrent use.
 func (c *IruConnection) GetDeviceApps(id string) ([]client.App, error) {
-	c.appsMu.Lock()
-	defer c.appsMu.Unlock()
-	if a, ok := c.deviceApps[id]; ok {
-		return a, nil
-	}
-	a, err := c.Client.GetDeviceApps(id)
-	if err != nil {
-		return nil, err
-	}
-	c.deviceApps[id] = a
-	return a, nil
+	return c.deviceApps.get(id, func() ([]client.App, error) {
+		return c.Client.GetDeviceApps(id)
+	})
 }
 
 // GetDeviceParameters returns the cached compliance-parameter list for a
 // device, fetching it on first request. Safe for concurrent use.
 func (c *IruConnection) GetDeviceParameters(id string) ([]client.Parameter, error) {
-	c.paramsMu.Lock()
-	defer c.paramsMu.Unlock()
-	if p, ok := c.deviceParams[id]; ok {
-		return p, nil
+	return c.deviceParams.get(id, func() ([]client.Parameter, error) {
+		return c.Client.GetDeviceParameters(id)
+	})
+}
+
+// keyedMemo memoizes one value per string key, collapsing concurrent fetches
+// for the same key into a single call while letting fetches for different keys
+// proceed in parallel. singleflight forgets a key once its call returns, so a
+// failed fetch is never cached and a later call retries, matching how the
+// tenant-wide listings avoid poisoning their cache on a transient error.
+type keyedMemo[V any] struct {
+	mu    sync.Mutex
+	cache map[string]V
+	sf    singleflight.Group
+}
+
+func (m *keyedMemo[V]) get(key string, fetch func() (V, error)) (V, error) {
+	m.mu.Lock()
+	if v, ok := m.cache[key]; ok {
+		m.mu.Unlock()
+		return v, nil
 	}
-	p, err := c.Client.GetDeviceParameters(id)
+	m.mu.Unlock()
+
+	v, err, _ := m.sf.Do(key, func() (any, error) {
+		// Re-check under the lock: a concurrent flight for this key may have
+		// populated the cache between our fast-path miss and entering the call.
+		m.mu.Lock()
+		if val, ok := m.cache[key]; ok {
+			m.mu.Unlock()
+			return val, nil
+		}
+		m.mu.Unlock()
+
+		val, err := fetch()
+		if err != nil {
+			// Return without caching so the key is forgotten and retried.
+			return val, err
+		}
+		m.mu.Lock()
+		if m.cache == nil {
+			m.cache = make(map[string]V)
+		}
+		m.cache[key] = val
+		m.mu.Unlock()
+		return val, nil
+	})
 	if err != nil {
-		return nil, err
+		var zero V
+		return zero, err
 	}
-	c.deviceParams[id] = p
-	return p, nil
+	return v.(V), nil
 }
 
 // ListBlueprints returns the tenant's blueprints, memoizing the first
