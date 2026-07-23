@@ -856,10 +856,14 @@ func initGcpProjectDataprocServiceCluster(runtime *plugin.Runtime, args map[stri
 		return nil, nil, clusters.Error
 	}
 
-	nameVal := args["name"].Value.(string)
+	nameRaw := args["name"]
+	if nameRaw == nil {
+		return nil, nil, errors.New("gcp.project.dataprocService.cluster requires a \"name\" argument")
+	}
+	nameVal, _ := nameRaw.Value.(string)
 	locationVal := ""
 	if args["location"] != nil {
-		locationVal = args["location"].Value.(string)
+		locationVal, _ = args["location"].Value.(string)
 	}
 	for _, c := range clusters.Data {
 		cluster := c.(*mqlGcpProjectDataprocServiceCluster)
@@ -905,14 +909,29 @@ func (a *mqlGcpProjectDataprocServiceClusterConfig) autoscalingPolicyRef() (*mql
 		a.AutoscalingPolicyRef.State = plugin.StateIsNull | plugin.StateIsSet
 		return nil, nil
 	}
-	res, err := NewResource(a.MqlRuntime, "gcp.project.dataprocService.autoscalingPolicy", map[string]*llx.RawData{
+	// The autoscalingPolicy resource has no init, so a NewResource by-name would
+	// leave a husk (workerConfig/secondaryWorkerConfig/basicAlgorithm unset).
+	// Scan the parent service's autoscalingPolicies() list and return the real,
+	// fully-populated resource.
+	obj, err := CreateResource(a.MqlRuntime, "gcp.project.dataprocService", map[string]*llx.RawData{
 		"projectId": llx.StringData(a.cacheProjectId),
-		"name":      llx.StringData(name),
 	})
 	if err != nil {
 		return nil, err
 	}
-	return res.(*mqlGcpProjectDataprocServiceAutoscalingPolicy), nil
+	svc := obj.(*mqlGcpProjectDataprocService)
+	policies := svc.GetAutoscalingPolicies()
+	if policies.Error != nil {
+		return nil, policies.Error
+	}
+	for _, p := range policies.Data {
+		policy, ok := p.(*mqlGcpProjectDataprocServiceAutoscalingPolicy)
+		if ok && policy.Name.Data == name {
+			return policy, nil
+		}
+	}
+	a.AutoscalingPolicyRef.State = plugin.StateIsNull | plugin.StateIsSet
+	return nil, nil
 }
 
 func dataprocBucketRef(runtime *plugin.Runtime, field *plugin.TValue[*mqlGcpProjectStorageServiceBucket], nameField plugin.TValue[string]) (*mqlGcpProjectStorageServiceBucket, error) {

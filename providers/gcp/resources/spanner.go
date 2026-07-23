@@ -83,7 +83,11 @@ func initGcpProjectSpannerServiceInstance(runtime *plugin.Runtime, args map[stri
 		return nil, nil, instances.Error
 	}
 
-	nameVal := args["name"].Value.(string)
+	nameRaw := args["name"]
+	if nameRaw == nil {
+		return nil, nil, errors.New("gcp.project.spannerService.instance requires a \"name\" argument")
+	}
+	nameVal, _ := nameRaw.Value.(string)
 	for _, i := range instances.Data {
 		instance := i.(*mqlGcpProjectSpannerServiceInstance)
 		// Spanner instance name is a full resource path:
