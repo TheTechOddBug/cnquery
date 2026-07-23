@@ -241,8 +241,11 @@ func user(runtime *plugin.Runtime, userName string, conn *connection.GithubConne
 	})
 
 	if discoverUserRepos(conf, targets) {
-		for i := range user.GetRepositories().Data {
-			repo := user.GetRepositories().Data[i].(*mqlGithubRepository)
+		repos, err := userScopeRepos(runtime, conn, user)
+		if err != nil {
+			return nil, err
+		}
+		for _, repo := range repos {
 			if reposFilter.skipRepo(repo.Name.Data) {
 				continue
 			}
@@ -264,6 +267,58 @@ func user(runtime *plugin.Runtime, userName string, conn *connection.GithubConne
 		}
 	}
 	return assetList, nil
+}
+
+// userScopeRepos returns the repositories a user-scoped scan fans out to:
+// everything the credential can see on that account. The user listing
+// (GET /users/{login}/repos) is the base — for PATs it includes the private
+// repositories the token can access, but for GitHub App installation tokens
+// it only ever returns public repositories. So for installation tokens the
+// installation's own grant (GET /installation/repositories — the private
+// repositories picked in GitHub's install UI) is merged in on top; other
+// tokens get a 403 on that endpoint and just use the user listing.
+func userScopeRepos(runtime *plugin.Runtime, conn *connection.GithubConnection, user *mqlGithubUser) ([]*mqlGithubRepository, error) {
+	login := user.Login.Data
+	listOpts := &github.ListOptions{PerPage: paginationPerPage}
+	var granted []*github.Repository
+	for {
+		repos, resp, err := conn.Client().Apps.ListRepos(conn.Context(), listOpts)
+		if err != nil {
+			// not an installation token — the user listing alone is complete
+			granted = nil
+			break
+		}
+		granted = append(granted, repos.Repositories...)
+		if resp.NextPage == 0 {
+			break
+		}
+		listOpts.Page = resp.NextPage
+	}
+
+	res := []*mqlGithubRepository{}
+	seen := map[int64]bool{}
+	for _, repo := range granted {
+		// an installation on this user account only grants repos the account
+		// owns; guard anyway so a shared credential never leaks another
+		// owner's repos into this user's scope
+		if repo.GetOwner().GetLogin() != login {
+			continue
+		}
+		r, err := newMqlGithubRepository(runtime, repo)
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, r)
+		seen[repo.GetID()] = true
+	}
+	for _, r := range user.GetRepositories().Data {
+		repo := r.(*mqlGithubRepository)
+		if seen[repo.Id.Data] {
+			continue
+		}
+		res = append(res, repo)
+	}
+	return res, nil
 }
 
 // discoverUserRepos reports whether a user-scoped connection fans out to the
