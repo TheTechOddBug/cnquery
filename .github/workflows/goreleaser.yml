@@ -39,12 +39,16 @@ on:
 
 env:
   REGISTRY: docker.io
+  # C07QZDJFF89 == #release-coordination
+  SLACK_BOT_CHANNEL_ID: "C07QZDJFF89"
 
 permissions:
   contents: read
 
 jobs:
   goreleaser:
+    outputs:
+      channel: ${{ steps.channel.outputs.channel }}
     permissions:
       # Add "contents" to write release
       contents: "write"
@@ -71,8 +75,9 @@ jobs:
       # never declared: `14.0.0-rc.2` is preview, `13.38.1` is stable, and build
       # metadata (`8.4.0+41`) is not a pre-release so it stays stable. This
       # replaces a substring test for alpha/beta/pre/rc that disagreed with the
-      # equivalent lists in cnspec and in the publishing tools. See minstaller
-      # ADR 0003.
+      # equivalent lists in cnspec and in the publishing tools. The rule is
+      # SemVer 9 and 10 with nothing added: everything after a `-` and before
+      # any `+` is the pre-release segment, and its presence is the channel.
       - name: Determine release channel
         id: channel
         env:
@@ -302,3 +307,91 @@ jobs:
           client-payload: '{
             "version": "${{  github.ref_name }}"
             }'
+
+  # Reports the release outcome to #release-coordination.
+  #
+  # Nothing depends on this job, and it never gates the release: a Slack outage,
+  # a rotated token or a renamed channel must not turn a good release red. It
+  # runs on failure too, because a release that did not happen is the case most
+  # worth announcing.
+  notify:
+    name: Report the release to Slack
+    if: ${{ always() && github.ref_type == 'tag' }}
+    needs: [goreleaser]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compose the message
+        id: meta
+        env:
+          CHANNEL: ${{ needs.goreleaser.outputs.channel }}
+          BUILD: ${{ needs.goreleaser.result }}
+          # Through env rather than `${{ }}` inline: an expression is pasted into
+          # the script before bash parses it, so a tag carrying a quote or `$(…)`
+          # would be read as shell rather than as text.
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          # build_status carries the value alone. Its label and the newline stay
+          # in the Slack payload, where `\n` inside a double-quoted YAML scalar
+          # is a real escape -- a `\n` that arrives by substitution only renders
+          # because of when GitHub interpolates, which is not worth depending on.
+          case "$BUILD" in
+            success)
+              echo "header=:rocket: mql $REF_NAME released" >> "$GITHUB_OUTPUT"
+              echo "mention=" >> "$GITHUB_OUTPUT"
+              echo "build_status=:white_check_mark: Done" >> "$GITHUB_OUTPUT"
+              ;;
+            skipped)
+              echo "header=:double_vertical_bar: mql $REF_NAME build skipped" >> "$GITHUB_OUTPUT"
+              echo "mention=" >> "$GITHUB_OUTPUT"
+              echo "build_status=:double_vertical_bar: Skipped" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "header=:x: mql $REF_NAME failed to release" >> "$GITHUB_OUTPUT"
+              echo "mention=<!here> " >> "$GITHUB_OUTPUT"
+              echo "build_status=:x: $BUILD" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
+
+          # cnspec carries the user-facing release; mql being on preview mostly
+          # tells a reader why nothing was promoted and why no cnspec bump PR
+          # appeared.
+          case "$CHANNEL" in
+            preview) echo "channel_line=:test_tube: *preview* — not promoted to latest, and the cnspec bump is manual for now" >> "$GITHUB_OUTPUT" ;;
+            *)       echo "channel_line=:package: *stable* — promotes latest and triggers the cnspec bump" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: Post to Slack
+        continue-on-error: true
+        uses: slackapi/slack-github-action@dcb1066f776dd043e64d0e8ba94ca15cc7e1875d # v4.0.0
+        with:
+          method: chat.postMessage
+          token: ${{ secrets.SLACK_BOT_TOKEN }}
+          payload: |
+            channel: "${{ env.SLACK_BOT_CHANNEL_ID }}"
+            text: "${{ steps.meta.outputs.mention }}${{ steps.meta.outputs.header }}"
+            blocks:
+              - type: "header"
+                text:
+                  type: "plain_text"
+                  text: "${{ steps.meta.outputs.header }}"
+                  emoji: true
+              - type: "section"
+                text:
+                  type: "mrkdwn"
+                  text: "${{ steps.meta.outputs.channel_line }}"
+              - type: "section"
+                fields:
+                  - type: "mrkdwn"
+                    text: "*Repository:*\n`${{ github.repository }}`"
+                  - type: "mrkdwn"
+                    text: "*Version:*\n`${{ github.ref_name }}`"
+                  - type: "mrkdwn"
+                    text: "*Triggered by:*\n${{ github.actor }}"
+                  - type: "mrkdwn"
+                    text: "*Workflow run:*\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run>"
+                  - type: "mrkdwn"
+                    text: "*Build:*\n${{ steps.meta.outputs.build_status }}"
+                  - type: "mrkdwn"
+                    text: "*Release notes:*\n<https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}|${{ github.ref_name }}>"
