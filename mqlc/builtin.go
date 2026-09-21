@@ -18,6 +18,10 @@ type compileHandler struct {
 	signature  FunctionSignature
 	compile    func(*compiler, types.Type, uint64, string, *parser.Call) (types.Type, error)
 	desc       string
+	// maturity is one of the resources.Maturity* values; empty means stable,
+	// which is what every builtin that does not set it is. It travels out
+	// through BuiltinDocs on the field, the same channel a schema field uses.
+	maturity string
 }
 
 func (c compileHandler) returnType(t types.Type) types.Type {
@@ -111,6 +115,11 @@ func init() {
 				typ: stringType, signature: FunctionSignature{Required: 0, Args: []types.Type{types.String}},
 				desc: "Remove all surrounding whitespaces (including newlines and tabs)",
 			},
+			"json": {
+				typ: dictType, signature: FunctionSignature{},
+				desc:     "Experimental. Decode this string as a JSON document and return it as a traversable dict",
+				maturity: resources.MaturityExperimental,
+			},
 		},
 		types.Time: {
 			"seconds": {typ: intType, signature: FunctionSignature{}},
@@ -134,6 +143,11 @@ func init() {
 			"lines":     {typ: stringArrayType, signature: FunctionSignature{}},
 			"split":     {typ: stringArrayType, signature: FunctionSignature{Required: 1, Args: []types.Type{types.String}}},
 			"trim":      {typ: stringType, signature: FunctionSignature{Required: 0, Args: []types.Type{types.String}}},
+			"json": {
+				typ: dictType, signature: FunctionSignature{},
+				desc:     "Experimental. Decode this string as a JSON document and return it as a traversable dict",
+				maturity: resources.MaturityExperimental,
+			},
 			// string / array
 			"in":    {typ: boolType, signature: FunctionSignature{Required: 1, Args: []types.Type{types.Array(types.String), types.Array(types.Dict)}}},
 			"notIn": {typ: boolType, signature: FunctionSignature{Required: 1, Args: []types.Type{types.Array(types.String), types.Array(types.Dict)}}},
@@ -489,8 +503,9 @@ func BuiltinDocs() *BuiltinSchema {
 
 		for field, v := range fields {
 			res := &resources.Field{
-				Name: field,
-				Desc: v.desc,
+				Name:     field,
+				Desc:     v.desc,
+				Maturity: v.maturity,
 			}
 
 			if v.typHandler != nil {
