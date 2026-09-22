@@ -66,6 +66,28 @@ type Package struct {
 	// backend doesn't surface install time (dpkg-without-log, apk,
 	// pacman, macOS).
 	InstallDate time.Time `json:"install_date,omitempty"`
+
+	// InstallScope is "machine" for a package installed system-wide (every
+	// user), or "user" for one installed into a single user's own profile.
+	// Windows registry-derived packages set "machine" or "user" (HKLM is
+	// "machine", HKCU or a specific user's registry hive is "user"). Windows
+	// appx packages, the .NET Framework runtime, and hotfixes are always
+	// "machine": none of those sources carry per-user attribution. Empty for
+	// every other package manager.
+	InstallScope string `json:"install_scope,omitempty"`
+
+	// InstallUser is the SID of the user whose registry hive reported this
+	// package, set only when InstallScope is "user". Empty for
+	// machine-scope installs and for backends with no per-user concept.
+	InstallUser string `json:"install_user,omitempty"`
+
+	// regDedupKey identifies the physical Windows registry key this package
+	// was read from (see windows_packages.go: registryDedupKey,
+	// mergeDedupedRegistryPackages). Unexported: a Windows-registry-reading
+	// implementation detail used to collapse the same key read twice through
+	// two different roots, never serialized and never reaches the mql
+	// schema.
+	regDedupKey string
 }
 
 type FileRecord struct {

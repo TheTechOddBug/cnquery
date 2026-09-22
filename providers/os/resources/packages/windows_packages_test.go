@@ -142,6 +142,8 @@ func TestWindowsAppxPackagesParser(t *testing.T) {
 			"cpe:2.3:a:cn\\=microsoft_corporation\\,_o\\=microsoft_corporation\\,_l\\=redmond\\,_s\\=washington\\,_c\\=us:microsoft.windows.cortana:1.11.5.17763:*:*:*:*:*:*:*",
 		},
 		Vendor: "CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+		// Get-AppxPackage -AllUsers carries no per-user owner, see toPackage.
+		InstallScope: "machine",
 	}, p)
 
 	p = findPkg(pkgs, "Microsoft.MicrosoftEdge.Stable")
@@ -162,6 +164,8 @@ func TestWindowsAppxPackagesParser(t *testing.T) {
 			},
 		},
 		FilesAvailable: PkgFilesIncluded,
+		// Get-AppxPackage -AllUsers carries no per-user owner, see toPackage.
+		InstallScope: "machine",
 	}, p)
 
 	// check empty return
@@ -201,10 +205,11 @@ func TestWindowsHotFixParser(t *testing.T) {
 	pkgs := HotFixesToPackages(hotfixes)
 	p := findPkg(pkgs, "KB4486553")
 	assert.Equal(t, Package{
-		Name:        "KB4486553",
-		Description: "Update",
-		Format:      "windows/hotfix",
-		InstallDate: expectedInstalledOn,
+		Name:         "KB4486553",
+		Description:  "Update",
+		Format:       "windows/hotfix",
+		InstallDate:  expectedInstalledOn,
+		InstallScope: "machine",
 	}, p)
 
 	// check empty return
@@ -321,10 +326,11 @@ func TestHotFixesToPackagesMissingInstalledOn(t *testing.T) {
 func TestGetPackageFromRegistryKeyItems(t *testing.T) {
 	t.Run("get package from registry key items that are empty", func(t *testing.T) {
 		items := []registry.RegistryKeyItem{}
-		p := getPackageFromRegistryKeyItems(items, &inventory.Platform{
+		p, uninstallString := getPackageFromRegistryKeyItems(items, &inventory.Platform{
 			Family: []string{"windows"},
 		}, "amd64")
 		assert.Nil(t, p)
+		assert.Empty(t, uninstallString)
 	})
 	t.Run("get package from registry key items with missing required values", func(t *testing.T) {
 		items := []registry.RegistryKeyItem{
@@ -336,10 +342,11 @@ func TestGetPackageFromRegistryKeyItems(t *testing.T) {
 				},
 			},
 		}
-		p := getPackageFromRegistryKeyItems(items, &inventory.Platform{
+		p, uninstallString := getPackageFromRegistryKeyItems(items, &inventory.Platform{
 			Family: []string{"windows"},
 		}, "amd64")
 		assert.Nil(t, p)
+		assert.Empty(t, uninstallString)
 	})
 
 	t.Run("get package from registry key items", func(t *testing.T) {
@@ -373,11 +380,12 @@ func TestGetPackageFromRegistryKeyItems(t *testing.T) {
 				},
 			},
 		}
-		p := getPackageFromRegistryKeyItems(items, &inventory.Platform{
+		p, uninstallString := getPackageFromRegistryKeyItems(items, &inventory.Platform{
 			Name:   "windows",
 			Arch:   "x86",
 			Family: []string{"windows"},
 		}, "x86")
+		assert.Equal(t, "UninstallString", uninstallString)
 		CPEs, err := cpe.NewPackage2Cpe(
 			"Microsoft Corporation",
 			"Microsoft Visual C++ 2015-2019 Redistributable (x86) - 14.28.29913",
@@ -428,6 +436,9 @@ func TestToPackage(t *testing.T) {
 		CPEs: []string{
 			"cpe:2.3:a:cn\\=microsoft_corporation\\,_o\\=microsoft_corporation\\,_l\\=redmond\\,_s\\=washington\\,_c\\=us:microsoft.windows.cortana:1.11.5.17763:*:*:*:*:*:*:*",
 		},
+		// Get-AppxPackage -AllUsers carries no per-user owner, so appx
+		// packages are always reported "machine" scope. See toPackage.
+		InstallScope: "machine",
 	}
 
 	assert.Equal(t, expected, pkg)
@@ -794,12 +805,12 @@ func TestGetPackageFromRegistryKeyItemsWow6432Node(t *testing.T) {
 	}
 
 	// Simulate package from Wow6432Node path (32-bit app on 64-bit Windows)
-	p := getPackageFromRegistryKeyItems(items, pf, "x86")
+	p, _ := getPackageFromRegistryKeyItems(items, pf, "x86")
 	require.NotNil(t, p)
 	assert.Equal(t, "x86", p.Arch, "package from Wow6432Node should have x86 arch")
 
 	// Simulate same package from regular path (64-bit app)
-	p = getPackageFromRegistryKeyItems(items, pf, "amd64")
+	p, _ = getPackageFromRegistryKeyItems(items, pf, "amd64")
 	require.NotNil(t, p)
 	assert.Equal(t, "amd64", p.Arch, "package from regular path should have platform arch")
 }
@@ -939,7 +950,7 @@ func TestRegistryKeyItemsArchFallbackToInstallPath(t *testing.T) {
 	}
 
 	// Caller passes "amd64" because the HKCU path had no Wow6432Node
-	p := getPackageFromRegistryKeyItems(items, pf, "amd64")
+	p, _ := getPackageFromRegistryKeyItems(items, pf, "amd64")
 	require.NotNil(t, p)
 	assert.Equal(t, "x86", p.Arch, "should detect x86 from Program Files (x86) install location")
 }
@@ -972,7 +983,7 @@ func TestRegistryKeyItemsArchNoFallbackWhenAlreadyX86(t *testing.T) {
 	}
 
 	// Caller already determined x86 from Wow6432Node — should not be overridden
-	p := getPackageFromRegistryKeyItems(items, pf, "x86")
+	p, _ := getPackageFromRegistryKeyItems(items, pf, "x86")
 	require.NotNil(t, p)
 	assert.Equal(t, "x86", p.Arch, "Wow6432Node-determined arch must not be overridden by install path")
 }
@@ -1000,6 +1011,124 @@ func TestWindowsAppPackagesParserInstallPathFallback(t *testing.T) {
 
 	pkg64 := findPkg(pkgs, "Per-User 64-bit App")
 	assert.Equal(t, "amd64", pkg64.Arch, "HKCU app in Program Files should keep platform arch")
+}
+
+// TestWindowsAppPackagesParserInstallScope covers the shape
+// installedAppsScript actually emits: InstallScope/InstallUser are computed
+// by the script itself (see its doc comment), not derived here from PSPath.
+// One HKLM entry, one HKCU entry (the calling identity's own profile), one
+// HKEY_USERS\<sid> entry for a DIFFERENT user, and a duplicate HKEY_USERS
+// entry for the CALLING identity's own SID -- which the script should not
+// normally emit (its own $skipSids excludes $callingSid), but the Go-side
+// dedup in ParseWindowsAppPackages is a safety net for the case it does not
+// exclude it (e.g. a WindowsIdentity lookup that returns a different string
+// shape than the enumerated ProfileList SID).
+func TestWindowsAppPackagesParserInstallScope(t *testing.T) {
+	const callingSid = "S-1-5-21-1111111111-2222222222-3333333333-1001"
+	const otherSid = "S-1-5-21-1111111111-2222222222-3333333333-1002"
+
+	jsonData := `[
+		{"DisplayName":"Machine App","DisplayVersion":"1.0","Publisher":"Test","UninstallString":"uninstall","InstallLocation":"C:\\Program Files\\MachineApp","PSPath":"Microsoft.PowerShell.Core\\Registry::HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{a}","InstallScope":"machine","InstallUser":""},
+		{"DisplayName":"Caller App","DisplayVersion":"2.0","Publisher":"Test","UninstallString":"uninstall","InstallLocation":"C:\\Users\\caller\\AppData\\Local\\Programs\\CallerApp","PSPath":"Microsoft.PowerShell.Core\\Registry::HKEY_CURRENT_USER\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{b}","InstallScope":"user","InstallUser":"` + callingSid + `"},
+		{"DisplayName":"Other User App","DisplayVersion":"3.0","Publisher":"Test","UninstallString":"uninstall","InstallLocation":"C:\\Users\\other\\AppData\\Local\\Programs\\OtherApp","PSPath":"Microsoft.PowerShell.Core\\Registry::HKEY_USERS\\` + otherSid + `\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{c}","InstallScope":"user","InstallUser":"` + otherSid + `"},
+		{"DisplayName":"Caller App","DisplayVersion":"2.0","Publisher":"Test","UninstallString":"uninstall","InstallLocation":"C:\\Users\\caller\\AppData\\Local\\Programs\\CallerApp","PSPath":"Microsoft.PowerShell.Core\\Registry::HKEY_USERS\\` + callingSid + `\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{b}","InstallScope":"user","InstallUser":"` + callingSid + `"}
+	]`
+
+	pf := &inventory.Platform{
+		Name:    "windows",
+		Version: "10.0.17763",
+		Arch:    "amd64",
+		Family:  []string{"windows"},
+	}
+
+	pkgs, err := ParseWindowsAppPackages(pf, strings.NewReader(jsonData))
+	require.NoError(t, err)
+	require.Len(t, pkgs, 3, "the duplicate HKEY_USERS entry for the calling SID must be deduped against the HKCU entry")
+
+	// findPkg panics if the name isn't found, so reaching each assertion below
+	// already proves the entry is present.
+	machine := findPkg(pkgs, "Machine App")
+	assert.Equal(t, "machine", machine.InstallScope)
+	assert.Equal(t, "", machine.InstallUser)
+	require.Len(t, machine.Files, 1)
+	assert.Equal(t, `C:\Program Files\MachineApp`, machine.Files[0].Path)
+
+	caller := findPkg(pkgs, "Caller App")
+	assert.Equal(t, "user", caller.InstallScope)
+	assert.Equal(t, callingSid, caller.InstallUser)
+	require.Len(t, caller.Files, 1)
+	assert.Equal(t, `C:\Users\caller\AppData\Local\Programs\CallerApp`, caller.Files[0].Path)
+
+	other := findPkg(pkgs, "Other User App")
+	assert.Equal(t, "user", other.InstallScope)
+	assert.Equal(t, otherSid, other.InstallUser)
+	require.Len(t, other.Files, 1)
+	assert.Equal(t, `C:\Users\other\AppData\Local\Programs\OtherApp`, other.Files[0].Path)
+}
+
+// TestWindowsAppPackagesParserDedupWow6432NodePairSurvives pins the fix for
+// the over-merge in the old dedup key: HKLM\...\Uninstall\{X} and its
+// Wow6432Node sibling share InstallScope/InstallUser (both machine-scope, no
+// user) and, in this scenario, the very same subkey leaf -- an x86 and an x64
+// build of the same product registered under the same product code. Folding
+// the two into one dedup key drops the x86 entry the old code used to report.
+func TestWindowsAppPackagesParserDedupWow6432NodePairSurvives(t *testing.T) {
+	jsonData := `[
+		{"DisplayName":"MyApp (64-bit)","DisplayVersion":"2.0","Publisher":"Test","UninstallString":"uninstall.exe","PSPath":"Microsoft.PowerShell.Core\\Registry::HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{SAME-GUID}","InstallScope":"machine","InstallUser":""},
+		{"DisplayName":"MyApp (32-bit)","DisplayVersion":"1.0","Publisher":"Test","UninstallString":"uninstall.exe","PSPath":"Microsoft.PowerShell.Core\\Registry::HKEY_LOCAL_MACHINE\\SOFTWARE\\Wow6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{SAME-GUID}","InstallScope":"machine","InstallUser":""}
+	]`
+
+	pf := &inventory.Platform{Name: "windows", Version: "10.0.17763", Arch: "amd64", Family: []string{"windows"}}
+	pkgs, err := ParseWindowsAppPackages(pf, strings.NewReader(jsonData))
+	require.NoError(t, err)
+	require.Len(t, pkgs, 2, "the native and Wow6432Node entries are different physical registry keys and must not collapse")
+}
+
+// TestWindowsAppPackagesParserDedupKeepsConcreteSIDOverEmpty pins the fix for
+// the under-merge in the old dedup key: an HKCU entry with an empty
+// InstallUser (WindowsIdentity lookup failed, swallowed by
+// installedAppsScript's try/catch) and its HKEY_USERS\<sid> twin used to be
+// two DIFFERENT dedup keys (user differs), so they never merged and every
+// caller-installed app was reported twice. The new key is root-agnostic and
+// omits user, so the two collapse into one -- and the merge must keep the
+// concrete SID, checked with the SID-bearing row on either side.
+func TestWindowsAppPackagesParserDedupKeepsConcreteSIDOverEmpty(t *testing.T) {
+	const sid = "S-1-5-21-1-2-3-9001"
+	pf := &inventory.Platform{Name: "windows", Version: "10.0.17763", Arch: "amd64", Family: []string{"windows"}}
+
+	emptyFirst := `[
+		{"DisplayName":"MyApp","DisplayVersion":"1.0","Publisher":"Test","UninstallString":"uninstall.exe","PSPath":"Microsoft.PowerShell.Core\\Registry::HKEY_CURRENT_USER\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{X}","InstallScope":"user","InstallUser":""},
+		{"DisplayName":"MyApp","DisplayVersion":"1.0","Publisher":"Test","UninstallString":"uninstall.exe","PSPath":"Microsoft.PowerShell.Core\\Registry::HKEY_USERS\\` + sid + `\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{X}","InstallScope":"user","InstallUser":"` + sid + `"}
+	]`
+	pkgs, err := ParseWindowsAppPackages(pf, strings.NewReader(emptyFirst))
+	require.NoError(t, err)
+	require.Len(t, pkgs, 1, "the HKCU/HKEY_USERS twin must collapse to one package")
+	assert.Equal(t, sid, pkgs[0].InstallUser, "the concrete SID must survive even though the empty-user row was read first")
+
+	sidFirst := `[
+		{"DisplayName":"MyApp","DisplayVersion":"1.0","Publisher":"Test","UninstallString":"uninstall.exe","PSPath":"Microsoft.PowerShell.Core\\Registry::HKEY_USERS\\` + sid + `\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{X}","InstallScope":"user","InstallUser":"` + sid + `"},
+		{"DisplayName":"MyApp","DisplayVersion":"1.0","Publisher":"Test","UninstallString":"uninstall.exe","PSPath":"Microsoft.PowerShell.Core\\Registry::HKEY_CURRENT_USER\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{X}","InstallScope":"user","InstallUser":""}
+	]`
+	pkgs2, err := ParseWindowsAppPackages(pf, strings.NewReader(sidFirst))
+	require.NoError(t, err)
+	require.Len(t, pkgs2, 1, "order must not matter")
+	assert.Equal(t, sid, pkgs2[0].InstallUser)
+}
+
+// TestInstalledAppsScriptTreatsWellKnownSystemSIDsAsMachineScope pins the
+// two SYSTEM-caller fixes in installedAppsScript itself: a LocalSystem caller
+// (S-1-5-18/19/20) must not have its own HKCU tagged as a user install, and
+// the Get-ItemProperty read must tolerate a hive that vanishes between
+// Test-Path and the read (a user logging off, or a restrictive ACL) without
+// failing the whole script. There is no PowerShell runtime here to execute
+// the script against, so this pins the literal source instead of the
+// behavior; a regression here is a real regression, since these are the
+// exact lines the fixes touched.
+func TestInstalledAppsScriptTreatsWellKnownSystemSIDsAsMachineScope(t *testing.T) {
+	assert.Contains(t, installedAppsScript, "$wellKnownSystemSids", "must classify the calling SID against the well-known service SIDs")
+	assert.Contains(t, installedAppsScript, "$callingIsSystem", "must branch HKCU scope/sid on whether the caller is a well-known system SID")
+	assert.Contains(t, installedAppsScript, "Get-ItemProperty $_.Path -ErrorAction SilentlyContinue",
+		"the per-root read must tolerate a hive that vanishes between Test-Path and the read, or the whole script exits non-zero over one profile")
 }
 
 // TestFsInstalledAppsArchAssignment validates that the exact registry path strings
@@ -1220,6 +1349,17 @@ func TestHotFixesToPackages_SanitizesFields(t *testing.T) {
 	// Clean inputs must pass through unchanged.
 	assert.Equal(t, "KB5023789", pkgs[1].Name)
 	assert.Equal(t, "Update", pkgs[1].Description)
+}
+
+// TestHotFixesToPackagesInstallScope pins hotfixes as machine-scope: Get-HotFix
+// has no per-user concept, and leaving InstallScope empty would (wrongly) read
+// as "no such concept" per the .lr contract, when every other Windows package
+// source now reports "machine" or "user".
+func TestHotFixesToPackagesInstallScope(t *testing.T) {
+	pkgs := HotFixesToPackages([]PowershellWinHotFix{{HotFixId: "KB5005112"}})
+	require.Len(t, pkgs, 1)
+	assert.Equal(t, "machine", pkgs[0].InstallScope)
+	assert.Empty(t, pkgs[0].InstallUser)
 }
 
 func TestFindAndUpdateMsExchangeSU_en(t *testing.T) {
@@ -1464,6 +1604,11 @@ func TestGetDotNetFramework(t *testing.T) {
 				assert.Equal(t, exp.version, pkgs[i].Version, "package %d version", i)
 				assert.Equal(t, "windows/app", pkgs[i].Format, "package %d format", i)
 				assert.Equal(t, "amd64", pkgs[i].Arch, "package %d arch", i)
+				// The .NET Framework runtime is read from a single machine-wide
+				// HKLM key with no per-user concept; leaving this empty would
+				// break the .lr contract that empty installScope means "no such
+				// concept" now that every other Windows package source sets it.
+				assert.Equal(t, "machine", pkgs[i].InstallScope, "package %d installScope", i)
 			}
 		})
 	}
