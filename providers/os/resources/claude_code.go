@@ -258,29 +258,28 @@ func (r *mqlClaudeCode) mcpServers() ([]interface{}, error) {
 	}
 
 	// The full server definitions (command/args/url/env) live in
-	// .claude.json, captured in the backup state we already load. A missing
-	// or unreadable backup is not fatal: we still surface whatever the
-	// needs-auth cache knows about, just without the connection details.
-	servers := map[string]claudeMcpServerEntry{}
+	// .claude.json, captured in the backup state we already load, and in each
+	// project's .mcp.json. A missing or unreadable backup is not fatal: we
+	// still surface whatever the needs-auth cache knows about, just without
+	// the connection details.
+	var servers []claudeScopedMcpServer
 	if state, err := r.loadBackupState(); err != nil {
 		// A missing backup is expected on hosts without Claude Code history;
 		// log at debug so a real failure (corrupt JSON, permission denied)
 		// is still discoverable without warning-spamming every scan.
 		log.Debug().Err(err).Msg("could not load claude backup state for MCP server details")
 	} else if state != nil {
-		for name, srv := range state.McpServers {
-			servers[name] = srv
-		}
+		servers = claudeMcpServers(r.afs(), state)
 	}
-	// Ensure any server present only in the auth cache is still reported.
+	authNames := make([]string, 0, len(authCache))
 	for name := range authCache {
-		if _, ok := servers[name]; !ok {
-			servers[name] = claudeMcpServerEntry{}
-		}
+		authNames = append(authNames, name)
 	}
+	servers = withAuthCacheOnlyServers(servers, authNames)
 
 	var result []interface{}
-	for name, srv := range servers {
+	for _, scoped := range servers {
+		name, srv := scoped.name, scoped.entry
 		needsAuth := false
 		lastChecked := ""
 		if entry, ok := authCache[name]; ok {
@@ -291,8 +290,9 @@ func (r *mqlClaudeCode) mcpServers() ([]interface{}, error) {
 		}
 
 		res, err := NewResource(r.MqlRuntime, "claude.code.mcpServer", map[string]*llx.RawData{
-			"__id":        llx.StringData("claude.code.mcpServer/" + name),
+			"__id":        llx.StringData(claudeMcpServerID(scoped.project, name)),
 			"name":        llx.StringData(name),
+			"project":     llx.StringData(scoped.project),
 			"type":        llx.StringData(deriveMcpTransport(srv.Type, srv.Command, srv.URL)),
 			"command":     llx.StringData(srv.Command),
 			"args":        strSliceToArrayData(srv.Args),
@@ -383,6 +383,9 @@ type claudeBackupState struct {
 // ignored.
 type claudeProjectEntry struct {
 	LastModelUsage map[string]claudeModelUsage `json:"lastModelUsage"`
+	// McpServers are the servers configured for this project only (Claude
+	// Code's "local" scope), kept in .claude.json rather than the repository.
+	McpServers map[string]claudeMcpServerEntry `json:"mcpServers"`
 }
 
 // claudeModelUsage is the cumulative usage of a single model, as recorded
@@ -445,6 +448,95 @@ type claudeMcpServerEntry struct {
 	Args    []string          `json:"args"`
 	URL     string            `json:"url"`
 	Env     map[string]string `json:"env"`
+}
+
+// claudeScopedMcpServer is one MCP server together with the project it is
+// scoped to; project is empty for a user-scope server.
+type claudeScopedMcpServer struct {
+	project string
+	name    string
+	entry   claudeMcpServerEntry
+}
+
+// claudeMcpServers returns every MCP server Claude Code is configured with,
+// across its three scopes:
+//   - user: the top-level `mcpServers` in .claude.json, project empty;
+//   - local: `projects[<path>].mcpServers` in .claude.json;
+//   - project: the `.mcp.json` checked into each project's root.
+//
+// A local and a project server with the same name in the same project are one
+// server as far as Claude Code is concerned (local takes precedence), so it is
+// reported once, with the local definition. A project whose .mcp.json is
+// missing or does not parse contributes nothing from that file. The result is
+// sorted by project, then name, so ids and output are stable.
+func claudeMcpServers(afs *afero.Afero, state *claudeBackupState) []claudeScopedMcpServer {
+	var out []claudeScopedMcpServer
+	for name, srv := range state.McpServers {
+		out = append(out, claudeScopedMcpServer{name: name, entry: srv})
+	}
+	for projectPath, project := range state.Projects {
+		scoped := map[string]claudeMcpServerEntry{}
+		var repo struct {
+			McpServers map[string]claudeMcpServerEntry `json:"mcpServers"`
+		}
+		if data, err := afs.ReadFile(filepath.Join(projectPath, ".mcp.json")); err == nil {
+			if err := unmarshalJSONConfig(data, &repo); err != nil {
+				log.Debug().Err(err).Str("project", projectPath).Msg("could not parse claude project .mcp.json")
+			}
+		}
+		for name, srv := range repo.McpServers {
+			scoped[name] = srv
+		}
+		for name, srv := range project.McpServers {
+			scoped[name] = srv
+		}
+		for name, srv := range scoped {
+			out = append(out, claudeScopedMcpServer{project: projectPath, name: name, entry: srv})
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].project != out[j].project {
+			return out[i].project < out[j].project
+		}
+		return out[i].name < out[j].name
+	})
+	return out
+}
+
+// withAuthCacheOnlyServers appends a user-scope entry, without connection
+// details, for every needs-auth cache name that no scope defines, so a server
+// Claude Code only remembers from its auth cache is still reported. The cache is
+// keyed by server name alone, so a name any scope already defines (user, local
+// or project) is that server, not another one: adding it again would report a
+// project-scoped server twice, once under a phantom user scope. Added names are
+// sorted, so output and ids stay stable across runs.
+func withAuthCacheOnlyServers(servers []claudeScopedMcpServer, authNames []string) []claudeScopedMcpServer {
+	known := make(map[string]struct{}, len(servers))
+	for _, srv := range servers {
+		known[srv.name] = struct{}{}
+	}
+	var added []string
+	for _, name := range authNames {
+		if _, ok := known[name]; !ok {
+			known[name] = struct{}{}
+			added = append(added, name)
+		}
+	}
+	sort.Strings(added)
+	for _, name := range added {
+		servers = append(servers, claudeScopedMcpServer{name: name})
+	}
+	return servers
+}
+
+// claudeMcpServerID is the resource id of a Claude Code MCP server. A user-scope
+// server keeps the historical "claude.code.mcpServer/<name>" id; a project-scoped
+// one includes the project path, so the same name in two projects stays distinct.
+func claudeMcpServerID(project, name string) string {
+	if project == "" {
+		return "claude.code.mcpServer/" + name
+	}
+	return "claude.code.mcpServer/" + project + "/" + name
 }
 
 // projectDirMap returns a map from original project path to encoded directory name.
@@ -562,7 +654,7 @@ func (r *mqlClaudeCodeProject) id() (string, error) {
 }
 
 func (r *mqlClaudeCodeMcpServer) id() (string, error) {
-	return "claude.code.mcpServer/" + r.Name.Data, nil
+	return claudeMcpServerID(r.Project.Data, r.Name.Data), nil
 }
 
 func (r *mqlClaudeCodeRepo) id() (string, error) {
