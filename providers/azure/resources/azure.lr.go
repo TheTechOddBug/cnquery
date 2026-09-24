@@ -492,6 +492,8 @@ const (
 	ResourceAzureSubscriptionContainerAppServiceContainerAppRevision                                    string = "azure.subscription.containerAppService.containerApp.revision"
 	ResourceAzureSubscriptionContainerAppServiceContainerAppAuthConfig                                  string = "azure.subscription.containerAppService.containerApp.authConfig"
 	ResourceAzureSubscriptionContainerAppServiceJob                                                     string = "azure.subscription.containerAppService.job"
+	ResourceAzureSubscriptionContainerAppServiceSandboxGroup                                            string = "azure.subscription.containerAppService.sandboxGroup"
+	ResourceAzureSubscriptionContainerAppServiceSandboxGroupVnetConnection                              string = "azure.subscription.containerAppService.sandboxGroup.vnetConnection"
 	ResourceAzureSubscriptionContainerInstanceService                                                   string = "azure.subscription.containerInstanceService"
 	ResourceAzureSubscriptionContainerInstanceServiceContainerGroup                                     string = "azure.subscription.containerInstanceService.containerGroup"
 	ResourceAzureSubscriptionContainerInstanceServiceContainerGroupContainer                            string = "azure.subscription.containerInstanceService.containerGroup.container"
@@ -2508,6 +2510,14 @@ func init() {
 		"azure.subscription.containerAppService.job": {
 			// to override args, implement: initAzureSubscriptionContainerAppServiceJob(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error)
 			Create: createAzureSubscriptionContainerAppServiceJob,
+		},
+		"azure.subscription.containerAppService.sandboxGroup": {
+			Init:   initAzureSubscriptionContainerAppServiceSandboxGroup,
+			Create: createAzureSubscriptionContainerAppServiceSandboxGroup,
+		},
+		"azure.subscription.containerAppService.sandboxGroup.vnetConnection": {
+			// to override args, implement: initAzureSubscriptionContainerAppServiceSandboxGroupVnetConnection(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error)
+			Create: createAzureSubscriptionContainerAppServiceSandboxGroupVnetConnection,
 		},
 		"azure.subscription.containerInstanceService": {
 			Init:   initAzureSubscriptionContainerInstanceService,
@@ -5557,6 +5567,9 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	},
 	"azure.subscription.networkService.firewall.afcServiceEndpoint": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAzureSubscriptionNetworkServiceFirewall).GetAfcServiceEndpoint()).ToDataRes(types.String)
+	},
+	"azure.subscription.networkService.firewall.aiSecurityAddOn": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAzureSubscriptionNetworkServiceFirewall).GetAiSecurityAddOn()).ToDataRes(types.Bool)
 	},
 	"azure.subscription.networkService.firewall.policy": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAzureSubscriptionNetworkServiceFirewall).GetPolicy()).ToDataRes(types.Resource("azure.subscription.networkService.firewallPolicy"))
@@ -15992,6 +16005,12 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	"azure.subscription.policy.assignment.tenantId": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAzureSubscriptionPolicyAssignment).GetTenantId()).ToDataRes(types.String)
 	},
+	"azure.subscription.policy.assignment.selfServeExemptionEnabled": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAzureSubscriptionPolicyAssignment).GetSelfServeExemptionEnabled()).ToDataRes(types.Bool)
+	},
+	"azure.subscription.policy.assignment.selfServeExemptionPolicyDefinitionReferenceIds": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAzureSubscriptionPolicyAssignment).GetSelfServeExemptionPolicyDefinitionReferenceIds()).ToDataRes(types.Array(types.String))
+	},
 	"azure.subscription.policy.assignment.policyDefinition": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAzureSubscriptionPolicyAssignment).GetPolicyDefinition()).ToDataRes(types.Resource("azure.subscription.policy.definition"))
 	},
@@ -16075,6 +16094,9 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	},
 	"azure.subscription.policy.exemption.exemptionCategory": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAzureSubscriptionPolicyExemption).GetExemptionCategory()).ToDataRes(types.String)
+	},
+	"azure.subscription.policy.exemption.managementMode": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAzureSubscriptionPolicyExemption).GetManagementMode()).ToDataRes(types.String)
 	},
 	"azure.subscription.policy.exemption.scope": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAzureSubscriptionPolicyExemption).GetScope()).ToDataRes(types.String)
@@ -19064,6 +19086,9 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	"azure.subscription.containerAppService.jobs": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAzureSubscriptionContainerAppService).GetJobs()).ToDataRes(types.Array(types.Resource("azure.subscription.containerAppService.job")))
 	},
+	"azure.subscription.containerAppService.sandboxGroups": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAzureSubscriptionContainerAppService).GetSandboxGroups()).ToDataRes(types.Array(types.Resource("azure.subscription.containerAppService.sandboxGroup")))
+	},
 	"azure.subscription.containerAppService.managedEnvironment.id": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAzureSubscriptionContainerAppServiceManagedEnvironment).GetId()).ToDataRes(types.String)
 	},
@@ -19361,6 +19386,9 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	"azure.subscription.containerAppService.containerApp.scaleRules": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAzureSubscriptionContainerAppServiceContainerApp).GetScaleRules()).ToDataRes(types.Array(types.Dict))
 	},
+	"azure.subscription.containerAppService.containerApp.allowScalingRuleOverride": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAzureSubscriptionContainerAppServiceContainerApp).GetAllowScalingRuleOverride()).ToDataRes(types.Bool)
+	},
 	"azure.subscription.containerAppService.containerApp.principalId": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAzureSubscriptionContainerAppServiceContainerApp).GetPrincipalId()).ToDataRes(types.String)
 	},
@@ -19520,6 +19548,9 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	"azure.subscription.containerAppService.job.provisioningState": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAzureSubscriptionContainerAppServiceJob).GetProvisioningState()).ToDataRes(types.String)
 	},
+	"azure.subscription.containerAppService.job.runningState": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAzureSubscriptionContainerAppServiceJob).GetRunningState()).ToDataRes(types.String)
+	},
 	"azure.subscription.containerAppService.job.eventStreamEndpoint": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAzureSubscriptionContainerAppServiceJob).GetEventStreamEndpoint()).ToDataRes(types.String)
 	},
@@ -19564,6 +19595,48 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	},
 	"azure.subscription.containerAppService.job.systemMetadata": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAzureSubscriptionContainerAppServiceJob).GetSystemMetadata()).ToDataRes(types.Resource("azure.subscription.systemData"))
+	},
+	"azure.subscription.containerAppService.sandboxGroup.id": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAzureSubscriptionContainerAppServiceSandboxGroup).GetId()).ToDataRes(types.String)
+	},
+	"azure.subscription.containerAppService.sandboxGroup.name": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAzureSubscriptionContainerAppServiceSandboxGroup).GetName()).ToDataRes(types.String)
+	},
+	"azure.subscription.containerAppService.sandboxGroup.location": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAzureSubscriptionContainerAppServiceSandboxGroup).GetLocation()).ToDataRes(types.String)
+	},
+	"azure.subscription.containerAppService.sandboxGroup.tags": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAzureSubscriptionContainerAppServiceSandboxGroup).GetTags()).ToDataRes(types.Map(types.String, types.String))
+	},
+	"azure.subscription.containerAppService.sandboxGroup.provisioningState": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAzureSubscriptionContainerAppServiceSandboxGroup).GetProvisioningState()).ToDataRes(types.String)
+	},
+	"azure.subscription.containerAppService.sandboxGroup.managedEnvironment": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAzureSubscriptionContainerAppServiceSandboxGroup).GetManagedEnvironment()).ToDataRes(types.Resource("azure.subscription.containerAppService.managedEnvironment"))
+	},
+	"azure.subscription.containerAppService.sandboxGroup.defaultDomain": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAzureSubscriptionContainerAppServiceSandboxGroup).GetDefaultDomain()).ToDataRes(types.String)
+	},
+	"azure.subscription.containerAppService.sandboxGroup.vnetConnections": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAzureSubscriptionContainerAppServiceSandboxGroup).GetVnetConnections()).ToDataRes(types.Array(types.Resource("azure.subscription.containerAppService.sandboxGroup.vnetConnection")))
+	},
+	"azure.subscription.containerAppService.sandboxGroup.systemMetadata": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAzureSubscriptionContainerAppServiceSandboxGroup).GetSystemMetadata()).ToDataRes(types.Resource("azure.subscription.systemData"))
+	},
+	"azure.subscription.containerAppService.sandboxGroup.vnetConnection.id": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAzureSubscriptionContainerAppServiceSandboxGroupVnetConnection).GetId()).ToDataRes(types.String)
+	},
+	"azure.subscription.containerAppService.sandboxGroup.vnetConnection.name": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAzureSubscriptionContainerAppServiceSandboxGroupVnetConnection).GetName()).ToDataRes(types.String)
+	},
+	"azure.subscription.containerAppService.sandboxGroup.vnetConnection.provisioningState": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAzureSubscriptionContainerAppServiceSandboxGroupVnetConnection).GetProvisioningState()).ToDataRes(types.String)
+	},
+	"azure.subscription.containerAppService.sandboxGroup.vnetConnection.subnet": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAzureSubscriptionContainerAppServiceSandboxGroupVnetConnection).GetSubnet()).ToDataRes(types.Resource("azure.subscription.networkService.subnet"))
+	},
+	"azure.subscription.containerAppService.sandboxGroup.vnetConnection.systemMetadata": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlAzureSubscriptionContainerAppServiceSandboxGroupVnetConnection).GetSystemMetadata()).ToDataRes(types.Resource("azure.subscription.systemData"))
 	},
 	"azure.subscription.containerInstanceService.subscriptionId": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlAzureSubscriptionContainerInstanceService).GetSubscriptionId()).ToDataRes(types.String)
@@ -27273,6 +27346,10 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 	},
 	"azure.subscription.networkService.firewall.afcServiceEndpoint": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlAzureSubscriptionNetworkServiceFirewall).AfcServiceEndpoint, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"azure.subscription.networkService.firewall.aiSecurityAddOn": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAzureSubscriptionNetworkServiceFirewall).AiSecurityAddOn, ok = plugin.RawToTValue[bool](v.Value, v.Error)
 		return
 	},
 	"azure.subscription.networkService.firewall.policy": func(r plugin.Resource, v *llx.RawData) (ok bool) {
@@ -42427,6 +42504,14 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 		r.(*mqlAzureSubscriptionPolicyAssignment).TenantId, ok = plugin.RawToTValue[string](v.Value, v.Error)
 		return
 	},
+	"azure.subscription.policy.assignment.selfServeExemptionEnabled": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAzureSubscriptionPolicyAssignment).SelfServeExemptionEnabled, ok = plugin.RawToTValue[bool](v.Value, v.Error)
+		return
+	},
+	"azure.subscription.policy.assignment.selfServeExemptionPolicyDefinitionReferenceIds": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAzureSubscriptionPolicyAssignment).SelfServeExemptionPolicyDefinitionReferenceIds, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
 	"azure.subscription.policy.assignment.policyDefinition": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlAzureSubscriptionPolicyAssignment).PolicyDefinition, ok = plugin.RawToTValue[*mqlAzureSubscriptionPolicyDefinition](v.Value, v.Error)
 		return
@@ -42549,6 +42634,10 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 	},
 	"azure.subscription.policy.exemption.exemptionCategory": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlAzureSubscriptionPolicyExemption).ExemptionCategory, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"azure.subscription.policy.exemption.managementMode": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAzureSubscriptionPolicyExemption).ManagementMode, ok = plugin.RawToTValue[string](v.Value, v.Error)
 		return
 	},
 	"azure.subscription.policy.exemption.scope": func(r plugin.Resource, v *llx.RawData) (ok bool) {
@@ -46939,6 +47028,10 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 		r.(*mqlAzureSubscriptionContainerAppService).Jobs, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
 		return
 	},
+	"azure.subscription.containerAppService.sandboxGroups": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAzureSubscriptionContainerAppService).SandboxGroups, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
 	"azure.subscription.containerAppService.managedEnvironment.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlAzureSubscriptionContainerAppServiceManagedEnvironment).__id, ok = v.Value.(string)
 		return
@@ -47363,6 +47456,10 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 		r.(*mqlAzureSubscriptionContainerAppServiceContainerApp).ScaleRules, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
 		return
 	},
+	"azure.subscription.containerAppService.containerApp.allowScalingRuleOverride": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAzureSubscriptionContainerAppServiceContainerApp).AllowScalingRuleOverride, ok = plugin.RawToTValue[bool](v.Value, v.Error)
+		return
+	},
 	"azure.subscription.containerAppService.containerApp.principalId": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlAzureSubscriptionContainerAppServiceContainerApp).PrincipalId, ok = plugin.RawToTValue[string](v.Value, v.Error)
 		return
@@ -47595,6 +47692,10 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 		r.(*mqlAzureSubscriptionContainerAppServiceJob).ProvisioningState, ok = plugin.RawToTValue[string](v.Value, v.Error)
 		return
 	},
+	"azure.subscription.containerAppService.job.runningState": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAzureSubscriptionContainerAppServiceJob).RunningState, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
 	"azure.subscription.containerAppService.job.eventStreamEndpoint": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlAzureSubscriptionContainerAppServiceJob).EventStreamEndpoint, ok = plugin.RawToTValue[string](v.Value, v.Error)
 		return
@@ -47653,6 +47754,70 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 	},
 	"azure.subscription.containerAppService.job.systemMetadata": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlAzureSubscriptionContainerAppServiceJob).SystemMetadata, ok = plugin.RawToTValue[*mqlAzureSubscriptionSystemData](v.Value, v.Error)
+		return
+	},
+	"azure.subscription.containerAppService.sandboxGroup.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAzureSubscriptionContainerAppServiceSandboxGroup).__id, ok = v.Value.(string)
+		return
+	},
+	"azure.subscription.containerAppService.sandboxGroup.id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAzureSubscriptionContainerAppServiceSandboxGroup).Id, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"azure.subscription.containerAppService.sandboxGroup.name": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAzureSubscriptionContainerAppServiceSandboxGroup).Name, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"azure.subscription.containerAppService.sandboxGroup.location": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAzureSubscriptionContainerAppServiceSandboxGroup).Location, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"azure.subscription.containerAppService.sandboxGroup.tags": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAzureSubscriptionContainerAppServiceSandboxGroup).Tags, ok = plugin.RawToTValue[map[string]any](v.Value, v.Error)
+		return
+	},
+	"azure.subscription.containerAppService.sandboxGroup.provisioningState": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAzureSubscriptionContainerAppServiceSandboxGroup).ProvisioningState, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"azure.subscription.containerAppService.sandboxGroup.managedEnvironment": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAzureSubscriptionContainerAppServiceSandboxGroup).ManagedEnvironment, ok = plugin.RawToTValue[*mqlAzureSubscriptionContainerAppServiceManagedEnvironment](v.Value, v.Error)
+		return
+	},
+	"azure.subscription.containerAppService.sandboxGroup.defaultDomain": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAzureSubscriptionContainerAppServiceSandboxGroup).DefaultDomain, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"azure.subscription.containerAppService.sandboxGroup.vnetConnections": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAzureSubscriptionContainerAppServiceSandboxGroup).VnetConnections, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
+		return
+	},
+	"azure.subscription.containerAppService.sandboxGroup.systemMetadata": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAzureSubscriptionContainerAppServiceSandboxGroup).SystemMetadata, ok = plugin.RawToTValue[*mqlAzureSubscriptionSystemData](v.Value, v.Error)
+		return
+	},
+	"azure.subscription.containerAppService.sandboxGroup.vnetConnection.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAzureSubscriptionContainerAppServiceSandboxGroupVnetConnection).__id, ok = v.Value.(string)
+		return
+	},
+	"azure.subscription.containerAppService.sandboxGroup.vnetConnection.id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAzureSubscriptionContainerAppServiceSandboxGroupVnetConnection).Id, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"azure.subscription.containerAppService.sandboxGroup.vnetConnection.name": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAzureSubscriptionContainerAppServiceSandboxGroupVnetConnection).Name, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"azure.subscription.containerAppService.sandboxGroup.vnetConnection.provisioningState": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAzureSubscriptionContainerAppServiceSandboxGroupVnetConnection).ProvisioningState, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"azure.subscription.containerAppService.sandboxGroup.vnetConnection.subnet": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAzureSubscriptionContainerAppServiceSandboxGroupVnetConnection).Subnet, ok = plugin.RawToTValue[*mqlAzureSubscriptionNetworkServiceSubnet](v.Value, v.Error)
+		return
+	},
+	"azure.subscription.containerAppService.sandboxGroup.vnetConnection.systemMetadata": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlAzureSubscriptionContainerAppServiceSandboxGroupVnetConnection).SystemMetadata, ok = plugin.RawToTValue[*mqlAzureSubscriptionSystemData](v.Value, v.Error)
 		return
 	},
 	"azure.subscription.containerInstanceService.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
@@ -62203,6 +62368,7 @@ type mqlAzureSubscriptionNetworkServiceFirewall struct {
 	SkuTier                   plugin.TValue[string]
 	ThreatIntelMode           plugin.TValue[string]
 	AfcServiceEndpoint        plugin.TValue[string]
+	AiSecurityAddOn           plugin.TValue[bool]
 	Policy                    plugin.TValue[*mqlAzureSubscriptionNetworkServiceFirewallPolicy]
 	IpConfigurations          plugin.TValue[[]any]
 	ManagementIpConfiguration plugin.TValue[*mqlAzureSubscriptionNetworkServiceFirewallIpConfig]
@@ -62294,6 +62460,10 @@ func (c *mqlAzureSubscriptionNetworkServiceFirewall) GetThreatIntelMode() *plugi
 
 func (c *mqlAzureSubscriptionNetworkServiceFirewall) GetAfcServiceEndpoint() *plugin.TValue[string] {
 	return &c.AfcServiceEndpoint
+}
+
+func (c *mqlAzureSubscriptionNetworkServiceFirewall) GetAiSecurityAddOn() *plugin.TValue[bool] {
+	return &c.AiSecurityAddOn
 }
 
 func (c *mqlAzureSubscriptionNetworkServiceFirewall) GetPolicy() *plugin.TValue[*mqlAzureSubscriptionNetworkServiceFirewallPolicy] {
@@ -98537,29 +98707,31 @@ type mqlAzureSubscriptionPolicyAssignment struct {
 	MqlRuntime *plugin.Runtime
 	__id       string
 	mqlAzureSubscriptionPolicyAssignmentInternal
-	Id                         plugin.TValue[string]
-	AssignmentId               plugin.TValue[string]
-	Name                       plugin.TValue[string]
-	DisplayName                plugin.TValue[string]
-	Scope                      plugin.TValue[string]
-	NotScopes                  plugin.TValue[[]any]
-	Description                plugin.TValue[string]
-	EnforcementMode            plugin.TValue[string]
-	AssignmentType             plugin.TValue[string]
-	DefinitionVersion          plugin.TValue[string]
-	EffectiveDefinitionVersion plugin.TValue[string]
-	LatestDefinitionVersion    plugin.TValue[string]
-	Parameters                 plugin.TValue[any]
-	Metadata                   plugin.TValue[any]
-	NonComplianceMessages      plugin.TValue[[]any]
-	Overrides                  plugin.TValue[[]any]
-	ResourceSelectors          plugin.TValue[[]any]
-	Location                   plugin.TValue[string]
-	IdentityType               plugin.TValue[string]
-	PrincipalId                plugin.TValue[string]
-	TenantId                   plugin.TValue[string]
-	PolicyDefinition           plugin.TValue[*mqlAzureSubscriptionPolicyDefinition]
-	SystemMetadata             plugin.TValue[*mqlAzureSubscriptionSystemData]
+	Id                                             plugin.TValue[string]
+	AssignmentId                                   plugin.TValue[string]
+	Name                                           plugin.TValue[string]
+	DisplayName                                    plugin.TValue[string]
+	Scope                                          plugin.TValue[string]
+	NotScopes                                      plugin.TValue[[]any]
+	Description                                    plugin.TValue[string]
+	EnforcementMode                                plugin.TValue[string]
+	AssignmentType                                 plugin.TValue[string]
+	DefinitionVersion                              plugin.TValue[string]
+	EffectiveDefinitionVersion                     plugin.TValue[string]
+	LatestDefinitionVersion                        plugin.TValue[string]
+	Parameters                                     plugin.TValue[any]
+	Metadata                                       plugin.TValue[any]
+	NonComplianceMessages                          plugin.TValue[[]any]
+	Overrides                                      plugin.TValue[[]any]
+	ResourceSelectors                              plugin.TValue[[]any]
+	Location                                       plugin.TValue[string]
+	IdentityType                                   plugin.TValue[string]
+	PrincipalId                                    plugin.TValue[string]
+	TenantId                                       plugin.TValue[string]
+	SelfServeExemptionEnabled                      plugin.TValue[bool]
+	SelfServeExemptionPolicyDefinitionReferenceIds plugin.TValue[[]any]
+	PolicyDefinition                               plugin.TValue[*mqlAzureSubscriptionPolicyDefinition]
+	SystemMetadata                                 plugin.TValue[*mqlAzureSubscriptionSystemData]
 }
 
 // createAzureSubscriptionPolicyAssignment creates a new instance of this resource
@@ -98681,6 +98853,14 @@ func (c *mqlAzureSubscriptionPolicyAssignment) GetPrincipalId() *plugin.TValue[s
 
 func (c *mqlAzureSubscriptionPolicyAssignment) GetTenantId() *plugin.TValue[string] {
 	return &c.TenantId
+}
+
+func (c *mqlAzureSubscriptionPolicyAssignment) GetSelfServeExemptionEnabled() *plugin.TValue[bool] {
+	return &c.SelfServeExemptionEnabled
+}
+
+func (c *mqlAzureSubscriptionPolicyAssignment) GetSelfServeExemptionPolicyDefinitionReferenceIds() *plugin.TValue[[]any] {
+	return &c.SelfServeExemptionPolicyDefinitionReferenceIds
 }
 
 func (c *mqlAzureSubscriptionPolicyAssignment) GetPolicyDefinition() *plugin.TValue[*mqlAzureSubscriptionPolicyDefinition] {
@@ -98932,6 +99112,7 @@ type mqlAzureSubscriptionPolicyExemption struct {
 	DisplayName                  plugin.TValue[string]
 	Description                  plugin.TValue[string]
 	ExemptionCategory            plugin.TValue[string]
+	ManagementMode               plugin.TValue[string]
 	Scope                        plugin.TValue[string]
 	PolicyAssignment             plugin.TValue[*mqlAzureSubscriptionPolicyAssignment]
 	PolicyDefinitionReferenceIds plugin.TValue[[]any]
@@ -98991,6 +99172,10 @@ func (c *mqlAzureSubscriptionPolicyExemption) GetDescription() *plugin.TValue[st
 
 func (c *mqlAzureSubscriptionPolicyExemption) GetExemptionCategory() *plugin.TValue[string] {
 	return &c.ExemptionCategory
+}
+
+func (c *mqlAzureSubscriptionPolicyExemption) GetManagementMode() *plugin.TValue[string] {
+	return &c.ManagementMode
 }
 
 func (c *mqlAzureSubscriptionPolicyExemption) GetScope() *plugin.TValue[string] {
@@ -110313,6 +110498,7 @@ type mqlAzureSubscriptionContainerAppService struct {
 	ManagedEnvironments plugin.TValue[[]any]
 	ContainerApps       plugin.TValue[[]any]
 	Jobs                plugin.TValue[[]any]
+	SandboxGroups       plugin.TValue[[]any]
 }
 
 // createAzureSubscriptionContainerAppService creates a new instance of this resource
@@ -110401,6 +110587,22 @@ func (c *mqlAzureSubscriptionContainerAppService) GetJobs() *plugin.TValue[[]any
 		}
 
 		return c.jobs()
+	})
+}
+
+func (c *mqlAzureSubscriptionContainerAppService) GetSandboxGroups() *plugin.TValue[[]any] {
+	return plugin.GetOrCompute[[]any](&c.SandboxGroups, func() ([]any, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("azure.subscription.containerAppService", c.__id, "sandboxGroups")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.([]any), nil
+			}
+		}
+
+		return c.sandboxGroups()
 	})
 }
 
@@ -111188,6 +111390,7 @@ type mqlAzureSubscriptionContainerAppServiceContainerApp struct {
 	MinReplicas              plugin.TValue[int64]
 	MaxReplicas              plugin.TValue[int64]
 	ScaleRules               plugin.TValue[[]any]
+	AllowScalingRuleOverride plugin.TValue[bool]
 	PrincipalId              plugin.TValue[string]
 	SystemAssignedIdentity   plugin.TValue[*mqlAzureSubscriptionManagedIdentity]
 	UserAssignedIdentities   plugin.TValue[[]any]
@@ -111361,6 +111564,10 @@ func (c *mqlAzureSubscriptionContainerAppServiceContainerApp) GetMaxReplicas() *
 
 func (c *mqlAzureSubscriptionContainerAppServiceContainerApp) GetScaleRules() *plugin.TValue[[]any] {
 	return &c.ScaleRules
+}
+
+func (c *mqlAzureSubscriptionContainerAppServiceContainerApp) GetAllowScalingRuleOverride() *plugin.TValue[bool] {
+	return &c.AllowScalingRuleOverride
 }
 
 func (c *mqlAzureSubscriptionContainerAppServiceContainerApp) GetPrincipalId() *plugin.TValue[string] {
@@ -111876,6 +112083,7 @@ type mqlAzureSubscriptionContainerAppServiceJob struct {
 	Tags                     plugin.TValue[map[string]any]
 	ManagedEnvironmentId     plugin.TValue[string]
 	ProvisioningState        plugin.TValue[string]
+	RunningState             plugin.TValue[string]
 	EventStreamEndpoint      plugin.TValue[string]
 	TriggerType              plugin.TValue[string]
 	CronExpression           plugin.TValue[string]
@@ -111954,6 +112162,10 @@ func (c *mqlAzureSubscriptionContainerAppServiceJob) GetProvisioningState() *plu
 	return &c.ProvisioningState
 }
 
+func (c *mqlAzureSubscriptionContainerAppServiceJob) GetRunningState() *plugin.TValue[string] {
+	return &c.RunningState
+}
+
 func (c *mqlAzureSubscriptionContainerAppServiceJob) GetEventStreamEndpoint() *plugin.TValue[string] {
 	return &c.EventStreamEndpoint
 }
@@ -112014,6 +112226,224 @@ func (c *mqlAzureSubscriptionContainerAppServiceJob) GetSystemMetadata() *plugin
 	return plugin.GetOrCompute[*mqlAzureSubscriptionSystemData](&c.SystemMetadata, func() (*mqlAzureSubscriptionSystemData, error) {
 		if c.MqlRuntime.HasRecording {
 			d, err := c.MqlRuntime.FieldResourceFromRecording("azure.subscription.containerAppService.job", c.__id, "systemMetadata")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.(*mqlAzureSubscriptionSystemData), nil
+			}
+		}
+
+		return c.systemMetadata()
+	})
+}
+
+// mqlAzureSubscriptionContainerAppServiceSandboxGroup for the azure.subscription.containerAppService.sandboxGroup resource
+type mqlAzureSubscriptionContainerAppServiceSandboxGroup struct {
+	MqlRuntime *plugin.Runtime
+	__id       string
+	mqlAzureSubscriptionContainerAppServiceSandboxGroupInternal
+	Id                 plugin.TValue[string]
+	Name               plugin.TValue[string]
+	Location           plugin.TValue[string]
+	Tags               plugin.TValue[map[string]any]
+	ProvisioningState  plugin.TValue[string]
+	ManagedEnvironment plugin.TValue[*mqlAzureSubscriptionContainerAppServiceManagedEnvironment]
+	DefaultDomain      plugin.TValue[string]
+	VnetConnections    plugin.TValue[[]any]
+	SystemMetadata     plugin.TValue[*mqlAzureSubscriptionSystemData]
+}
+
+// createAzureSubscriptionContainerAppServiceSandboxGroup creates a new instance of this resource
+func createAzureSubscriptionContainerAppServiceSandboxGroup(runtime *plugin.Runtime, args map[string]*llx.RawData) (plugin.Resource, error) {
+	res := &mqlAzureSubscriptionContainerAppServiceSandboxGroup{
+		MqlRuntime: runtime,
+	}
+
+	err := SetAllData(res, args)
+	if err != nil {
+		return res, err
+	}
+
+	if res.__id == "" {
+		res.__id, err = res.id()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if runtime.HasRecording {
+		args, err = runtime.ResourceFromRecording("azure.subscription.containerAppService.sandboxGroup", res.__id)
+		if err != nil || args == nil {
+			return res, err
+		}
+		return res, SetAllData(res, args)
+	}
+
+	return res, nil
+}
+
+func (c *mqlAzureSubscriptionContainerAppServiceSandboxGroup) MqlName() string {
+	return "azure.subscription.containerAppService.sandboxGroup"
+}
+
+func (c *mqlAzureSubscriptionContainerAppServiceSandboxGroup) MqlID() string {
+	return c.__id
+}
+
+func (c *mqlAzureSubscriptionContainerAppServiceSandboxGroup) GetId() *plugin.TValue[string] {
+	return &c.Id
+}
+
+func (c *mqlAzureSubscriptionContainerAppServiceSandboxGroup) GetName() *plugin.TValue[string] {
+	return &c.Name
+}
+
+func (c *mqlAzureSubscriptionContainerAppServiceSandboxGroup) GetLocation() *plugin.TValue[string] {
+	return &c.Location
+}
+
+func (c *mqlAzureSubscriptionContainerAppServiceSandboxGroup) GetTags() *plugin.TValue[map[string]any] {
+	return &c.Tags
+}
+
+func (c *mqlAzureSubscriptionContainerAppServiceSandboxGroup) GetProvisioningState() *plugin.TValue[string] {
+	return &c.ProvisioningState
+}
+
+func (c *mqlAzureSubscriptionContainerAppServiceSandboxGroup) GetManagedEnvironment() *plugin.TValue[*mqlAzureSubscriptionContainerAppServiceManagedEnvironment] {
+	return plugin.GetOrCompute[*mqlAzureSubscriptionContainerAppServiceManagedEnvironment](&c.ManagedEnvironment, func() (*mqlAzureSubscriptionContainerAppServiceManagedEnvironment, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("azure.subscription.containerAppService.sandboxGroup", c.__id, "managedEnvironment")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.(*mqlAzureSubscriptionContainerAppServiceManagedEnvironment), nil
+			}
+		}
+
+		return c.managedEnvironment()
+	})
+}
+
+func (c *mqlAzureSubscriptionContainerAppServiceSandboxGroup) GetDefaultDomain() *plugin.TValue[string] {
+	return &c.DefaultDomain
+}
+
+func (c *mqlAzureSubscriptionContainerAppServiceSandboxGroup) GetVnetConnections() *plugin.TValue[[]any] {
+	return plugin.GetOrCompute[[]any](&c.VnetConnections, func() ([]any, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("azure.subscription.containerAppService.sandboxGroup", c.__id, "vnetConnections")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.([]any), nil
+			}
+		}
+
+		return c.vnetConnections()
+	})
+}
+
+func (c *mqlAzureSubscriptionContainerAppServiceSandboxGroup) GetSystemMetadata() *plugin.TValue[*mqlAzureSubscriptionSystemData] {
+	return plugin.GetOrCompute[*mqlAzureSubscriptionSystemData](&c.SystemMetadata, func() (*mqlAzureSubscriptionSystemData, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("azure.subscription.containerAppService.sandboxGroup", c.__id, "systemMetadata")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.(*mqlAzureSubscriptionSystemData), nil
+			}
+		}
+
+		return c.systemMetadata()
+	})
+}
+
+// mqlAzureSubscriptionContainerAppServiceSandboxGroupVnetConnection for the azure.subscription.containerAppService.sandboxGroup.vnetConnection resource
+type mqlAzureSubscriptionContainerAppServiceSandboxGroupVnetConnection struct {
+	MqlRuntime *plugin.Runtime
+	__id       string
+	mqlAzureSubscriptionContainerAppServiceSandboxGroupVnetConnectionInternal
+	Id                plugin.TValue[string]
+	Name              plugin.TValue[string]
+	ProvisioningState plugin.TValue[string]
+	Subnet            plugin.TValue[*mqlAzureSubscriptionNetworkServiceSubnet]
+	SystemMetadata    plugin.TValue[*mqlAzureSubscriptionSystemData]
+}
+
+// createAzureSubscriptionContainerAppServiceSandboxGroupVnetConnection creates a new instance of this resource
+func createAzureSubscriptionContainerAppServiceSandboxGroupVnetConnection(runtime *plugin.Runtime, args map[string]*llx.RawData) (plugin.Resource, error) {
+	res := &mqlAzureSubscriptionContainerAppServiceSandboxGroupVnetConnection{
+		MqlRuntime: runtime,
+	}
+
+	err := SetAllData(res, args)
+	if err != nil {
+		return res, err
+	}
+
+	if res.__id == "" {
+		res.__id, err = res.id()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if runtime.HasRecording {
+		args, err = runtime.ResourceFromRecording("azure.subscription.containerAppService.sandboxGroup.vnetConnection", res.__id)
+		if err != nil || args == nil {
+			return res, err
+		}
+		return res, SetAllData(res, args)
+	}
+
+	return res, nil
+}
+
+func (c *mqlAzureSubscriptionContainerAppServiceSandboxGroupVnetConnection) MqlName() string {
+	return "azure.subscription.containerAppService.sandboxGroup.vnetConnection"
+}
+
+func (c *mqlAzureSubscriptionContainerAppServiceSandboxGroupVnetConnection) MqlID() string {
+	return c.__id
+}
+
+func (c *mqlAzureSubscriptionContainerAppServiceSandboxGroupVnetConnection) GetId() *plugin.TValue[string] {
+	return &c.Id
+}
+
+func (c *mqlAzureSubscriptionContainerAppServiceSandboxGroupVnetConnection) GetName() *plugin.TValue[string] {
+	return &c.Name
+}
+
+func (c *mqlAzureSubscriptionContainerAppServiceSandboxGroupVnetConnection) GetProvisioningState() *plugin.TValue[string] {
+	return &c.ProvisioningState
+}
+
+func (c *mqlAzureSubscriptionContainerAppServiceSandboxGroupVnetConnection) GetSubnet() *plugin.TValue[*mqlAzureSubscriptionNetworkServiceSubnet] {
+	return plugin.GetOrCompute[*mqlAzureSubscriptionNetworkServiceSubnet](&c.Subnet, func() (*mqlAzureSubscriptionNetworkServiceSubnet, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("azure.subscription.containerAppService.sandboxGroup.vnetConnection", c.__id, "subnet")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.(*mqlAzureSubscriptionNetworkServiceSubnet), nil
+			}
+		}
+
+		return c.subnet()
+	})
+}
+
+func (c *mqlAzureSubscriptionContainerAppServiceSandboxGroupVnetConnection) GetSystemMetadata() *plugin.TValue[*mqlAzureSubscriptionSystemData] {
+	return plugin.GetOrCompute[*mqlAzureSubscriptionSystemData](&c.SystemMetadata, func() (*mqlAzureSubscriptionSystemData, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("azure.subscription.containerAppService.sandboxGroup.vnetConnection", c.__id, "systemMetadata")
 			if err != nil {
 				return nil, err
 			}

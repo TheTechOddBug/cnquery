@@ -27,7 +27,7 @@ import (
 	"go.mondoo.com/mql/utils/stringx"
 	"golang.org/x/sync/errgroup"
 
-	network "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v11"
+	network "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v12"
 )
 
 func (a *mqlAzureSubscriptionNetworkService) id() (string, error) {
@@ -4522,7 +4522,9 @@ func azureFirewallToMql(runtime *plugin.Runtime, fw network.AzureFirewall) (*mql
 		return nil, err
 	}
 	var fwSkuTier, fwSkuName, fwProvisioningState, fwThreatIntelMode, fwAfcServiceEndpoint *string
+	var fwAiSecurityAddOn *bool
 	if fw.Properties != nil {
+		fwAiSecurityAddOn = fw.Properties.AiSecurityAddOn
 		fwProvisioningState = (*string)(fw.Properties.ProvisioningState)
 		fwThreatIntelMode = (*string)(fw.Properties.ThreatIntelMode)
 		if fw.Properties.SKU != nil {
@@ -4546,6 +4548,7 @@ func azureFirewallToMql(runtime *plugin.Runtime, fw network.AzureFirewall) (*mql
 		"provisioningState":  llx.StringDataPtr(fwProvisioningState),
 		"threatIntelMode":    llx.StringDataPtr(fwThreatIntelMode),
 		"afcServiceEndpoint": llx.StringDataPtr(fwAfcServiceEndpoint),
+		"aiSecurityAddOn":    llx.BoolDataPtr(fwAiSecurityAddOn),
 	}
 	mqlFw, err := CreateResource(runtime, "azure.subscription.networkService.firewall", args)
 	if err != nil {

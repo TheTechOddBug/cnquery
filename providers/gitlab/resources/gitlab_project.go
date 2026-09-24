@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	gitlab "gitlab.com/gitlab-org/api/client-go/v2"
+	gitlab "gitlab.com/gitlab-org/api/client-go/v3"
 	"go.mondoo.com/mql/llx"
 	"go.mondoo.com/mql/providers-sdk/v1/plugin"
 	"go.mondoo.com/mql/providers-sdk/v1/util/convert"
@@ -2409,6 +2409,8 @@ func (p *mqlGitlabProject) deployKeys() ([]any, error) {
 			"createdAt":         llx.TimeDataPtr(key.CreatedAt),
 			"expiresAt":         llx.TimeDataPtr(key.ExpiresAt),
 			"canPush":           llx.BoolData(key.CanPush),
+			"lastUsedAt":        llx.TimeDataPtr(key.LastUsedAt),
+			"usageType":         llx.StringData(key.UsageType),
 		}
 
 		mqlKey, err := CreateResource(p.MqlRuntime, "gitlab.project.deployKey", keyInfo)

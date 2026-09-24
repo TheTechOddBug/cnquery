@@ -12,7 +12,7 @@ import (
 	"go.mondoo.com/mql/providers-sdk/v1/plugin"
 	"go.mondoo.com/mql/providers/gitlab/connection"
 
-	gitlab "gitlab.com/gitlab-org/api/client-go/v2"
+	gitlab "gitlab.com/gitlab-org/api/client-go/v3"
 )
 
 // This file models the CI/CD credentials and egress paths a project carries:
@@ -475,9 +475,10 @@ func (p *mqlGitlabProject) clusterAgents() ([]any, error) {
 	res := make([]any, 0, len(all))
 	for _, agent := range all {
 		mqlAgent, err := CreateResource(p.MqlRuntime, "gitlab.project.clusterAgent", map[string]*llx.RawData{
-			"id":        llx.IntData(agent.ID),
-			"name":      llx.StringData(agent.Name),
-			"createdAt": llx.TimeDataPtr(agent.CreatedAt),
+			"id":          llx.IntData(agent.ID),
+			"name":        llx.StringData(agent.Name),
+			"createdAt":   llx.TimeDataPtr(agent.CreatedAt),
+			"isReceptive": llx.BoolData(agent.IsReceptive),
 		})
 		if err != nil {
 			return nil, err
