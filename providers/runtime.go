@@ -5,11 +5,14 @@ package providers
 
 import (
 	"errors"
+	"io"
+	"net"
 	"path"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -426,6 +429,9 @@ func (r *Runtime) Connect(req *plugin.ConnectReq) error {
 	// }
 
 	conn, err := r.Provider.Instance.Plugin.Connect(req, &callbacks)
+	if err != nil {
+		_, err = r.handlePluginError(err, r.Provider, "", "")
+	}
 	r.setProviderConnection(conn, err)
 	if err != nil {
 		return err
@@ -455,6 +461,9 @@ func (r *Runtime) Connect(req *plugin.ConnectReq) error {
 		}
 
 		conn, err := r.Provider.Instance.Plugin.Connect(req, &callbacks)
+		if err != nil {
+			_, err = r.handlePluginError(err, r.Provider, "", "")
+		}
 		r.setProviderConnection(conn, err)
 		if err != nil {
 			return err
@@ -541,6 +550,10 @@ func (r *Runtime) CreateResource(name string, args map[string]*llx.Primitive) (l
 		return nil, errors.New("no connection to provider")
 	}
 
+	if crashErr := provider.Instance.crashError(); crashErr != nil {
+		return nil, crashErr
+	}
+
 	req := &plugin.DataReq{
 		Connection: provider.Connection.Id,
 		Resource:   name,
@@ -548,6 +561,7 @@ func (r *Runtime) CreateResource(name string, args map[string]*llx.Primitive) (l
 	}
 	res, err := provider.Instance.Plugin.GetData(req)
 	if err != nil {
+		_, err = r.handlePluginError(err, provider, name, "")
 		return nil, err
 	}
 
@@ -584,6 +598,10 @@ func (r *Runtime) CloneResource(src llx.Resource, id string, fields []string, ar
 		return nil, err
 	}
 
+	if crashErr := provider.Instance.crashError(); crashErr != nil {
+		return nil, crashErr
+	}
+
 	for i := range fields {
 		field := fields[i]
 		data, err := provider.Instance.Plugin.GetData(&plugin.DataReq{
@@ -593,6 +611,7 @@ func (r *Runtime) CloneResource(src llx.Resource, id string, fields []string, ar
 			Field:      field,
 		})
 		if err != nil {
+			_, err = r.handlePluginError(err, provider, name, field)
 			return nil, err
 		}
 		args[field] = data.Data
@@ -609,6 +628,7 @@ func (r *Runtime) CloneResource(src llx.Resource, id string, fields []string, ar
 		}},
 	})
 	if err != nil {
+		_, err = r.handlePluginError(err, provider, name, "")
 		return nil, err
 	}
 
@@ -649,6 +669,10 @@ func (r *Runtime) watchAndUpdate(resource string, resourceID string, field strin
 		return nil, errors.New("cannot get field '" + field + "' for resource '" + resource + "'")
 	}
 
+	if crashErr := provider.Instance.crashError(); crashErr != nil {
+		return nil, crashErr
+	}
+
 	if info.Provider != fieldInfo.Provider {
 		// technically we don't need to look up the resource provider, since
 		// it had to have been called beforehand to get here
@@ -660,7 +684,8 @@ func (r *Runtime) watchAndUpdate(resource string, resourceID string, field strin
 			}},
 		})
 		if err != nil {
-			return nil, multierr.Wrap(err, "failed to create reference resource "+resource+" in provider "+provider.Instance.Name)
+			_, handledErr := r.handlePluginError(err, provider, resource, field)
+			return nil, multierr.Wrap(handledErr, "failed to create reference resource "+resource+" in provider "+provider.Instance.Name)
 		}
 	}
 
@@ -742,15 +767,85 @@ func (r *Runtime) handlePluginError(err error, provider *ConnectedProvider, reso
 		ctx += ")"
 	}
 
+	// A provider already known dead answers every further RPC with some shape
+	// of "the connection is gone" - codes.Canceled ("grpc: the client
+	// connection is closing"), codes.Unavailable, or even a bare transport
+	// error, depending on exactly when the caller raced the teardown. Once we
+	// have a diagnostic for this provider, fold every later failure into it
+	// instead of reclassifying and re-recording a critical error per field.
+	if crashErr := provider.Instance.crashError(); crashErr != nil {
+		return false, crashErr
+	}
+
 	st, ok := status.FromError(err)
 	if !ok {
-		// Transport-level errors (e.g. "dial tcp" connection failures) don't
-		// carry a gRPC status code. Record them as critical so they reach
-		// error reporting (Sentry) via runtime.CriticalErrors().
-		base := "the '" + provider.Instance.Name + "' provider connection failed" + ctx + ": " + err.Error()
-		transportErr := errors.New(base + buildCrashDiagnostics(provider.Instance))
-		r.addCriticalError(transportErr)
-		return false, transportErr
+		// An error without a gRPC status is NOT reliably a transport
+		// failure. status.FromError only returns ok=true when the error
+		// implements (or wraps) grpc's status interface, which every error a
+		// live gRPC call produces does - grpc-go converts dial/stream/
+		// transport failures into status errors (typically Unavailable)
+		// before handing them back to the caller. So in practice this
+		// branch is reached for errors that never went through gRPC at all:
+		// the builtin/core provider and plugin mocks call straight into Go
+		// resource code and return its errors verbatim, e.g. "cannot find
+		// user with name 'notthere'" from a bad `user(name: ...)` lookup.
+		// Treating every such error as "the provider crashed" mislabels an
+		// ordinary, per-call application error - and would be
+		// far worse if it also called recordCrash: one bad lookup would
+		// mark the whole provider permanently closed and hand its stored
+		// diagnostic to every unrelated field for the rest of the run.
+		//
+		// So only the errors that are genuinely transport-level are treated
+		// as a crash here: a *net.OpError (dial/read/write network
+		// failures - what "dial tcp ...: connect: connection refused"
+		// actually is), the connection-refused/reset/broken-pipe syscall
+		// errnos, a stream ending in EOF/ErrUnexpectedEOF, or net.ErrClosed
+		// ("use of closed network connection"). Anything else is returned
+		// unchanged, unrecorded - exactly as if handlePluginError had not
+		// been in the call chain at all.
+		//
+		// That classification alone is still not enough: a *net.OpError or
+		// io.EOF is exactly as ordinary for a provider that makes its own
+		// network/file calls as part of answering a query - a builtin
+		// `port`/`http.get` check against a closed port returns a real
+		// *net.OpError with ECONNREFUSED, and a file read past EOF returns
+		// io.EOF, neither of which says anything about whether the plugin
+		// serving the RPC is still alive. That distinction only means
+		// something for an out-of-process provider, where GetData/StoreData/
+		// Connect themselves ARE the RPC to the plugin, so a transport error
+		// on that call is about the plugin's own connection. For a builtin/
+		// in-process provider there is no RPC underneath the call at all -
+		// GetData is a direct Go call into resource code - so the same error
+		// shapes are just whatever the resource implementation happened to
+		// return. Gate on provider.Instance.proc: it is nil for builtin
+		// providers and any provider constructed without a subprocess
+		// (see its doc comment, and awaitExit's identical nil check), and
+		// set to the real process tracker only by the subprocess-launching
+		// path in coordinator.go - the same signal the rest of this file
+		// already trusts to know whether there is a plugin process to be
+		// dead in the first place.
+		if provider.Instance.proc != nil && isTransportFailure(err) {
+			// This means the same thing a codes.Unavailable does: the
+			// provider process is not there to answer the RPC. There is no
+			// reconnect/restart path (see the TODO below) that could make a
+			// second attempt succeed, so there is nothing to gain by not
+			// marking it crashed - and every remaining field would
+			// otherwise redial the same dead port, get the same error, and
+			// (absent dedup) add its own critical error, risking the
+			// 100-entry cap for one crash. recordCrash stores the
+			// diagnostic once and every later call - of any error shape -
+			// returns that same stored error, same as the
+			// Unavailable/Canceled branch below.
+			crashErr, first := provider.Instance.recordCrash(func() error {
+				base := "the '" + provider.Instance.Name + "' provider crashed" + ctx + ": " + err.Error()
+				return errors.New(base + buildCrashDiagnostics(provider.Instance))
+			})
+			if first {
+				r.addCriticalError(crashErr)
+			}
+			return false, crashErr
+		}
+		return false, err
 	}
 
 	switch st.Code() {
@@ -765,16 +860,46 @@ func (r *Runtime) handlePluginError(err error, provider *ConnectedProvider, reso
 			return true, panicErr
 		}
 
-	case codes.Unavailable:
-		// Happens when the plugin crashes or the gRPC connection drops.
+	case codes.Unavailable, codes.Canceled:
+		// Unavailable is the plugin crashing or the gRPC connection dropping;
+		// Canceled ("grpc: the client connection is closing") is go-plugin
+		// tearing the client down right after. Both mean this provider is
+		// gone. recordCrash stores the diagnostic once (on whichever call
+		// observes the crash first) and every later call - regardless of
+		// which of the two codes it happens to see - returns that same
+		// stored error instead of building and recording its own.
 		// TODO: try to restart the plugin and reset its connections
-		provider.Instance.isClosed = true
-		base := "the '" + provider.Instance.Name + "' provider crashed" + ctx + ": " + err.Error()
-		provider.Instance.err = errors.New(base + buildCrashDiagnostics(provider.Instance))
-		r.addCriticalError(provider.Instance.err)
-		return false, provider.Instance.err
+		crashErr, first := provider.Instance.recordCrash(func() error {
+			base := "the '" + provider.Instance.Name + "' provider crashed" + ctx + ": " + err.Error()
+			return errors.New(base + buildCrashDiagnostics(provider.Instance))
+		})
+		if first {
+			r.addCriticalError(crashErr)
+		}
+		return false, crashErr
 	}
 	return false, err
+}
+
+// isTransportFailure reports whether err is a genuine network/transport
+// failure rather than an ordinary application error that merely lacks a
+// gRPC status. Kept deliberately narrow (type/sentinel checks only, no
+// substring matching on err.Error()) so a resource-level error that happens
+// to mention "connection" in its message is never misclassified.
+func isTransportFailure(err error) bool {
+	var opErr *net.OpError
+	if errors.As(err, &opErr) {
+		// Covers "dial tcp ...", "read tcp ...", "write tcp ..." failures -
+		// the shape a real dial/connection failure takes.
+		return true
+	}
+	return errors.Is(err, syscall.ECONNREFUSED) ||
+		errors.Is(err, syscall.ECONNRESET) ||
+		errors.Is(err, syscall.EPIPE) ||
+		errors.Is(err, io.EOF) ||
+		errors.Is(err, io.ErrUnexpectedEOF) ||
+		errors.Is(err, io.ErrClosedPipe) ||
+		errors.Is(err, net.ErrClosed)
 }
 
 // buildCrashDiagnostics returns a multi-line suffix to append to a crash error

@@ -105,21 +105,42 @@ func GenerateBom(r *reporter.Report) []*sbom.Sbom {
 		}
 		// ensure deterministic order of enumeration
 		keys := sortx.Keys(dataPoints.Values)
+		// fieldErrors collects one message per data point that could not be
+		// consumed (e.g. a provider crashed mid-scan and left that field's
+		// content an error rather than the expected shape). The BOM still
+		// builds from whatever other data points did decode, so this is a
+		// partial result, not a failed one -- matching cnspec's aibom
+		// generator (internal/aibom/generator/generator.go), which treats
+		// the same per-data-point decode failure as PARTIALLY_SUCCEEDED
+		// rather than FAILED.
+		//
+		// decodedCount tracks how many data points decoded successfully, so
+		// "everything failed" can be told apart from "everything decoded but
+		// legitimately produced zero packages" (e.g. an asset with no
+		// installed software). Using len(bom.Packages) == 0 for that instead
+		// would be wrong on both sides: it would call a BOM with zero
+		// packages "failed" even though every data point decoded fine, and
+		// it would call a BOM with some packages "partially succeeded" even
+		// if every data point failed to decode but happened to still leave
+		// packages from a still-standing field (see PrinterDrivers below,
+		// which can append before an error on a later key). Basing it on
+		// decode success -- not package count -- is correct either way.
+		var fieldErrors []string
+		var decodedCount int
 		for _, k := range keys {
 			dataValue := dataPoints.Values[k]
 			jsondata, err := reporter.JsonValue(dataValue.Content)
 			if err != nil {
-				bom.Status = sbom.Status_STATUS_FAILED
-				bom.ErrorMessage = errors.Wrap(err, "failed to parse json data").Error()
+				fieldErrors = append(fieldErrors, k+": "+errors.Wrap(err, "failed to parse json data").Error())
 				continue
 			}
 			rb := BomFields{}
 			err = json.Unmarshal(jsondata, &rb)
 			if err != nil {
-				bom.Status = sbom.Status_STATUS_FAILED
-				bom.ErrorMessage = errors.Wrap(err, "failed to parse bom fields json data").Error()
+				fieldErrors = append(fieldErrors, k+": "+errors.Wrap(err, "failed to parse bom fields json data").Error())
 				continue
 			}
+			decodedCount++
 			if rb.Asset != nil {
 				bom.Asset.Name = rb.Asset.Name
 				bom.Asset.Platform.Name = rb.Asset.Platform
@@ -275,6 +296,18 @@ func GenerateBom(r *reporter.Report) []*sbom.Sbom {
 			if pkg.BomRef == "" {
 				pkg.BomRef = sbom.BomRefFor(pkg)
 			}
+		}
+
+		if len(fieldErrors) > 0 {
+			if decodedCount == 0 {
+				// Every data point failed to decode: nothing usable was
+				// produced for this asset, so a BOM with zero packages here
+				// is a genuine failure, not a partial success.
+				bom.Status = sbom.Status_STATUS_FAILED
+			} else {
+				bom.Status = sbom.Status_STATUS_PARTIALLY_SUCCEEDED
+			}
+			bom.ErrorMessage = strings.Join(fieldErrors, "; ")
 		}
 
 		boms = append(boms, bom)

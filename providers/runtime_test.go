@@ -6,7 +6,11 @@ package providers
 import (
 	"errors"
 	"io"
+	"net"
+	"os"
 	"strconv"
+	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -682,14 +686,35 @@ func TestRuntime_HandlePluginError_CrashRecordsCriticalError(t *testing.T) {
 	assert.Contains(t, critErrs[0].Error(), "provider crashed")
 }
 
+// fakeDialRefusedErr builds a *net.OpError shaped exactly like what a real
+// failed TCP dial to a dead loopback port returns -- its Error() renders as
+// "dial tcp 127.0.0.1:<port>: connect: connection refused", the same text
+// production observed, but constructed so the test doesn't depend on actual
+// OS networking behavior (which can vary or be sandboxed in CI).
+func fakeDialRefusedErr(port int) *net.OpError {
+	return &net.OpError{
+		Op:   "dial",
+		Net:  "tcp",
+		Addr: &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: port},
+		Err:  os.NewSyscallError("connect", syscall.ECONNREFUSED),
+	}
+}
+
 func TestRuntime_HandlePluginError_TransportErrorRecordsCriticalError(t *testing.T) {
 	r := &Runtime{}
-	provider := &ConnectedProvider{
-		Instance: &RunningProvider{Name: "aws"},
-	}
+	// proc set: this simulates an out-of-process (subprocess-backed)
+	// provider, the same signal coordinator.go's subprocess-launching path
+	// sets on a real plugin. Only for such a provider does a transport-
+	// shaped error mean the plugin's own connection died.
+	instance := &RunningProvider{Name: "aws", proc: &processTracker{}}
+	// Skip awaitExit's 2s grace wait for an exit this bare tracker will
+	// never report -- same trick exit_status_unix_test.go uses.
+	instance.exitGraceExpired.Store(true)
+	provider := &ConnectedProvider{Instance: instance}
 
-	// Raw transport errors (e.g. "dial tcp") don't carry a gRPC status.
-	transportErr := errors.New("connection error: desc = transport: error while dialing: dial tcp 127.0.0.1:1234: connect: connection refused")
+	// A genuine transport failure (no gRPC status): a real *net.OpError, the
+	// shape a failed dial to a dead loopback port actually takes.
+	transportErr := fakeDialRefusedErr(1234)
 	handled, err := r.handlePluginError(transportErr, provider, "aws.ec2.instance", "securityGroups")
 
 	assert.False(t, handled)
@@ -697,9 +722,157 @@ func TestRuntime_HandlePluginError_TransportErrorRecordsCriticalError(t *testing
 
 	critErrs := r.CriticalErrors()
 	require.Len(t, critErrs, 1)
-	assert.Contains(t, critErrs[0].Error(), "provider connection failed")
+	assert.Contains(t, critErrs[0].Error(), "provider crashed")
 	assert.Contains(t, critErrs[0].Error(), "resource=aws.ec2.instance")
 	assert.Contains(t, critErrs[0].Error(), "field=securityGroups")
+	// Same as the codes.Unavailable/codes.Canceled branch: a genuine
+	// transport error means the provider process is gone, so it's recorded
+	// via recordCrash and the provider is marked closed.
+	assert.True(t, instance.isClosed)
+}
+
+// TestRuntime_HandlePluginError_NonTransportBareErrorPassesThroughUnchanged
+// is the regression test for the misclassification that broke
+// cli/printer's TestPrinter_Assessment: an ordinary application error (e.g.
+// "cannot find user with name 'notthere'" from a bad `user(name: ...)`
+// lookup) never carries a gRPC status either -- the builtin/core provider
+// and plugin mocks return Go errors straight from resource code, with no
+// gRPC involved at all. Such an error must come back completely unchanged,
+// must not be recorded as a critical error, and must not mark the provider
+// crashed (which would poison every later field for the rest of the run
+// with this one lookup's error, as it did before this fix).
+func TestRuntime_HandlePluginError_NonTransportBareErrorPassesThroughUnchanged(t *testing.T) {
+	r := &Runtime{}
+	instance := &RunningProvider{Name: "os"}
+	provider := &ConnectedProvider{Instance: instance}
+
+	appErr := errors.New("cannot find user with name 'notthere'")
+	handled, err := r.handlePluginError(appErr, provider, "user", "")
+
+	assert.False(t, handled)
+	require.Error(t, err)
+	assert.Same(t, appErr, err)
+	assert.Equal(t, "cannot find user with name 'notthere'", err.Error())
+
+	assert.Empty(t, r.CriticalErrors())
+	assert.False(t, instance.isClosed)
+
+	// A second, unrelated ordinary error on the same provider must also
+	// pass through untouched -- proving the first one didn't leave the
+	// provider in some half-crashed state.
+	otherErr := errors.New("cannot find group with name 'admins'")
+	_, err2 := r.handlePluginError(otherErr, provider, "group", "")
+	assert.Same(t, otherErr, err2)
+	assert.Empty(t, r.CriticalErrors())
+	assert.False(t, instance.isClosed)
+}
+
+// TestRuntime_HandlePluginError_BuiltinProviderTransportShapedErrorPassesThrough
+// is the narrower follow-up to the regression above: a *net.OpError, an
+// ECONNREFUSED, or an io.EOF are exactly as ordinary for a BUILTIN/
+// in-process provider as any other Go error. A builtin `port`/`http.get`
+// check against a closed port genuinely returns *net.OpError/ECONNREFUSED,
+// and a file read past its end genuinely returns io.EOF -- from a call that
+// never went through a plugin RPC at all, since RunningProvider.proc (nil
+// here, exactly as for every entry in builtin.go's builtinProviders map) is
+// what the rest of this file already uses to know whether there is a
+// subprocess in the first place (see awaitExit). Even though these errors
+// match isTransportFailure's shapes, they must be returned unchanged,
+// unrecorded, and must not mark the provider closed.
+func TestRuntime_HandlePluginError_BuiltinProviderTransportShapedErrorPassesThrough(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+	}{
+		{"net.OpError/ECONNREFUSED", fakeDialRefusedErr(80)},
+		{"io.EOF", io.EOF},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := &Runtime{}
+			instance := &RunningProvider{Name: "os"} // proc == nil: builtin/in-process
+			provider := &ConnectedProvider{Instance: instance}
+
+			handled, err := r.handlePluginError(tc.err, provider, "os.port", "")
+
+			assert.False(t, handled)
+			require.Error(t, err)
+			assert.Same(t, tc.err, err)
+			assert.Empty(t, r.CriticalErrors())
+			assert.False(t, instance.isClosed)
+		})
+	}
+}
+
+// TestRuntime_HandlePluginError_OutOfProcessTransportErrorRecordsCrash mirrors
+// the test above for a provider that DOES run out of process (proc set):
+// the very same error shapes now mean the plugin's own connection died, so
+// they must be recorded as a crash, once.
+func TestRuntime_HandlePluginError_OutOfProcessTransportErrorRecordsCrash(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+	}{
+		{"net.OpError/ECONNREFUSED", fakeDialRefusedErr(80)},
+		{"io.EOF", io.EOF},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := &Runtime{}
+			instance := &RunningProvider{Name: "aws", proc: &processTracker{}}
+			instance.exitGraceExpired.Store(true)
+			provider := &ConnectedProvider{Instance: instance}
+
+			handled, err := r.handlePluginError(tc.err, provider, "aws.ec2.instance", "")
+
+			assert.False(t, handled)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "provider crashed")
+			assert.True(t, instance.isClosed)
+			require.Len(t, r.CriticalErrors(), 1)
+		})
+	}
+}
+
+// TestRuntime_HandlePluginError_RepeatedTransportErrorsDedupe reproduces a
+// provider that keeps failing every remaining field with a genuine
+// transport error (no gRPC status) after it dies -- e.g. every later call
+// redials the same dead loopback port and observes the same
+// "connection refused" failure. Before routing the !ok branch's genuine
+// transport failures through recordCrash, each of these calls built and
+// recorded its own critical error, one per field. It must instead collapse
+// into a single stored diagnostic and a single critical error, the same
+// guarantee the codes.Unavailable/codes.Canceled branch already has.
+func TestRuntime_HandlePluginError_RepeatedTransportErrorsDedupe(t *testing.T) {
+	r := &Runtime{}
+	instance := &RunningProvider{Name: "os", proc: &processTracker{}}
+	instance.exitGraceExpired.Store(true)
+	provider := &ConnectedProvider{Instance: instance}
+
+	transportErr := fakeDialRefusedErr(52487)
+
+	_, firstErr := r.handlePluginError(transportErr, provider, "os.file", "content")
+	require.Error(t, firstErr)
+
+	_, secondErr := r.handlePluginError(transportErr, provider, "os.file", "permissions")
+	require.Error(t, secondErr)
+
+	_, thirdErr := r.handlePluginError(transportErr, provider, "os.file", "owner")
+	require.Error(t, thirdErr)
+
+	// The exact same diagnostic every time, not a freshly rebuilt one per
+	// field (the second/third calls also don't carry that field's own
+	// resource/field context, proving they short-circuited via crashError()
+	// rather than reclassifying).
+	assert.Equal(t, firstErr.Error(), secondErr.Error())
+	assert.Equal(t, firstErr.Error(), thirdErr.Error())
+	assert.Contains(t, firstErr.Error(), "field=content")
+	assert.NotContains(t, secondErr.Error(), "field=permissions")
+	assert.NotContains(t, thirdErr.Error(), "field=owner")
+
+	critErrs := r.CriticalErrors()
+	require.Len(t, critErrs, 1)
+	assert.True(t, instance.isClosed)
 }
 
 func TestRuntime_HandlePluginError_NonPanicInternalDoesNotRecordCriticalError(t *testing.T) {
@@ -861,6 +1034,210 @@ func TestRuntime_HandlePluginError_CrashWithoutContextStaysCompact(t *testing.T)
 	assert.NotContains(t, msg, "version=")
 	assert.NotContains(t, msg, "uptime=")
 	assert.NotContains(t, msg, "plugin stderr")
+}
+
+// TestRuntime_HandlePluginError_CanceledIsClassifiedAsCrash covers a provider
+// whose very first observed failure is codes.Canceled ("grpc: the client
+// connection is closing") rather than Unavailable -- e.g. go-plugin tears the
+// client down and the next in-flight RPC observes the teardown before a
+// fresh dial ever gets attempted. Before this change codes.Canceled fell
+// through handlePluginError's switch unclassified: no crash diagnostics, no
+// critical error, isClosed left false.
+func TestRuntime_HandlePluginError_CanceledIsClassifiedAsCrash(t *testing.T) {
+	r := &Runtime{}
+	instance := &RunningProvider{Name: "os"}
+	provider := &ConnectedProvider{Instance: instance}
+
+	canceledErr := status.Error(codes.Canceled, "grpc: the client connection is closing")
+	handled, err := r.handlePluginError(canceledErr, provider, "os.file", "content")
+
+	assert.False(t, handled)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "provider crashed")
+	assert.Contains(t, err.Error(), "resource=os.file")
+
+	critErrs := r.CriticalErrors()
+	require.Len(t, critErrs, 1)
+	assert.True(t, instance.isClosed)
+}
+
+// TestRuntime_HandlePluginError_CanceledAfterCrashIsDeduped reproduces the
+// second raw error text seen in production: an initial GetData call observes
+// codes.Unavailable (the plugin crashed) and records a diagnostic, then a
+// later field on the same provider observes codes.Canceled as go-plugin
+// finishes tearing the connection down. The second call must fold into the
+// first diagnostic rather than surfacing "grpc: the client connection is
+// closing" raw and unrecorded, and must not add a second critical error.
+func TestRuntime_HandlePluginError_CanceledAfterCrashIsDeduped(t *testing.T) {
+	r := &Runtime{}
+	provider := &ConnectedProvider{Instance: &RunningProvider{Name: "os"}}
+
+	unavailableErr := status.Error(codes.Unavailable, `connection error: desc = "transport: error while dialing: dial tcp 127.0.0.1:52487: connectex: No connection could be made because the target machine actively refused it."`)
+	_, firstErr := r.handlePluginError(unavailableErr, provider, "os.file", "content")
+	require.Error(t, firstErr)
+	assert.Contains(t, firstErr.Error(), "provider crashed")
+
+	canceledErr := status.Error(codes.Canceled, "grpc: the client connection is closing")
+	_, secondErr := r.handlePluginError(canceledErr, provider, "os.file", "permissions")
+	require.Error(t, secondErr)
+
+	// The exact same diagnostic comes back both times, not the raw Canceled
+	// text and not a freshly rebuilt one for the second field.
+	assert.Equal(t, firstErr.Error(), secondErr.Error())
+	assert.NotContains(t, secondErr.Error(), "client connection is closing")
+
+	critErrs := r.CriticalErrors()
+	require.Len(t, critErrs, 1)
+}
+
+// TestRuntime_HandlePluginError_AnyErrorAfterCrashIsDeduped shows the
+// short-circuit at the top of handlePluginError is not keyed to a specific
+// gRPC code: once a provider has a stored diagnostic, ANY further error --
+// including a bare transport error with no gRPC status at all -- folds into
+// it instead of going through classification (and re-recording) again.
+func TestRuntime_HandlePluginError_AnyErrorAfterCrashIsDeduped(t *testing.T) {
+	r := &Runtime{}
+	provider := &ConnectedProvider{Instance: &RunningProvider{Name: "os"}}
+
+	unavailableErr := status.Error(codes.Unavailable, "error reading from server: EOF")
+	_, firstErr := r.handlePluginError(unavailableErr, provider, "os.file", "content")
+	require.Error(t, firstErr)
+
+	bareErr := errors.New("connection error: desc = transport: error while dialing: dial tcp 127.0.0.1:52487: connect: connection refused")
+	_, secondErr := r.handlePluginError(bareErr, provider, "os.file", "permissions")
+	require.Error(t, secondErr)
+
+	assert.Equal(t, firstErr.Error(), secondErr.Error())
+	assert.NotContains(t, secondErr.Error(), "connection refused")
+
+	require.Len(t, r.CriticalErrors(), 1)
+}
+
+// TestRuntime_CreateResource_WrapsCrashDiagnostics is the regression test for
+// the primary bypass this PR fixes: CreateResource used to return whatever
+// error GetData handed back verbatim, so a crashed provider's raw
+// "rpc error: code = Unavailable ..." text ended up stored as the field's
+// error instead of the "provider crashed" diagnostic every other path
+// produces. llx.go's blockExecutor.createResource stores this error exactly
+// as returned, so this is also the hot path a scan actually exercises for
+// every resource instantiation.
+func TestRuntime_CreateResource_WrapsCrashDiagnostics(t *testing.T) {
+	resName := "os.file"
+	ctrl := gomock.NewController(t)
+	mockC := NewMockProvidersCoordinator(ctrl)
+	mockSchema := NewMockResourcesSchema(ctrl)
+	mockPlugin := NewMockProviderPlugin(ctrl)
+
+	const providerID = "go.mondoo.com/mql/providers/os"
+	p := &ConnectedProvider{
+		Instance:   &RunningProvider{ID: providerID, Name: "os", Plugin: mockPlugin},
+		Connection: &plugin.ConnectRes{Id: 1},
+	}
+
+	mockC.EXPECT().Schema().AnyTimes().Return(mockSchema)
+	mockSchema.EXPECT().Lookup(resName).AnyTimes().Return(&resources.ResourceInfo{
+		Id: resName, Name: resName, Provider: providerID,
+	})
+
+	rawCrash := status.Error(codes.Unavailable, `connection error: desc = "transport: error while dialing: dial tcp 127.0.0.1:52487: connectex: No connection could be made because the target machine actively refused it."`)
+	mockPlugin.EXPECT().GetData(gomock.Any()).Times(1).Return(nil, rawCrash)
+
+	r := &Runtime{
+		coordinator: mockC,
+		recording:   recording.Null{},
+		providers:   map[string]*ConnectedProvider{providerID: p},
+		Provider:    p,
+	}
+
+	_, err := r.CreateResource(resName, nil)
+	require.Error(t, err)
+	// Classified and attributed, not the bare RPC text CreateResource used to
+	// return verbatim (the raw text still rides along inside the diagnostic).
+	assert.True(t, strings.HasPrefix(err.Error(), "the 'os' provider crashed (resource=os.file):"), "got: %s", err.Error())
+
+	critErrs := r.CriticalErrors()
+	require.Len(t, critErrs, 1)
+	assert.True(t, p.Instance.isClosed)
+}
+
+// TestRuntime_CreateResource_ShortCircuitsOnceProviderCrashed covers the
+// short-circuit: once a provider is known dead, CreateResource must not
+// dial it again for the next resource -- it returns the stored crash
+// diagnostic straight away. GetData is expected Times(0) to prove no RPC is
+// attempted.
+func TestRuntime_CreateResource_ShortCircuitsOnceProviderCrashed(t *testing.T) {
+	resName := "os.file"
+	ctrl := gomock.NewController(t)
+	mockC := NewMockProvidersCoordinator(ctrl)
+	mockSchema := NewMockResourcesSchema(ctrl)
+	mockPlugin := NewMockProviderPlugin(ctrl)
+
+	const providerID = "go.mondoo.com/mql/providers/os"
+	instance := &RunningProvider{ID: providerID, Name: "os", Plugin: mockPlugin}
+	p := &ConnectedProvider{Instance: instance, Connection: &plugin.ConnectRes{Id: 1}}
+
+	mockC.EXPECT().Schema().AnyTimes().Return(mockSchema)
+	mockSchema.EXPECT().Lookup(resName).AnyTimes().Return(&resources.ResourceInfo{
+		Id: resName, Name: resName, Provider: providerID,
+	})
+	mockPlugin.EXPECT().GetData(gomock.Any()).Times(0)
+
+	r := &Runtime{
+		coordinator: mockC,
+		recording:   recording.Null{},
+		providers:   map[string]*ConnectedProvider{providerID: p},
+		Provider:    p,
+	}
+
+	stored, _ := instance.recordCrash(func() error {
+		return errors.New("the 'os' provider crashed: connection refused")
+	})
+
+	_, err := r.CreateResource(resName, nil)
+	require.Error(t, err)
+	assert.Equal(t, stored.Error(), err.Error())
+}
+
+// TestRuntime_WatchAndUpdate_ShortCircuitsOnceProviderCrashed mirrors the
+// CreateResource short-circuit test for the field-read path: once a provider
+// is known dead, watchAndUpdate must not call GetData (or, for a
+// cross-provider field, StoreData) again.
+func TestRuntime_WatchAndUpdate_ShortCircuitsOnceProviderCrashed(t *testing.T) {
+	resName := "testResource"
+	fieldName := "testField"
+	ctrl := gomock.NewController(t)
+	mockC := NewMockProvidersCoordinator(ctrl)
+	mockSchema := NewMockResourcesSchema(ctrl)
+	mockPlugin := NewMockProviderPlugin(ctrl)
+
+	instance := &RunningProvider{ID: BuiltinCoreID, Name: "test", Plugin: mockPlugin}
+	p := &ConnectedProvider{Instance: instance, Connection: &plugin.ConnectRes{Id: 1}}
+
+	mockC.EXPECT().Schema().AnyTimes().Return(mockSchema)
+	mockSchema.EXPECT().Lookup(resName).AnyTimes().Return(&resources.ResourceInfo{
+		Name:     resName,
+		Provider: BuiltinCoreID,
+		Fields: map[string]*resources.Field{
+			fieldName: {Name: fieldName, Provider: BuiltinCoreID},
+		},
+	})
+	mockPlugin.EXPECT().GetData(gomock.Any()).Times(0)
+	mockPlugin.EXPECT().StoreData(gomock.Any()).Times(0)
+
+	r := &Runtime{
+		coordinator: mockC,
+		recording:   recording.Null{},
+		providers:   map[string]*ConnectedProvider{BuiltinCoreID: p},
+		Provider:    p,
+	}
+
+	stored, _ := instance.recordCrash(func() error {
+		return errors.New("the 'test' provider crashed: connection refused")
+	})
+
+	_, err := r.watchAndUpdate(resName, "id-1", fieldName, "")
+	require.Error(t, err)
+	assert.Equal(t, stored.Error(), err.Error())
 }
 
 func mustIndex(t *testing.T, s, sub string) int {

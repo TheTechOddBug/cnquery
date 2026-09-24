@@ -735,3 +735,77 @@ func (p *RunningProvider) hadHeartbeatFailure() bool {
 	defer p.shutdownLock.Unlock()
 	return p.heartbeatFailed
 }
+
+// crashError returns the diagnostic error already recorded for this provider
+// if it is known dead, or nil while it is still considered alive. Callers use
+// it to short-circuit before making an RPC to a plugin process that is not
+// coming back — e.g. a dead loopback port on Windows just answers "connection
+// refused" for every further call, so there is nothing to gain by dialing it
+// again for each remaining field.
+func (p *RunningProvider) crashError() error {
+	p.shutdownLock.Lock()
+	defer p.shutdownLock.Unlock()
+	if p.isClosed && p.err != nil {
+		return p.err
+	}
+	return nil
+}
+
+// recordCrash marks the provider closed and stores buildErr() as its crash
+// diagnostic, unless a diagnostic is already stored for it — in which case
+// the existing one is returned unchanged and first is false. This collapses
+// every field that fails after a single crash into the one diagnostic (and
+// one critical-error entry) recorded for the failure that discovered it,
+// instead of rebuilding buildCrashDiagnostics and adding a fresh critical
+// error per field.
+//
+// buildErr is called without shutdownLock held: it is normally
+// buildCrashDiagnostics, which itself calls hadHeartbeatFailure and would
+// deadlock on a non-reentrant lock. That means two callers can race to build
+// a diagnostic concurrently for the same crash; the loser's error is
+// discarded and it returns the winner's instead, so exactly one diagnostic
+// ever gets stored.
+//
+// buildErr runs outside the lock and is caller-supplied (buildCrashDiagnostics
+// today, but recordCrash doesn't know that), so it's treated as fallible: a
+// panic inside it (e.g. a nil crashLog, an unexpected nil somewhere in the
+// diagnostic assembly) is recovered by callBuildErr below and turned into a
+// plain error carrying the panic value. Without that, the panic would
+// unwind straight out of recordCrash with shutdownLock already released from
+// the first check above but isClosed/err never set — the provider would be
+// left neither known-crashed nor able to record one on retry, and the panic
+// itself would propagate to whatever called handlePluginError instead of
+// producing a crash diagnostic. Recovering keeps the guarantee this function
+// exists for: a crash is always recorded, exactly once.
+func (p *RunningProvider) recordCrash(buildErr func() error) (crashErr error, first bool) {
+	p.shutdownLock.Lock()
+	if p.isClosed && p.err != nil {
+		defer p.shutdownLock.Unlock()
+		return p.err, false
+	}
+	p.shutdownLock.Unlock()
+
+	built := callBuildErr(p.Name, buildErr)
+
+	p.shutdownLock.Lock()
+	defer p.shutdownLock.Unlock()
+	if p.isClosed && p.err != nil {
+		return p.err, false
+	}
+	p.isClosed = true
+	p.err = built
+	return p.err, true
+}
+
+// callBuildErr runs buildErr and recovers a panic inside it, falling back to
+// a plain error that includes the panic value so recordCrash's caller still
+// gets a non-nil diagnostic (and the provider still ends up marked crashed)
+// even when assembling the "real" diagnostic itself failed.
+func callBuildErr(providerName string, buildErr func() error) (result error) {
+	defer func() {
+		if r := recover(); r != nil {
+			result = fmt.Errorf("the '%s' provider crashed, but building its crash diagnostic panicked: %v", providerName, r)
+		}
+	}()
+	return buildErr()
+}
