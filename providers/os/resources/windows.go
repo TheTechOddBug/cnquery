@@ -178,6 +178,31 @@ func initWindowsHotfix(runtime *plugin.Runtime, args map[string]*llx.RawData) (m
 	return nil, nil, errors.New("could not find hotfix " + name)
 }
 
+// mqlWindowsInternal backs the windows resource's Go-only state: nothing
+// here is an MQL field, so it never appears in the .lr schema.
+type mqlWindowsInternal struct {
+	lock sync.Mutex
+
+	// hotfixesRaw is the same Get-HotFix outcome hotfixes() below parses,
+	// kept here (alongside the windows.hotfix resources hotfixes() returns)
+	// so packages.list (WinPkgManager.List, via packages.go's
+	// injectWindowsHotfixes) can reuse it directly instead of running
+	// Get-HotFix a second time. It is read raw, never by converting the
+	// windows.hotfix resources: those set installedOn from
+	// hf.InstalledOnTime() alone, the unadjusted epoch instant, while
+	// packages.list needs installedOnDate's local-midnight adjustment
+	// (windows_packages.go) to keep a package's install date from shifting a
+	// day on any host east of UTC.
+	//
+	// hotfixesRawSet distinguishes "hotfixes() has not run on this runtime"
+	// from "hotfixes() ran and found zero hotfixes": GetHotfixes()'s field
+	// cache can be answered from a recording without hotfixes() ever running
+	// (see createWindows's early return when runtime.HasRecording), and an
+	// unpopulated slice must not be mistaken for a genuine empty result.
+	hotfixesRaw    []packages.PowershellWinHotFix
+	hotfixesRawSet bool
+}
+
 func (w *mqlWindows) hotfixes() ([]any, error) {
 	conn := w.MqlRuntime.Connection.(shared.Connection)
 
@@ -201,6 +226,13 @@ func (w *mqlWindows) hotfixes() ([]any, error) {
 		return nil, err
 	}
 
+	// Stash the raw parsed slice for packages.list to reuse (see
+	// mqlWindowsInternal.hotfixesRaw), before any MQL conversion below.
+	w.lock.Lock()
+	w.hotfixesRaw = hotfixes
+	w.hotfixesRawSet = true
+	w.lock.Unlock()
+
 	// convert hotfixes to MQL resource
 	mqlHotFixes := make([]any, len(hotfixes))
 	for i, hf := range hotfixes {
@@ -219,6 +251,17 @@ func (w *mqlWindows) hotfixes() ([]any, error) {
 	}
 
 	return mqlHotFixes, nil
+}
+
+// rawHotfixes returns the Get-HotFix outcome hotfixes() last parsed on this
+// runtime, and whether hotfixes() has actually run here. See
+// mqlWindowsInternal.hotfixesRawSet for why the two are distinguished: a
+// caller (packages.go's injectWindowsHotfixes) must treat "not set" as "go
+// run the query yourself," never as "this host has no hotfixes."
+func (w *mqlWindows) rawHotfixes() ([]packages.PowershellWinHotFix, bool) {
+	w.lock.Lock()
+	defer w.lock.Unlock()
+	return w.hotfixesRaw, w.hotfixesRawSet
 }
 
 func (wh *mqlWindowsServerFeature) id() (string, error) {
