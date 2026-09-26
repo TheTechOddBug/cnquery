@@ -1318,12 +1318,17 @@ package @defaults("name version") {
   init(name string)
 
   // Name of the package
+  //
+  // On macOS, the application bundle's directory name without ".app".
   name string
   // Package description
   description string
   // Currently installed version of the package
   version string
   // Architecture of this package (e.g., x86_64, arm64, noarch)
+  //
+  // On macOS, the architecture of the application's executable: arm64,
+  // x86_64, or universal. Empty when it is not a Mach-O binary.
   arch string
   // Epoch of this package (version-comparison tiebreaker; empty when unset)
   epoch string
@@ -1352,6 +1357,9 @@ package @defaults("name version") {
   pinned bool
 
   // Package URL (purl) identifier for this package
+  //
+  // On macOS, qualifiers present when known: `arch`, `bundle-id`, `team-id`,
+  // `app-store=true`, `install-scope=user`.
   purl string
 
   // Common Platform Enumeration (CPE) for the package
@@ -1444,18 +1452,32 @@ package @defaults("name version") {
   // Uninstall registry key: HKEY_LOCAL_MACHINE is "machine"; HKCU or a
   // specific user's hive under HKEY_USERS is "user". Windows appx packages,
   // the .NET Framework runtime, and hotfixes are always "machine", since
-  // none of those sources carry per-user attribution. Empty on platforms
-  // with no such concept. Query-only: not carried into the SBOM output.
+  // none of those sources carry per-user attribution. On macOS, "user" for an
+  // application inside a user's home directory. Empty on platforms with no
+  // such concept. Query-only: not carried into the SBOM output.
   installScope string
 
   // User owning a user-scope install
   //
-  // Local user whose registry hive reported this package, resolved by
-  // matching the installing SID, set only when `installScope` is "user".
-  // Matched on SID only, so it resolves only for an account that still
-  // exists on this machine; null for a deleted profile and for
-  // machine-scope installs and platforms with no such concept.
+  // Local user a package with `installScope` "user" belongs to: on Windows
+  // matched on the installing SID, on macOS on the home directory's owner.
+  // Null for machine-scope installs and accounts that no longer exist.
   installUser() user
+
+  // macOS application details; null for anything that is not a macOS application
+  macos() package.macos
+}
+
+// macOS application details of a package
+private package.macos @defaults("bundleId teamId appStore") {
+  // Bundle identifier (CFBundleIdentifier), e.g. "com.tinyspeck.slackmacgap"
+  bundleId string
+  // Leaf certificate the application is signed with, e.g. "Developer ID Application: Microsoft Corporation (UBF8T346G9)"
+  signer string
+  // Apple Developer Team ID of a Developer ID signer, e.g. "UBF8T346G9"
+  teamId string
+  // Whether the Mac App Store installs and updates the application
+  appStore bool
 }
 
 // File recorded for a package

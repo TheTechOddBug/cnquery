@@ -72,14 +72,20 @@ type Package struct {
 	// Windows registry-derived packages set "machine" or "user" (HKLM is
 	// "machine", HKCU or a specific user's registry hive is "user"). Windows
 	// appx packages, the .NET Framework runtime, and hotfixes are always
-	// "machine": none of those sources carry per-user attribution. Empty for
-	// every other package manager.
+	// "machine": none of those sources carry per-user attribution. macOS
+	// application bundles are "user" when they sit in a user's home directory
+	// and "machine" otherwise. Empty for every other package manager.
 	InstallScope string `json:"install_scope,omitempty"`
 
-	// InstallUser is the SID of the user whose registry hive reported this
-	// package, set only when InstallScope is "user". Empty for
-	// machine-scope installs and for backends with no per-user concept.
+	// InstallUser identifies the user a "user" InstallScope package belongs
+	// to: on Windows the SID of the user whose registry hive reported it, on
+	// macOS the account name of the home directory the bundle is in. Empty
+	// for machine-scope installs and for backends with no per-user concept.
 	InstallUser string `json:"install_user,omitempty"`
+
+	// MacOS holds what is known about a macOS application bundle beyond the
+	// generic package fields. Nil for every other package.
+	MacOS *MacOSApp `json:"macos,omitempty"`
 
 	// regDedupKey identifies the physical Windows registry key this package
 	// was read from (see windows_packages.go: registryDedupKey,
@@ -88,6 +94,21 @@ type Package struct {
 	// two different roots, never serialized and never reaches the mql
 	// schema.
 	regDedupKey string
+}
+
+// MacOSApp describes a macOS application bundle.
+type MacOSApp struct {
+	// BundleID is the CFBundleIdentifier, e.g. "com.tinyspeck.slackmacgap".
+	BundleID string `json:"bundle_id,omitempty"`
+	// Signer is the leaf certificate the application is signed with, as
+	// system_profiler reports it, e.g. "Developer ID Application: Microsoft
+	// Corporation (UBF8T346G9)".
+	Signer string `json:"signer,omitempty"`
+	// TeamID is the Apple Developer Team ID parsed from a Developer ID signer.
+	TeamID string `json:"team_id,omitempty"`
+	// AppStore reports an application installed and updated by the Mac App
+	// Store.
+	AppStore bool `json:"app_store,omitempty"`
 }
 
 type FileRecord struct {

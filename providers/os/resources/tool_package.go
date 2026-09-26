@@ -235,6 +235,7 @@ func newSyntheticPackage(runtime *plugin.Runtime, id, name, version, vendor, pur
 	pkg.Files.State = plugin.StateIsSet | plugin.StateIsNull
 	pkg.License.State = plugin.StateIsSet | plugin.StateIsNull
 	pkg.InstallDate.State = plugin.StateIsSet | plugin.StateIsNull
+	pkg.Macos.State = plugin.StateIsSet | plugin.StateIsNull
 
 	return pkg, nil
 }

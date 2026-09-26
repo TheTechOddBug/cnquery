@@ -165,6 +165,7 @@ func createTestPackage(t *testing.T, runtime *plugin.Runtime, args map[string]*l
 	require.NoError(t, err)
 	pkg := res.(*mqlPackage)
 	pkg.installUserSid = osPkg.InstallUser
+	pkg.macosApp = osPkg.MacOS
 	return pkg
 }
 
@@ -328,4 +329,90 @@ func TestPackageIDIgnoresFilesOutsideMacOS(t *testing.T) {
 
 	// A macOS package without its file record has no path to add.
 	assert.Equal(t, "macos://Safari/27.0/arm64", packageID(packages.MacosPkgFormat, "Safari", "27.0", "arm64", "", "", nil))
+}
+
+// A macOS application in a home directory belongs to that account. macOS
+// accounts carry no SID, so installUser() matches the account name, and the
+// details read from the bundle reach package.macos.
+func TestMacOSApplicationSurface(t *testing.T) {
+	args := make(map[string]*llx.RawData, 20)
+
+	t.Run("user-scope bundle resolves installUser by account name", func(t *testing.T) {
+		runtime := &plugin.Runtime{Resources: &syncx.Map[plugin.Resource]{}}
+		// A Windows-style SID match must not be what resolves this: the macOS
+		// user has none, and a second account with an empty SID is present.
+		seedUsersCache(t, runtime, newTestUser(runtime, "root", ""), newTestUser(runtime, "alice", ""))
+
+		pkg := packages.Package{
+			Name: "Claude Code URL Handler", Version: "1.0", Arch: "arm64", Format: packages.MacosPkgFormat,
+			Files:        []packages.FileRecord{{Path: "/Users/alice/Applications/Claude Code URL Handler.app"}},
+			InstallScope: "user", InstallUser: "alice",
+			MacOS: &packages.MacOSApp{BundleID: "com.anthropic.claude-code-url-handler"},
+		}
+		got := createTestPackage(t, runtime, args, &pkg)
+
+		assert.Equal(t, "user", got.InstallScope.Data)
+		resolved := got.GetInstallUser()
+		require.NoError(t, resolved.Error)
+		require.NotNil(t, resolved.Data)
+		assert.Equal(t, "alice", resolved.Data.Name.Data)
+	})
+
+	t.Run("macos details of a Developer ID application", func(t *testing.T) {
+		runtime := &plugin.Runtime{Resources: &syncx.Map[plugin.Resource]{}}
+		pkg := packages.Package{
+			Name: "Microsoft Edge", Version: "154.0.4258.37", Arch: "arm64", Format: packages.MacosPkgFormat,
+			Files:        []packages.FileRecord{{Path: "/Applications/Microsoft Edge.app"}},
+			InstallScope: "machine",
+			MacOS: &packages.MacOSApp{
+				BundleID: "com.microsoft.edgemac",
+				Signer:   "Developer ID Application: Microsoft Corporation (UBF8T346G9)",
+				TeamID:   "UBF8T346G9",
+			},
+		}
+		got := createTestPackage(t, runtime, args, &pkg)
+		macos := got.GetMacos()
+		require.NoError(t, macos.Error)
+		require.NotNil(t, macos.Data)
+		assert.Equal(t, "com.microsoft.edgemac", macos.Data.BundleId.Data)
+		assert.Equal(t, "Developer ID Application: Microsoft Corporation (UBF8T346G9)", macos.Data.Signer.Data)
+		assert.Equal(t, "UBF8T346G9", macos.Data.TeamId.Data)
+		assert.False(t, macos.Data.AppStore.Data)
+		assert.Equal(t, got.__id+"/macos", macos.Data.__id)
+	})
+
+	t.Run("macos details of an App Store application", func(t *testing.T) {
+		runtime := &plugin.Runtime{Resources: &syncx.Map[plugin.Resource]{}}
+		pkg := packages.Package{
+			Name: "Monodraw", Version: "1.7.1", Arch: "universal", Format: packages.MacosPkgFormat,
+			Files: []packages.FileRecord{{Path: "/Applications/Monodraw.app"}},
+			MacOS: &packages.MacOSApp{BundleID: "com.helftone.monodraw", Signer: "Apple Mac OS Application Signing", AppStore: true},
+		}
+		macos := createTestPackage(t, runtime, args, &pkg).GetMacos()
+		require.NoError(t, macos.Error)
+		require.NotNil(t, macos.Data)
+		assert.True(t, macos.Data.AppStore.Data)
+	})
+
+	t.Run("macos is null for other packages", func(t *testing.T) {
+		runtime := &plugin.Runtime{Resources: &syncx.Map[plugin.Resource]{}}
+		pkg := packages.Package{Name: "openssl", Version: "3.0.11", Arch: "amd64", Format: "rpm"}
+		macos := createTestPackage(t, runtime, args, &pkg).GetMacos()
+		require.NoError(t, macos.Error)
+		assert.Nil(t, macos.Data)
+		assert.True(t, macos.IsNull())
+	})
+}
+
+// package.macos belongs to one package, so the dotted form on its own is an
+// error rather than a resource whose every field reads null.
+func TestPackageMacosCannotBeQueriedOnItsOwn(t *testing.T) {
+	_, _, err := initPackageMacos(nil, map[string]*llx.RawData{})
+	require.Error(t, err)
+
+	args := map[string]*llx.RawData{"__id": llx.StringData("macos://Slack/4.52.162/arm64/path/Applications/Slack.app/macos")}
+	got, res, err := initPackageMacos(nil, args)
+	require.NoError(t, err)
+	assert.Nil(t, res)
+	assert.Equal(t, args, got)
 }
