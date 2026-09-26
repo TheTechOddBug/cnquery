@@ -70,9 +70,8 @@ func TestMachoArch(t *testing.T) {
 	})
 }
 
-// Bundle paths from an Apple Silicon Mac. system_profiler names some of them
-// differently ("Zoom", and "Digital Colour Meter" on a British English
-// system); the package is named after the directory either way.
+// Bundle paths from an Apple Silicon Mac. The directory name is the fallback
+// name of an application no other source names.
 func TestBundleName(t *testing.T) {
 	cases := []struct {
 		path string
@@ -192,7 +191,7 @@ func TestMacOSAppIdentity(t *testing.T) {
 		assert.True(t, monodraw.MacOS.AppStore)
 		assert.Equal(t, "mac_app_store", monodraw.Origin)
 		assert.Equal(t, "universal", monodraw.Arch)
-		assert.Equal(t, "pkg:macos/macos/Monodraw@1.7.1?app-store=true&arch=universal&bundle-id=com.helftone.monodraw", monodraw.PUrl)
+		assert.Equal(t, "pkg:macos/macos/Monodraw@1.7.1?app-store=true&arch=arm64&bundle-id=com.helftone.monodraw", monodraw.PUrl)
 	})
 
 	t.Run("application shipped with macOS", func(t *testing.T) {
@@ -202,19 +201,19 @@ func TestMacOSAppIdentity(t *testing.T) {
 		assert.Empty(t, textEdit.MacOS.TeamID)
 		assert.False(t, textEdit.MacOS.AppStore)
 		assert.Equal(t, "universal", textEdit.Arch)
-		assert.Equal(t, "pkg:macos/macos/TextEdit@1.20?arch=universal&bundle-id=com.apple.TextEdit", textEdit.PUrl)
+		assert.Equal(t, "pkg:macos/macos/TextEdit@1.20?arch=arm64&bundle-id=com.apple.TextEdit", textEdit.PUrl)
 	})
 
 	t.Run("architectures", func(t *testing.T) {
 		assert.Equal(t, "arm64", byPath["/Applications/VLC.app"].Arch)
 		assert.Equal(t, "x86_64", byPath["/Applications/Oracle Secure Global Desktop Client.app"].Arch)
-		assert.Equal(t, "pkg:macos/macos/Oracle%20Secure%20Global%20Desktop%20Client@5.60.567?arch=x86_64&bundle-id=com.oracle.sgd.ttatcc&team-id=VB5E2TV963",
+		assert.Equal(t, "pkg:macos/macos/Oracle%20Secure%20Global%20Desktop%20Client@5.60.567?arch=arm64&bundle-id=com.oracle.sgd.ttatcc&team-id=VB5E2TV963",
 			byPath["/Applications/Oracle Secure Global Desktop Client.app"].PUrl)
-		// A shell script launcher has no Mach-O architecture, and the host's
-		// would be wrong: no arch, and no arch qualifier.
+		// A shell script launcher has no Mach-O architecture, so package.arch
+		// is empty. The purl keeps the host's architecture for now (#11113).
 		zap := byPath["/Applications/ZAP.app"]
 		assert.Empty(t, zap.Arch)
-		assert.Equal(t, "pkg:macos/macos/ZAP@2.15.0?bundle-id=org.zaproxy.zap.ZAP", zap.PUrl)
+		assert.Equal(t, "pkg:macos/macos/ZAP@2.15.0?arch=arm64&bundle-id=org.zaproxy.zap.ZAP", zap.PUrl)
 	})
 
 	t.Run("application in a home directory", func(t *testing.T) {
@@ -246,7 +245,7 @@ func TestMacOSAppIdentity(t *testing.T) {
 		assert.True(t, telegram.MacOS.AppStore)
 		// system_profiler reported no arch_kind for it: this is the executable.
 		assert.Equal(t, "universal", telegram.Arch)
-		assert.Equal(t, "pkg:macos/macos/Telegram@12.10?app-store=true&arch=universal&bundle-id=ru.keepcoder.Telegram", telegram.PUrl)
+		assert.Equal(t, "pkg:macos/macos/Telegram@12.10?app-store=true&arch=arm64&bundle-id=ru.keepcoder.Telegram", telegram.PUrl)
 
 		// Found one level down, in a vendor folder.
 		whatsapp := byPath["/Applications/WhatsApp.localized/WhatsApp.app"]
@@ -283,4 +282,59 @@ func TestAppArchitecturePrefersTheExecutable(t *testing.T) {
 
 	// Neither: no architecture rather than the host's.
 	assert.Equal(t, "", appArchitecture(conn, &sysProfilerItem{Path: "/Applications/Missing.app"}, infoPlist{Executable: "Missing"}))
+}
+
+// Applications only the folder listing finds are named the way Finder and
+// system_profiler name them: the localized name when the bundle sets
+// LSHasLocalizedDisplayName, read in the bundle's development language,
+// otherwise the directory name. The fixture covers each file format a
+// localized name comes in.
+func TestAppDisplayName(t *testing.T) {
+	conn, err := mock.New(0, &inventory.Asset{}, mock.WithPath("./testdata/packages_macos_display_name.toml"))
+	require.NoError(t, err)
+
+	cases := []struct {
+		path   string
+		want   string
+		format string
+	}{
+		{"/Applications/Cisco WebEx Start.app", "Webex", "text .strings, UTF-8"},
+		{"/Applications/Meeting Center.app", "Cisco Webex Meetings", "text .strings, UTF-16, English.lproj"},
+		{"/Applications/Iru Self Service.app", "Iru Self Service", "XML .strings, UTF-16"},
+		{"/Applications/Microsoft Word.app", "Microsoft Word", "binary .strings"},
+		{"/Applications/logioptionsplus.app", "Logi Options+", "text .strings, Base.lproj"},
+		// The development language's spelling, not the user's: system_profiler
+		// shows "Notification Centre" on a British English system.
+		{"/System/Applications/NotificationCenter.app", "Notification Center", "InfoPlist.loctable"},
+		// No LSHasLocalizedDisplayName: Finder shows the directory name, not the
+		// Info.plist display name "Code".
+		{"/Applications/Visual Studio Code.app", "Visual Studio Code", "no localized name"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.format, func(t *testing.T) {
+			info, isBundle := readInfoPlist(conn, tc.path)
+			require.True(t, isBundle)
+			assert.Equal(t, tc.want, appDisplayName(conn, tc.path, info))
+		})
+	}
+}
+
+func TestIsTruthy(t *testing.T) {
+	for _, v := range []any{true, uint64(1), int64(1), "1", "YES", "true"} {
+		assert.True(t, isTruthy(v), "%v", v)
+	}
+	for _, v := range []any{nil, false, uint64(0), "", "0", "NO"} {
+		assert.False(t, isTruthy(v), "%v", v)
+	}
+}
+
+// Content larger than a localization file is ignored before anything is
+// allocated from its length.
+func TestParseStringsFileIgnoresOversizedContent(t *testing.T) {
+	small := []byte(`"CFBundleDisplayName" = "Webex";`)
+	assert.Equal(t, map[string]string{"CFBundleDisplayName": "Webex"}, parseStringsFile(small))
+
+	big := append([]byte{0xff, 0xfe}, make([]byte, maxInfoStringsSize)...)
+	assert.Nil(t, parseStringsFile(big))
+	assert.Nil(t, decodeUTF16(big))
 }
