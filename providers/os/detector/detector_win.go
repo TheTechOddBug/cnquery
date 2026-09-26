@@ -4,6 +4,7 @@
 package detector
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -149,7 +150,7 @@ func staticWindowsDetector(pf *inventory.Platform, conn shared.Connection) (bool
 	} else if v, err := rh.GetRegistryItemValue(registry.Software, "Microsoft\\Windows NT\\CurrentVersion", "CurrentBuildNumber"); err == nil {
 		current.CurrentBuild = v.Value.String
 	}
-	if v, err := rh.GetRegistryItemValue(registry.System, "CurrentControlSet\\Control\\ProductOptions", "ProductType"); err == nil {
+	if v, err := rh.GetRegistryItemValue(registry.System, staticControlSet(rh)+"\\Control\\ProductOptions", "ProductType"); err == nil {
 		current.ProductType = v.Value.String
 	}
 
@@ -163,7 +164,27 @@ func staticWindowsDetector(pf *inventory.Platform, conn shared.Connection) (bool
 	}
 	pf.Labels["windows.mondoo.com/hotpatch"] = strconv.FormatBool(hotpatchEnabled)
 
+	if intuneManageable(pf) {
+		applyIntuneInfo(pf, staticIntuneInfo(rh))
+	}
+
 	return true, nil
+}
+
+// staticControlSet returns the SYSTEM hive's active control set key, such as
+// ControlSet001. CurrentControlSet exists only in the live registry, as a link
+// the kernel creates at boot; a SYSTEM hive loaded from a file has only the
+// numbered control sets and names the active one in Select\Current.
+// hiveValueReader is the part of the registry handler staticControlSet needs.
+type hiveValueReader interface {
+	GetRegistryItemValue(registryId string, path, key string) (registry.RegistryKeyItem, error)
+}
+
+func staticControlSet(rh hiveValueReader) string {
+	if v, err := rh.GetRegistryItemValue(registry.System, "Select", "Current"); err == nil && v.Value.Number > 0 && v.Value.Number < 1000 {
+		return fmt.Sprintf("ControlSet%03d", v.Value.Number)
+	}
+	return "ControlSet001"
 }
 
 // staticClientHotpatch checks AllowRebootlessUpdates + VBS from offline registry hives.
@@ -173,7 +194,7 @@ func staticClientHotpatch(rh *registry.RegistryHandler) bool {
 		log.Debug().Str("allowRebootlessUpdates", allowRebootless.Value.String).Msg("found AllowRebootlessUpdates")
 	}
 
-	enableVBS, err := rh.GetRegistryItemValue(registry.System, "CurrentControlSet\\Control\\DeviceGuard", "EnableVirtualizationBasedSecurity")
+	enableVBS, err := rh.GetRegistryItemValue(registry.System, staticControlSet(rh)+"\\Control\\DeviceGuard", "EnableVirtualizationBasedSecurity")
 	if err == nil && enableVBS.Value.String != "" {
 		log.Debug().Str("enableVirtualizationBasedSecurity", enableVBS.Value.String).Msg("found enableVirtualizationBasedSecurity")
 	}
@@ -192,12 +213,12 @@ func staticServerHotpatch(rh *registry.RegistryHandler, arch string) bool {
 		log.Debug().Str("hotpatchPackage", hotpatchPackage.Value.String).Msg("found hotpatchPackage")
 	}
 
-	enableVBS, err := rh.GetRegistryItemValue(registry.System, "CurrentControlSet\\Control\\DeviceGuard", "EnableVirtualizationBasedSecurity")
+	enableVBS, err := rh.GetRegistryItemValue(registry.System, staticControlSet(rh)+"\\Control\\DeviceGuard", "EnableVirtualizationBasedSecurity")
 	if err == nil && enableVBS.Value.String != "" {
 		log.Debug().Str("enableVirtualizationBasedSecurity", enableVBS.Value.String).Msg("found enableVirtualizationBasedSecurity")
 	}
 
-	hotPatchTableSize, err := rh.GetRegistryItemValue(registry.System, "CurrentControlSet\\Control\\Session Manager\\Memory Management", "HotPatchTableSize")
+	hotPatchTableSize, err := rh.GetRegistryItemValue(registry.System, staticControlSet(rh)+"\\Control\\Session Manager\\Memory Management", "HotPatchTableSize")
 	if err == nil && hotPatchTableSize.Value.String != "" {
 		log.Debug().Str("hotPatchTableSize", hotPatchTableSize.Value.String).Msg("found hotPatchTableSize")
 	}
@@ -209,23 +230,120 @@ func staticServerHotpatch(rh *registry.RegistryHandler, arch string) bool {
 // This includes workstations (product-type "1") and Windows 11 Enterprise Multi-Session
 // systems which report as product-type "3" but are manageable via Intune.
 func detectIntuneDeviceID(pf *inventory.Platform, conn shared.Connection) {
+	if !intuneManageable(pf) {
+		return
+	}
+
+	info, err := win.GetIntuneInfo(conn)
+	if err != nil {
+		log.Debug().Err(err).Msg("could not get Intune device information")
+		return
+	}
+	applyIntuneInfo(pf, info)
+}
+
+// intuneManageable reports whether the platform is a Windows client that can be
+// Intune-enrolled: workstations (product-type "1") and Windows 11 Enterprise
+// Multi-Session, which reports product-type "3".
+func intuneManageable(pf *inventory.Platform) bool {
 	isWorkstation := pf.Labels["windows.mondoo.com/product-type"] == "1"
 	isWindows11MultiSession := pf.Labels["windows.mondoo.com/product-type"] == "3" &&
 		strings.Contains(pf.Title, "Windows 11") &&
 		strings.Contains(pf.Title, "Multi-Session")
-	if !isWorkstation && !isWindows11MultiSession {
+	return isWorkstation || isWindows11MultiSession
+}
+
+// applyIntuneInfo sets the labels every detection path derives from the same
+// Intune information, so the live, remote, and offline paths cannot disagree.
+func applyIntuneInfo(pf *inventory.Platform, info *win.IntuneInfo) {
+	if info == nil {
 		return
 	}
+	if info.EntDMID != "" {
+		pf.Labels["windows.mondoo.com/intune-device-id"] = info.EntDMID
+	}
+	// The Microsoft device identity comes from the public device certificates;
+	// without access to the store the labels are absent.
+	info.Identity().SetLabels(pf)
+}
 
-	intuneDeviceID, err := win.GetIntuneDeviceID(conn)
-	if err != nil {
-		log.Debug().Err(err).Msg("could not get Intune device ID")
-		return
+// hiveReader is the part of the registry handler the offline Intune reader
+// needs; *registry.RegistryHandler implements it.
+type hiveReader interface {
+	GetNativeRegistryKeyChildren(registryId string, path string) ([]registry.RegistryKeyChild, error)
+	GetNativeRegistryKeyItems(registryId string, path string) ([]registry.RegistryKeyItem, error)
+}
+
+const (
+	enrollmentsKey        = `Microsoft\Enrollments`
+	machineMyCertsKey     = `Microsoft\SystemCertificates\MY\Certificates`
+	enrollmentDMClientKey = `DMClient\MS DM Server`
+)
+
+// staticIntuneInfo reads the Intune enrollment ID and the machine's personal
+// certificates from a loaded SOFTWARE hive. It is the offline counterpart of
+// GetIntuneInfo for filesystem connections, where no command can run. The
+// certificate store lives in the same hive: each certificate is a subkey named
+// by its thumbprint whose "Blob" value is a serialized store element.
+func staticIntuneInfo(rh hiveReader) *win.IntuneInfo {
+	info := &win.IntuneInfo{}
+
+	if enrollments, err := rh.GetNativeRegistryKeyChildren(registry.Software, enrollmentsKey); err == nil {
+		for _, e := range enrollments {
+			items, err := rh.GetNativeRegistryKeyItems(registry.Software, enrollmentsKey+`\`+e.Name+`\`+enrollmentDMClientKey)
+			if err != nil {
+				continue
+			}
+			if id := registryString(items, "EntDMID"); id != "" {
+				info.EntDMID = id
+				break
+			}
+		}
 	}
 
-	if intuneDeviceID != "" {
-		pf.Labels["windows.mondoo.com/intune-device-id"] = intuneDeviceID
+	if certs, err := rh.GetNativeRegistryKeyChildren(registry.Software, machineMyCertsKey); err == nil {
+		for _, c := range certs {
+			items, err := rh.GetNativeRegistryKeyItems(registry.Software, machineMyCertsKey+`\`+c.Name)
+			if err != nil {
+				continue
+			}
+			blob := registryBinary(items, "Blob")
+			if len(blob) == 0 {
+				continue
+			}
+			der, err := win.CertificateFromStoreBlob(blob)
+			if err != nil {
+				log.Debug().Err(err).Str("certificate", c.Name).Msg("skipping unreadable certificate store entry")
+				continue
+			}
+			info.Certificates = append(info.Certificates, der)
+		}
 	}
+
+	if info.EntDMID == "" && len(info.Certificates) == 0 {
+		return nil
+	}
+	return info
+}
+
+// registryString and registryBinary look up a value by name. Registry value
+// names are case-insensitive.
+func registryString(items []registry.RegistryKeyItem, name string) string {
+	for _, it := range items {
+		if strings.EqualFold(it.Key, name) {
+			return it.Value.String
+		}
+	}
+	return ""
+}
+
+func registryBinary(items []registry.RegistryKeyItem, name string) []byte {
+	for _, it := range items {
+		if strings.EqualFold(it.Key, name) {
+			return it.Value.Binary
+		}
+	}
+	return nil
 }
 
 // detectESU checks if Windows 10 Extended Security Updates (ESU) are enabled.
