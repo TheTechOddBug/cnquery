@@ -9,7 +9,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mondoo.com/mql/providers-sdk/v1/plugin"
+	detwin "go.mondoo.com/mql/providers/os/detector/windows"
 	"go.mondoo.com/mql/providers/os/resources/windows"
+	"go.mondoo.com/mql/utils/syncx"
 )
 
 func TestMdmVendor(t *testing.T) {
@@ -71,7 +73,7 @@ func TestWindowsMdmResult(t *testing.T) {
 // null, never an empty string a check could compare against.
 func TestMdmResultSet_NotEnrolledIsNull(t *testing.T) {
 	m := &mqlMdm{}
-	mdmResult{}.set(m)
+	require.NoError(t, mdmResult{}.set(m))
 	assert.Equal(t, plugin.StateIsSet, m.Enrolled.State)
 	assert.False(t, m.Enrolled.Data)
 	for _, f := range []plugin.TValue[string]{m.Vendor, m.ServerUrl, m.Method} {
@@ -81,8 +83,113 @@ func TestMdmResultSet_NotEnrolledIsNull(t *testing.T) {
 
 func TestMdmResultSet_UnknownVendorIsNull(t *testing.T) {
 	m := &mqlMdm{}
-	mdmResult{enrolled: true, serverURL: "https://mdm.example.com/x", method: "user"}.set(m)
+	require.NoError(t, mdmResult{enrolled: true, serverURL: "https://mdm.example.com/x", method: "user"}.set(m))
 	assert.Equal(t, "https://mdm.example.com/x", m.ServerUrl.Data)
 	assert.Equal(t, plugin.StateIsSet|plugin.StateIsNull, m.Vendor.State)
 	assert.Equal(t, "user", m.Method.Data)
+}
+
+func TestMdmAndDirectory_DeviceKinds(t *testing.T) {
+	// Made-up identifiers.
+	full := detwin.DeviceIdentity{
+		IntuneDeviceID: "0a1b2c3d-4e5f-4061-8273-a4b5c6d7e8f9",
+		EntraTenantID:  "11223344-5566-7788-99aa-bbccddeeff00",
+		EntraDeviceID:  "c0ffee00-1234-4abc-8def-0123456789ab",
+	}
+	entraOnly := detwin.DeviceIdentity{
+		EntraTenantID: full.EntraTenantID,
+		EntraDeviceID: full.EntraDeviceID,
+	}
+	null := plugin.StateIsSet | plugin.StateIsNull
+	newMdm := func() *mqlMdm {
+		return &mqlMdm{MqlRuntime: &plugin.Runtime{Resources: &syncx.Map[plugin.Resource]{}}}
+	}
+	newDirectory := func() *mqlDirectory {
+		return &mqlDirectory{MqlRuntime: &plugin.Runtime{Resources: &syncx.Map[plugin.Resource]{}}}
+	}
+	assertMember := func(t *testing.T, d *mqlDirectory, id detwin.DeviceIdentity) {
+		t.Helper()
+		assert.True(t, d.Joined.Data)
+		require.NotNil(t, d.Entra.Data)
+		assert.Equal(t, id.EntraDeviceID, d.Entra.Data.DeviceId.Data)
+		assert.Equal(t, id.EntraTenantID, d.Entra.Data.TenantId.Data)
+	}
+	assertNotMember := func(t *testing.T, d *mqlDirectory) {
+		t.Helper()
+		assert.False(t, d.Joined.Data)
+		assert.Equal(t, null, d.Entra.State)
+	}
+
+	t.Run("Intune-enrolled and Entra-joined", func(t *testing.T) {
+		m := newMdm()
+		require.NoError(t, mdmResult{enrolled: true, serverURL: "https://r.manage.microsoft.com/EnrollmentServer", identity: full}.set(m))
+		assert.Equal(t, "intune", m.Vendor.Data)
+		assert.Equal(t, full.IntuneDeviceID, m.DeviceId.Data)
+		require.NotNil(t, m.Intune.Data)
+		assert.Equal(t, full.IntuneDeviceID, m.Intune.Data.DeviceId.Data)
+		assert.Equal(t, full.EntraTenantID, m.Intune.Data.TenantId.Data)
+
+		d := newDirectory()
+		require.NoError(t, directoryResult{entra: entraFromIdentity(full)}.set(d))
+		assertMember(t, d, full)
+	})
+
+	t.Run("Entra-joined without MDM", func(t *testing.T) {
+		m := newMdm()
+		require.NoError(t, mdmResult{identity: entraOnly}.set(m))
+		assert.False(t, m.Enrolled.Data)
+		assert.Equal(t, null, m.DeviceId.State)
+		assert.Equal(t, null, m.Intune.State)
+
+		d := newDirectory()
+		require.NoError(t, directoryResult{entra: entraFromIdentity(entraOnly)}.set(d))
+		assertMember(t, d, entraOnly)
+	})
+
+	t.Run("managed by another MDM", func(t *testing.T) {
+		m := newMdm()
+		require.NoError(t, mdmResult{enrolled: true, serverURL: "https://acme.jamfcloud.com/mdm"}.set(m))
+		assert.Equal(t, "jamf", m.Vendor.Data)
+		assert.Equal(t, null, m.DeviceId.State)
+		assert.Equal(t, null, m.Intune.State)
+
+		// No directory detection ran (e.g. macOS): no membership.
+		d := newDirectory()
+		require.NoError(t, directoryResult{}.set(d))
+		assertNotMember(t, d)
+	})
+
+	t.Run("unmanaged", func(t *testing.T) {
+		m := newMdm()
+		require.NoError(t, mdmResult{}.set(m))
+		assert.False(t, m.Enrolled.Data)
+		assert.Equal(t, null, m.DeviceId.State)
+		assert.Equal(t, null, m.Intune.State)
+
+		d := newDirectory()
+		require.NoError(t, directoryResult{entra: entraFromIdentity(detwin.DeviceIdentity{})}.set(d))
+		assertNotMember(t, d)
+	})
+
+	t.Run("a leftover Intune certificate on an unenrolled device is ignored", func(t *testing.T) {
+		m := newMdm()
+		require.NoError(t, mdmResult{identity: full}.set(m))
+		assert.Equal(t, null, m.DeviceId.State)
+		assert.Equal(t, null, m.Intune.State)
+	})
+
+	t.Run("an Intune tenant without an Entra device ID is not a membership", func(t *testing.T) {
+		d := newDirectory()
+		require.NoError(t, directoryResult{entra: entraFromIdentity(detwin.DeviceIdentity{IntuneDeviceID: full.IntuneDeviceID, EntraTenantID: full.EntraTenantID})}.set(d))
+		assertNotMember(t, d)
+	})
+
+	t.Run("enrolled in Intune with an unreadable certificate", func(t *testing.T) {
+		m := newMdm()
+		require.NoError(t, mdmResult{enrolled: true, serverURL: "https://r.manage.microsoft.com/x"}.set(m))
+		assert.Equal(t, null, m.DeviceId.State)
+		require.NotNil(t, m.Intune.Data)
+		assert.Equal(t, null, m.Intune.Data.DeviceId.State)
+		assert.Equal(t, null, m.Intune.Data.TenantId.State)
+	})
 }

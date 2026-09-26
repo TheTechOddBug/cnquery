@@ -536,6 +536,9 @@ const (
 	ResourceEdr                                           string = "edr"
 	ResourceEdrProduct                                    string = "edr.product"
 	ResourceMdm                                           string = "mdm"
+	ResourceMdmIntune                                     string = "mdm.intune"
+	ResourceDirectory                                     string = "directory"
+	ResourceDirectoryEntra                                string = "directory.entra"
 	ResourceCloud                                         string = "cloud"
 	ResourceCloudInstance                                 string = "cloudInstance"
 	ResourceIpAddress                                     string = "ipAddress"
@@ -2745,6 +2748,18 @@ func init() {
 		"mdm": {
 			// to override args, implement: initMdm(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error)
 			Create: createMdm,
+		},
+		"mdm.intune": {
+			Init:   initMdmIntune,
+			Create: createMdmIntune,
+		},
+		"directory": {
+			// to override args, implement: initDirectory(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error)
+			Create: createDirectory,
+		},
+		"directory.entra": {
+			Init:   initDirectoryEntra,
+			Create: createDirectoryEntra,
 		},
 		"cloud": {
 			// to override args, implement: initCloud(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error)
@@ -15337,6 +15352,12 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	"edr.product.signatureVersion": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlEdrProduct).GetSignatureVersion()).ToDataRes(types.String)
 	},
+	"edr.product.agentId": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlEdrProduct).GetAgentId()).ToDataRes(types.String)
+	},
+	"edr.product.tenantId": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlEdrProduct).GetTenantId()).ToDataRes(types.String)
+	},
 	"edr.product.detectedBy": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlEdrProduct).GetDetectedBy()).ToDataRes(types.Array(types.String))
 	},
@@ -15363,6 +15384,30 @@ var getDataFields = map[string]func(r plugin.Resource) *plugin.DataRes{
 	},
 	"mdm.method": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlMdm).GetMethod()).ToDataRes(types.String)
+	},
+	"mdm.deviceId": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlMdm).GetDeviceId()).ToDataRes(types.String)
+	},
+	"mdm.intune": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlMdm).GetIntune()).ToDataRes(types.Resource("mdm.intune"))
+	},
+	"mdm.intune.deviceId": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlMdmIntune).GetDeviceId()).ToDataRes(types.String)
+	},
+	"mdm.intune.tenantId": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlMdmIntune).GetTenantId()).ToDataRes(types.String)
+	},
+	"directory.joined": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlDirectory).GetJoined()).ToDataRes(types.Bool)
+	},
+	"directory.entra": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlDirectory).GetEntra()).ToDataRes(types.Resource("directory.entra"))
+	},
+	"directory.entra.deviceId": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlDirectoryEntra).GetDeviceId()).ToDataRes(types.String)
+	},
+	"directory.entra.tenantId": func(r plugin.Resource) *plugin.DataRes {
+		return (r.(*mqlDirectoryEntra).GetTenantId()).ToDataRes(types.String)
 	},
 	"cloud.provider": func(r plugin.Resource) *plugin.DataRes {
 		return (r.(*mqlCloud).GetProvider()).ToDataRes(types.String)
@@ -36115,6 +36160,14 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 		r.(*mqlEdrProduct).SignatureVersion, ok = plugin.RawToTValue[string](v.Value, v.Error)
 		return
 	},
+	"edr.product.agentId": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlEdrProduct).AgentId, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"edr.product.tenantId": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlEdrProduct).TenantId, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
 	"edr.product.detectedBy": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlEdrProduct).DetectedBy, ok = plugin.RawToTValue[[]any](v.Value, v.Error)
 		return
@@ -36153,6 +36206,50 @@ var setDataFields = map[string]func(r plugin.Resource, v *llx.RawData) bool{
 	},
 	"mdm.method": func(r plugin.Resource, v *llx.RawData) (ok bool) {
 		r.(*mqlMdm).Method, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"mdm.deviceId": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlMdm).DeviceId, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"mdm.intune": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlMdm).Intune, ok = plugin.RawToTValue[*mqlMdmIntune](v.Value, v.Error)
+		return
+	},
+	"mdm.intune.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlMdmIntune).__id, ok = v.Value.(string)
+		return
+	},
+	"mdm.intune.deviceId": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlMdmIntune).DeviceId, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"mdm.intune.tenantId": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlMdmIntune).TenantId, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"directory.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlDirectory).__id, ok = v.Value.(string)
+		return
+	},
+	"directory.joined": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlDirectory).Joined, ok = plugin.RawToTValue[bool](v.Value, v.Error)
+		return
+	},
+	"directory.entra": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlDirectory).Entra, ok = plugin.RawToTValue[*mqlDirectoryEntra](v.Value, v.Error)
+		return
+	},
+	"directory.entra.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlDirectoryEntra).__id, ok = v.Value.(string)
+		return
+	},
+	"directory.entra.deviceId": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlDirectoryEntra).DeviceId, ok = plugin.RawToTValue[string](v.Value, v.Error)
+		return
+	},
+	"directory.entra.tenantId": func(r plugin.Resource, v *llx.RawData) (ok bool) {
+		r.(*mqlDirectoryEntra).TenantId, ok = plugin.RawToTValue[string](v.Value, v.Error)
 		return
 	},
 	"cloud.__id": func(r plugin.Resource, v *llx.RawData) (ok bool) {
@@ -92573,6 +92670,8 @@ type mqlEdrProduct struct {
 	SignatureAge       plugin.TValue[int64]
 	SignatureUpdatedAt plugin.TValue[*time.Time]
 	SignatureVersion   plugin.TValue[string]
+	AgentId            plugin.TValue[string]
+	TenantId           plugin.TValue[string]
 	DetectedBy         plugin.TValue[[]any]
 	Services           plugin.TValue[[]any]
 	Packages           plugin.TValue[[]any]
@@ -92669,6 +92768,14 @@ func (c *mqlEdrProduct) GetSignatureVersion() *plugin.TValue[string] {
 	return &c.SignatureVersion
 }
 
+func (c *mqlEdrProduct) GetAgentId() *plugin.TValue[string] {
+	return &c.AgentId
+}
+
+func (c *mqlEdrProduct) GetTenantId() *plugin.TValue[string] {
+	return &c.TenantId
+}
+
 func (c *mqlEdrProduct) GetDetectedBy() *plugin.TValue[[]any] {
 	return &c.DetectedBy
 }
@@ -92746,6 +92853,8 @@ type mqlMdm struct {
 	Vendor    plugin.TValue[string]
 	ServerUrl plugin.TValue[string]
 	Method    plugin.TValue[string]
+	DeviceId  plugin.TValue[string]
+	Intune    plugin.TValue[*mqlMdmIntune]
 }
 
 // createMdm creates a new instance of this resource
@@ -92807,6 +92916,194 @@ func (c *mqlMdm) GetMethod() *plugin.TValue[string] {
 	return plugin.GetOrCompute[string](&c.Method, func() (string, error) {
 		return c.method()
 	})
+}
+
+func (c *mqlMdm) GetDeviceId() *plugin.TValue[string] {
+	return plugin.GetOrCompute[string](&c.DeviceId, func() (string, error) {
+		return c.deviceId()
+	})
+}
+
+func (c *mqlMdm) GetIntune() *plugin.TValue[*mqlMdmIntune] {
+	return plugin.GetOrCompute[*mqlMdmIntune](&c.Intune, func() (*mqlMdmIntune, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("mdm", c.__id, "intune")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.(*mqlMdmIntune), nil
+			}
+		}
+
+		return c.intune()
+	})
+}
+
+// mqlMdmIntune for the mdm.intune resource
+type mqlMdmIntune struct {
+	MqlRuntime *plugin.Runtime
+	__id       string
+	// optional: if you define mqlMdmIntuneInternal it will be used here
+	DeviceId plugin.TValue[string]
+	TenantId plugin.TValue[string]
+}
+
+// createMdmIntune creates a new instance of this resource
+func createMdmIntune(runtime *plugin.Runtime, args map[string]*llx.RawData) (plugin.Resource, error) {
+	res := &mqlMdmIntune{
+		MqlRuntime: runtime,
+	}
+
+	err := SetAllData(res, args)
+	if err != nil {
+		return res, err
+	}
+
+	// to override __id implement: id() (string, error)
+
+	if runtime.HasRecording {
+		args, err = runtime.ResourceFromRecording("mdm.intune", res.__id)
+		if err != nil || args == nil {
+			return res, err
+		}
+		return res, SetAllData(res, args)
+	}
+
+	return res, nil
+}
+
+func (c *mqlMdmIntune) MqlName() string {
+	return "mdm.intune"
+}
+
+func (c *mqlMdmIntune) MqlID() string {
+	return c.__id
+}
+
+func (c *mqlMdmIntune) GetDeviceId() *plugin.TValue[string] {
+	return &c.DeviceId
+}
+
+func (c *mqlMdmIntune) GetTenantId() *plugin.TValue[string] {
+	return &c.TenantId
+}
+
+// mqlDirectory for the directory resource
+type mqlDirectory struct {
+	MqlRuntime *plugin.Runtime
+	__id       string
+	mqlDirectoryInternal
+	Joined plugin.TValue[bool]
+	Entra  plugin.TValue[*mqlDirectoryEntra]
+}
+
+// createDirectory creates a new instance of this resource
+func createDirectory(runtime *plugin.Runtime, args map[string]*llx.RawData) (plugin.Resource, error) {
+	res := &mqlDirectory{
+		MqlRuntime: runtime,
+	}
+
+	err := SetAllData(res, args)
+	if err != nil {
+		return res, err
+	}
+
+	if res.__id == "" {
+		res.__id, err = res.id()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if runtime.HasRecording {
+		args, err = runtime.ResourceFromRecording("directory", res.__id)
+		if err != nil || args == nil {
+			return res, err
+		}
+		return res, SetAllData(res, args)
+	}
+
+	return res, nil
+}
+
+func (c *mqlDirectory) MqlName() string {
+	return "directory"
+}
+
+func (c *mqlDirectory) MqlID() string {
+	return c.__id
+}
+
+func (c *mqlDirectory) GetJoined() *plugin.TValue[bool] {
+	return plugin.GetOrCompute[bool](&c.Joined, func() (bool, error) {
+		return c.joined()
+	})
+}
+
+func (c *mqlDirectory) GetEntra() *plugin.TValue[*mqlDirectoryEntra] {
+	return plugin.GetOrCompute[*mqlDirectoryEntra](&c.Entra, func() (*mqlDirectoryEntra, error) {
+		if c.MqlRuntime.HasRecording {
+			d, err := c.MqlRuntime.FieldResourceFromRecording("directory", c.__id, "entra")
+			if err != nil {
+				return nil, err
+			}
+			if d != nil {
+				return d.Value.(*mqlDirectoryEntra), nil
+			}
+		}
+
+		return c.entra()
+	})
+}
+
+// mqlDirectoryEntra for the directory.entra resource
+type mqlDirectoryEntra struct {
+	MqlRuntime *plugin.Runtime
+	__id       string
+	// optional: if you define mqlDirectoryEntraInternal it will be used here
+	DeviceId plugin.TValue[string]
+	TenantId plugin.TValue[string]
+}
+
+// createDirectoryEntra creates a new instance of this resource
+func createDirectoryEntra(runtime *plugin.Runtime, args map[string]*llx.RawData) (plugin.Resource, error) {
+	res := &mqlDirectoryEntra{
+		MqlRuntime: runtime,
+	}
+
+	err := SetAllData(res, args)
+	if err != nil {
+		return res, err
+	}
+
+	// to override __id implement: id() (string, error)
+
+	if runtime.HasRecording {
+		args, err = runtime.ResourceFromRecording("directory.entra", res.__id)
+		if err != nil || args == nil {
+			return res, err
+		}
+		return res, SetAllData(res, args)
+	}
+
+	return res, nil
+}
+
+func (c *mqlDirectoryEntra) MqlName() string {
+	return "directory.entra"
+}
+
+func (c *mqlDirectoryEntra) MqlID() string {
+	return c.__id
+}
+
+func (c *mqlDirectoryEntra) GetDeviceId() *plugin.TValue[string] {
+	return &c.DeviceId
+}
+
+func (c *mqlDirectoryEntra) GetTenantId() *plugin.TValue[string] {
+	return &c.TenantId
 }
 
 // mqlCloud for the cloud resource

@@ -14,6 +14,7 @@ import (
 	"go.mondoo.com/mql/providers-sdk/v1/inventory"
 	"go.mondoo.com/mql/providers-sdk/v1/plugin"
 	"go.mondoo.com/mql/providers/os/connection/shared"
+	detwin "go.mondoo.com/mql/providers/os/detector/windows"
 	"go.mondoo.com/mql/providers/os/resources/powershell"
 	"go.mondoo.com/mql/providers/os/resources/windows"
 )
@@ -73,13 +74,44 @@ type mdmResult struct {
 	enrolled  bool
 	serverURL string
 	method    string
+	identity  detwin.DeviceIdentity
 }
 
-func (r mdmResult) set(m *mqlMdm) {
+func (r mdmResult) set(m *mqlMdm) error {
+	vendor := mdmVendor(r.serverURL)
 	m.Enrolled = plugin.TValue[bool]{Data: r.enrolled, State: plugin.StateIsSet}
 	m.ServerUrl = mdmStringField(r.serverURL)
-	m.Vendor = mdmStringField(mdmVendor(r.serverURL))
+	m.Vendor = mdmStringField(vendor)
 	m.Method = mdmStringField(r.method)
+
+	// The Intune details describe the MDM enrollment, so they are only reported
+	// while the device is enrolled in Intune: a certificate left behind by an
+	// earlier enrollment must not pass as the current one.
+	if !r.enrolled || vendor != "intune" {
+		m.DeviceId = mdmStringField("")
+		m.Intune = plugin.TValue[*mqlMdmIntune]{State: plugin.StateIsSet | plugin.StateIsNull}
+		return nil
+	}
+	m.DeviceId = mdmStringField(r.identity.IntuneDeviceID)
+	raw, err := CreateResource(m.MqlRuntime, "mdm.intune", map[string]*llx.RawData{
+		"__id":     llx.StringData("mdm.intune"),
+		"deviceId": mdmStringData(r.identity.IntuneDeviceID),
+		"tenantId": mdmStringData(r.identity.EntraTenantID),
+	})
+	if err != nil {
+		return err
+	}
+	m.Intune = plugin.TValue[*mqlMdmIntune]{Data: raw.(*mqlMdmIntune), State: plugin.StateIsSet}
+	return nil
+}
+
+// mdmStringData is mdmStringField for resource arguments: an empty string is
+// null.
+func mdmStringData(v string) *llx.RawData {
+	if v == "" {
+		return llx.NilData
+	}
+	return llx.StringData(v)
 }
 
 func mdmStringField(v string) plugin.TValue[string] {
@@ -144,9 +176,15 @@ func (m *mqlMdm) populate() error {
 		if err != nil {
 			return err
 		}
+		// The device identity is detected once, with the platform, from the
+		// device certificates; reading it back from the platform labels keeps
+		// these fields and the labels from ever disagreeing.
+		res.identity = detwin.DeviceIdentityFromLabels(platform)
 	}
 
-	res.set(m)
+	if err := res.set(m); err != nil {
+		return err
+	}
 	m.fetched = true
 	return nil
 }
@@ -189,3 +227,29 @@ func (m *mqlMdm) enrolled() (bool, error)    { return false, m.populate() }
 func (m *mqlMdm) vendor() (string, error)    { return "", m.populate() }
 func (m *mqlMdm) serverUrl() (string, error) { return "", m.populate() }
 func (m *mqlMdm) method() (string, error)    { return "", m.populate() }
+func (m *mqlMdm) deviceId() (string, error)  { return "", m.populate() }
+func (m *mqlMdm) intune() (*mqlMdmIntune, error) {
+	return nil, m.populate()
+}
+
+// initMdmIntune makes mdm.intune reachable by its own path. The resource
+// shares its name with the mdm field that returns it, so a query for
+// mdm.intune resolves to the resource; without this it would be built from
+// empty arguments and report null for every field.
+func initMdmIntune(runtime *plugin.Runtime, args map[string]*llx.RawData) (map[string]*llx.RawData, plugin.Resource, error) {
+	if _, ok := args["__id"]; ok {
+		return args, nil, nil
+	}
+	parent, err := CreateResource(runtime, "mdm", map[string]*llx.RawData{})
+	if err != nil {
+		return nil, nil, err
+	}
+	v := parent.(*mqlMdm).GetIntune()
+	if v.Error != nil {
+		return nil, nil, v.Error
+	}
+	if v.IsNull() {
+		return nil, nil, errors.New("cannot read mdm.intune: the device is not enrolled in Microsoft Intune")
+	}
+	return args, v.Data, nil
+}
